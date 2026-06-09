@@ -10,7 +10,7 @@ function gradeColor(grade) {
   if (grade === "D+" || grade === "D" || grade === "D-") return "#ff9800";
   return "#ff5252";
 }
-
+//update
 function gradeClass(grade) {
   if (grade === "A+" || grade === "A" || grade === "A-") return "text-[#00e676]";
   if (grade === "B+" || grade === "B" || grade === "B-") return "text-[#00d4ff]";
