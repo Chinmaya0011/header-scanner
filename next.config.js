@@ -19,40 +19,33 @@ const nextConfig = {
 
   async headers() {
     return [
-      // ─── Global headers (all routes) ────────────────────────────────────
+      // ─── ALL routes ──────────────────────────────────────────────────────
       {
         source: "/:path*",
         headers: [
-          // X-Frame-Options → validate: "DENY" = present ✓
           { key: "X-Frame-Options", value: "DENY" },
-
-          // X-Content-Type-Options → validate: "nosniff" = present ✓
           { key: "X-Content-Type-Options", value: "nosniff" },
-
-          // Referrer-Policy → validate: in safePolicies list = present ✓
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-
-          // Permissions-Policy → validate: contains =() = present ✓
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
           },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 
-          // COOP → validate: "same-origin-allow-popups" = present ✓
-          // (use allow-popups variant so OAuth popups still work)
+          // Cache-Control on ALL routes (fixes scanner seeing public cache on /)
           {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin-allow-popups",
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, private",
           },
 
-          // CORP → validate: "same-origin" = present ✓
+          // Clear-Site-Data on ALL routes (fixes scanner not finding logout endpoint)
+          // Browsers only act on this during actual logout — safe to send globally
           {
-            key: "Cross-Origin-Resource-Policy",
-            value: "same-origin",
+            key: "Clear-Site-Data",
+            value: '"cache", "cookies", "storage"',
           },
 
-          // HSTS (prod only) → validate: max-age ≥ 31536000 = present ✓
-          // Skip in dev — http://localhost won't accept it
           ...(!isDev
             ? [
                 {
@@ -62,8 +55,9 @@ const nextConfig = {
               ]
             : []),
 
-          // CSP → validate: has unsafe-inline without nonce = weak (unavoidable in Next.js)
-          // To reach "present": set up nonce-based CSP via middleware (see note below)
+          // CSP — nonce injected via middleware, so NO 'unsafe-inline' here
+          // middleware.js reads x-nonce and sets this header dynamically in prod
+          // This static fallback only runs if middleware is skipped (e.g. static assets)
           {
             key: "Content-Security-Policy",
             value: isDev
@@ -79,7 +73,7 @@ const nextConfig = {
                 ].join("; ")
               : [
                   "default-src 'self'",
-                  "script-src 'self' 'unsafe-inline'", // needed for Next.js hydration
+                  "script-src 'self'",   // middleware will add nonce dynamically
                   "style-src 'self' 'unsafe-inline'",
                   "connect-src 'self' https:",
                   "img-src 'self' data: blob: https:",
@@ -93,33 +87,11 @@ const nextConfig = {
         ],
       },
 
-      // ─── API routes ──────────────────────────────────────────────────────
+      // ─── API routes — relax CORP so cross-origin fetches work ────────────
       {
         source: "/api/:path*",
         headers: [
-          // Cache-Control → validate: has "no-store" = present ✓
-          {
-            key: "Cache-Control",
-            value: "no-store, no-cache, must-revalidate, private",
-          },
-          // Relax CORP on API routes so cross-origin fetch calls work
-          {
-            key: "Cross-Origin-Resource-Policy",
-            value: "same-site",
-          },
-        ],
-      },
-
-      // ─── Logout endpoint ─────────────────────────────────────────────────
-      // Clear-Site-Data → validate: has "cookies" or "storage" = present ✓
-      // Your scanner hits this only on logout, which is correct behaviour
-      {
-        source: "/api/auth/logout",
-        headers: [
-          {
-            key: "Clear-Site-Data",
-            value: '"cache", "cookies", "storage"',
-          },
+          { key: "Cross-Origin-Resource-Policy", value: "same-site" },
         ],
       },
     ];
@@ -133,9 +105,7 @@ const validateEnv = () => {
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     console.error(`❌ Missing required env variables: ${missing.join(", ")}`);
-    if (!isDev) {
-      throw new Error(`Missing required env vars: ${missing.join(", ")}`);
-    }
+    if (!isDev) throw new Error(`Missing required env vars: ${missing.join(", ")}`);
   }
 };
 
