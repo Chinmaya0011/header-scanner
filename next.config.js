@@ -63,7 +63,7 @@ const nextConfig = {
       'style-src-elem': ["'self'", "'unsafe-inline'"],
       'img-src': ["'self'", "data:", "blob:", "https://avatars.githubusercontent.com", "https://lh3.googleusercontent.com"],
       'font-src': ["'self'", "data:", "https://fonts.gstatic.com"],
-      'connect-src': [...allowedOrigins], // Only connect to self and allowed dev origins
+      'connect-src': [...allowedOrigins,"https"], // Only connect to self and allowed dev origins
       'frame-src': ["'self'"],
       'frame-ancestors': ["'none'"],
       'form-action': ["'self'"],
