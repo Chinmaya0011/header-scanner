@@ -19,21 +19,51 @@ const nextConfig = {
 
   async headers() {
     return [
+      // ─── Global headers (all routes) ────────────────────────────────────
       {
         source: "/:path*",
         headers: [
+          // X-Frame-Options → validate: "DENY" = present ✓
           { key: "X-Frame-Options", value: "DENY" },
+
+          // X-Content-Type-Options → validate: "nosniff" = present ✓
           { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-XSS-Protection", value: "1; mode=block" },
+
+          // Referrer-Policy → validate: in safePolicies list = present ✓
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+
+          // Permissions-Policy → validate: contains =() = present ✓
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
           },
-          // HSTS - add this, was missing entirely
+
+          // COOP → validate: "same-origin-allow-popups" = present ✓
+          // (use allow-popups variant so OAuth popups still work)
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin-allow-popups",
+          },
+
+          // CORP → validate: "same-origin" = present ✓
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "same-origin",
+          },
+
+          // HSTS (prod only) → validate: max-age ≥ 31536000 = present ✓
+          // Skip in dev — http://localhost won't accept it
           ...(!isDev
-            ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]
+            ? [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=63072000; includeSubDomains; preload",
+                },
+              ]
             : []),
+
+          // CSP → validate: has unsafe-inline without nonce = weak (unavoidable in Next.js)
+          // To reach "present": set up nonce-based CSP via middleware (see note below)
           {
             key: "Content-Security-Policy",
             value: isDev
@@ -42,35 +72,53 @@ const nextConfig = {
                   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
                   "style-src 'self' 'unsafe-inline'",
                   "connect-src 'self' http://localhost:* https:",
-                  "img-src 'self' data: https:",
+                  "img-src 'self' data: blob: https:",
                   "font-src 'self' data: https://fonts.gstatic.com",
+                  "object-src 'none'",
+                  "base-uri 'self'",
                 ].join("; ")
               : [
                   "default-src 'self'",
-                  // Next.js needs 'unsafe-inline' for its runtime scripts in prod
-                  // If you use next/script with nonces, you can remove this
-                  "script-src 'self' 'unsafe-inline'",
+                  "script-src 'self' 'unsafe-inline'", // needed for Next.js hydration
                   "style-src 'self' 'unsafe-inline'",
                   "connect-src 'self' https:",
-                  "img-src 'self' data: https: blob:",
+                  "img-src 'self' data: blob: https:",
                   "font-src 'self' data: https://fonts.gstatic.com",
+                  "object-src 'none'",
+                  "base-uri 'self'",
                   "frame-ancestors 'none'",
+                  "upgrade-insecure-requests",
                 ].join("; "),
           },
         ],
       },
 
-      // API routes
+      // ─── API routes ──────────────────────────────────────────────────────
       {
         source: "/api/:path*",
         headers: [
+          // Cache-Control → validate: has "no-store" = present ✓
           {
             key: "Cache-Control",
             value: "no-store, no-cache, must-revalidate, private",
           },
+          // Relax CORP on API routes so cross-origin fetch calls work
           {
-            key: "Content-Security-Policy",
-            value: "default-src 'self'; connect-src 'self' https: http:",
+            key: "Cross-Origin-Resource-Policy",
+            value: "same-site",
+          },
+        ],
+      },
+
+      // ─── Logout endpoint ─────────────────────────────────────────────────
+      // Clear-Site-Data → validate: has "cookies" or "storage" = present ✓
+      // Your scanner hits this only on logout, which is correct behaviour
+      {
+        source: "/api/auth/logout",
+        headers: [
+          {
+            key: "Clear-Site-Data",
+            value: '"cache", "cookies", "storage"',
           },
         ],
       },
@@ -83,7 +131,6 @@ const nextConfig = {
 const validateEnv = () => {
   const required = ["MONGODB_URI"];
   const missing = required.filter((key) => !process.env[key]);
-
   if (missing.length > 0) {
     console.error(`❌ Missing required env variables: ${missing.join(", ")}`);
     if (!isDev) {
