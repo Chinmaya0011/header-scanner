@@ -87,14 +87,7 @@ export default function HistoryTable({ scans }) {
                     {formatDate(scan.createdAt)}
                   </span>
                 </td>
-                <td className="px-4 py-4 text-right">
-                  <Link
-                    href={`/scan/${scan._id}`}
-                    className="inline-flex items-center gap-1 text-accent text-xs hover:text-accent-dim transition-colors font-mono"
-                  >
-                    Details <MdArrowForward />
-                  </Link>
-                </td>
+               
               </tr>
             ))}
           </tbody>
