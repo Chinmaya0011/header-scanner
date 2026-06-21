@@ -1,8 +1,11 @@
 // app/layout.js
 import { headers } from "next/headers";
+import { ToastProvider } from "@/components/Toast";
 import "./globals.css";
 
+
 export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"),
   title: {
     default: "HeaderGuard — HTTP Security Header Scanner",
     template: "%s | HeaderGuard",
@@ -112,7 +115,7 @@ export default async function RootLayout({ children }) {
         className="min-h-screen bg-bg antialiased"
         suppressHydrationWarning 
       >
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

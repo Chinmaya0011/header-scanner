@@ -2,11 +2,24 @@ import mongoose from "mongoose";
 
 const HeaderResultSchema = new mongoose.Schema({
   name: String,
-  status: { type: String, enum: ["present", "missing", "weak"] },
+  status: { type: String, enum: ["present", "missing", "weak", "invalid"] },
   value: String,
   description: String,
   recommendation: String,
   severity: { type: String, enum: ["critical", "high", "medium", "low", "info"] },
+});
+
+const RecommendationSchema = new mongoose.Schema({
+  header: String,
+  severity: String,
+  recommendation: String,
+  expectedFormat: String,
+  reference: String,
+});
+
+const ComplianceItemSchema = new mongoose.Schema({
+  compliant: { type: Boolean, default: false },
+  recommendation: String,
 });
 
 const ScanSchema = new mongoose.Schema(
@@ -23,6 +36,15 @@ const ScanSchema = new mongoose.Schema(
       present: Number,
       missing: Number,
       weak: Number,
+      invalid: Number,
+    },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    recommendations: [RecommendationSchema],
+    compliance: {
+      GDPR: ComplianceItemSchema,
+      PCI_DSS: ComplianceItemSchema,
+      OWASP: ComplianceItemSchema,
+      NIST: ComplianceItemSchema,
     },
   },
   { timestamps: true }

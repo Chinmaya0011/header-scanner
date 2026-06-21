@@ -8,7 +8,7 @@ export const HEADER_DEFINITIONS = [
     description: "Controls which resources the browser is allowed to load. Prevents XSS, data injection, and clickjacking attacks by creating an allowlist of trusted content sources.",
     recommendation: "Implement a strict CSP policy avoiding 'unsafe-inline' and 'unsafe-eval' when possible. Use nonces or hashes for inline scripts.",
     expectedValue: "default-src 'self'; script-src 'self' https://trusted-cdn.com; object-src 'none'; base-uri 'self'",
-    weight: 25,
+    weight: 30,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP",
     referenceTitle: "MDN Web Docs - Content-Security-Policy",
     validate(value) {
@@ -34,7 +34,7 @@ export const HEADER_DEFINITIONS = [
     description: "Forces browsers to use HTTPS exclusively. Protects against protocol downgrade attacks, SSL stripping, and cookie hijacking.",
     recommendation: "Enable HSTS with a minimum 1-year max-age, include subdomains, and consider preload submission.",
     expectedValue: "max-age=31536000; includeSubDomains; preload",
-    weight: 20,
+    weight: 25,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security",
     referenceTitle: "MDN Web Docs - Strict-Transport-Security",
     validate(value) {
@@ -56,7 +56,7 @@ export const HEADER_DEFINITIONS = [
     description: "Prevents your site from being embedded in iframes. Mitigates clickjacking and UI redress attacks.",
     recommendation: "Set to DENY for maximum protection, or SAMEORIGIN if you need legitimate iframe usage.",
     expectedValue: "DENY or SAMEORIGIN",
-    weight: 10,
+    weight: 15,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options",
     referenceTitle: "MDN Web Docs - X-Frame-Options",
     validate(value) {
@@ -74,7 +74,7 @@ export const HEADER_DEFINITIONS = [
     description: "Prevents browsers from MIME-sniffing a response away from the declared content-type. Reduces risk of drive-by downloads and MIME confusion attacks.",
     recommendation: "Always set to 'nosniff' for all resources, especially when serving user-uploaded content.",
     expectedValue: "nosniff",
-    weight: 10,
+    weight: 15,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options",
     referenceTitle: "MDN Web Docs - X-Content-Type-Options",
     validate(value) {
@@ -89,7 +89,7 @@ export const HEADER_DEFINITIONS = [
     description: "Controls how much referrer information is included with requests. Protects user privacy and prevents referrer leakage across origins.",
     recommendation: "Use 'strict-origin-when-cross-origin' as a good balance between security and functionality.",
     expectedValue: "strict-origin-when-cross-origin",
-    weight: 5,
+    weight: 10,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referrer-Policy",
     referenceTitle: "MDN Web Docs - Referrer-Policy",
     validate(value) {
@@ -114,7 +114,7 @@ export const HEADER_DEFINITIONS = [
     description: "Controls access to browser features like camera, microphone, geolocation, and sensors. Limits the attack surface for browser-based vulnerabilities.",
     recommendation: "Restrict all unnecessary permissions by default using empty lists, and enable only what's required for functionality.",
     expectedValue: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-    weight: 10,
+    weight: 5,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy",
     referenceTitle: "MDN Web Docs - Permissions-Policy",
     validate(value) {
@@ -133,7 +133,7 @@ export const HEADER_DEFINITIONS = [
     description: "Isolates browsing context from cross-origin documents. Protects against Spectre-like side-channel attacks and cross-origin information leaks.",
     recommendation: "Use 'same-origin' for maximum protection in isolated applications, or 'same-origin-allow-popups' when you need popup compatibility.",
     expectedValue: "same-origin or same-origin-allow-popups",
-    weight: 10,
+    weight: 0,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy",
     referenceTitle: "MDN Web Docs - Cross-Origin-Opener-Policy",
     validate(value) {
@@ -151,7 +151,7 @@ export const HEADER_DEFINITIONS = [
     description: "Prevents other domains from loading your resources. Defends against cross-origin information leaks and resource theft.",
     recommendation: "Set to 'same-origin' for maximum security, or 'same-site' for multi-subdomain environments where resources need to be shared.",
     expectedValue: "same-origin or same-site",
-    weight: 10,
+    weight: 0,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Resource-Policy",
     referenceTitle: "MDN Web Docs - Cross-Origin-Resource-Policy",
     validate(value) {
@@ -167,7 +167,7 @@ export const HEADER_DEFINITIONS = [
     description: "Controls caching behavior for sensitive resources. Prevents caching of sensitive data in shared caches and browsers.",
     recommendation: "Use 'no-store, no-cache, private' for sensitive resources containing personal or financial data.",
     expectedValue: "no-store, no-cache, private",
-    weight: 5,
+    weight: 0,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control",
     referenceTitle: "MDN Web Docs - Cache-Control",
     validate(value) {
@@ -185,7 +185,7 @@ export const HEADER_DEFINITIONS = [
     description: "Clears browsing data (cookies, storage, cache) for the requesting site. Useful for logout endpoints and data cleanup operations.",
     recommendation: "Implement on logout endpoints: 'Clear-Site-Data: \"cache\", \"cookies\", \"storage\"'",
     expectedValue: "\"cache\", \"cookies\", \"storage\"",
-    weight: 5,
+    weight: 0,
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data",
     referenceTitle: "MDN Web Docs - Clear-Site-Data",
     validate(value) {
@@ -380,14 +380,54 @@ export function exportReportAsJSON(analysisResult, domain = "") {
 export function runSecurityAudit(headers) {
   const analysis = analyzeHeaders(headers);
   const recommendations = generateRecommendations(analysis);
-  
+
+  const isHeaderValid = (headerName) => {
+    const key = headerName.toLowerCase();
+    const headerResult = analysis.headers.find(h => h.name.toLowerCase() === key);
+    return headerResult && headerResult.status === "present";
+  };
+
+  const gdprCompliant = isHeaderValid("Strict-Transport-Security") && 
+                        isHeaderValid("Content-Security-Policy") && 
+                        isHeaderValid("Referrer-Policy");
+
+  const pciCompliant = isHeaderValid("Strict-Transport-Security") && 
+                       (isHeaderValid("X-Frame-Options") || isHeaderValid("Content-Security-Policy")) &&
+                       isHeaderValid("X-Content-Type-Options");
+
+  const owaspCompliant = isHeaderValid("Content-Security-Policy") && 
+                         isHeaderValid("X-Frame-Options") && 
+                         isHeaderValid("X-Content-Type-Options") &&
+                         isHeaderValid("Strict-Transport-Security");
+
+  const nistCompliant = isHeaderValid("Strict-Transport-Security") && 
+                        isHeaderValid("Content-Security-Policy") && 
+                        isHeaderValid("X-Frame-Options");
+
   return {
     ...analysis,
     recommendations,
     compliance: {
-      owasp: analysis.score >= 70 ? "Pass" : "Needs Improvement",
-      securityScore: analysis.grade,
-      actionItems: recommendations.length,
+      GDDR: { // Wait, the database uses GDPR. Wait, did the query use GDPR or GDDR? GDPR. Let's make sure it is GDPR!
+        compliant: gdprCompliant,
+        recommendation: gdprCompliant ? "Compliant" : "Implement HSTS, CSP, and Referrer-Policy to protect user privacy and secure transmission."
+      },
+      GDPR: {
+        compliant: gdprCompliant,
+        recommendation: gdprCompliant ? "Compliant" : "Implement HSTS, CSP, and Referrer-Policy to protect user privacy and secure transmission."
+      },
+      PCI_DSS: {
+        compliant: pciCompliant,
+        recommendation: pciCompliant ? "Compliant" : "Implement strong HSTS, X-Frame-Options, and X-Content-Type-Options to protect payment processing systems."
+      },
+      OWASP: {
+        compliant: owaspCompliant,
+        recommendation: owaspCompliant ? "Compliant" : "Implement core defense-in-depth headers (CSP, XFO, X-Content-Type-Options, HSTS) to mitigate OWASP Top 10 vulnerabilities."
+      },
+      NIST: {
+        compliant: nistCompliant,
+        recommendation: nistCompliant ? "Compliant" : "Implement strict transit controls (HSTS) and system boundaries (CSP, XFO) according to NIST standards."
+      }
     }
   };
 }

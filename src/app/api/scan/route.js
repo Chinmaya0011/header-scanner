@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
+import { getUserFromRequest } from "@/lib/auth";
 import {
   analyzeHeaders,
   maskDomain,
@@ -144,6 +145,16 @@ async function fetchHeaders(url, domain) {
  * Scan a website for security headers
  */
 export async function POST(request) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json(
+      { 
+        error: "Authentication required. Please log in to perform scans.",
+        code: "UNAUTHORIZED"
+      },
+      { status: 401 }
+    );
+  }
   const requestId = Math.random().toString(36).substring(7);
   const startTime = Date.now();
   
@@ -277,6 +288,7 @@ export async function POST(request) {
       statusCode,
       scanDuration,
       summary: analysis.summary,
+      owner: user._id,
       metadata: {
         ...analysis.metadata,
         methodUsed,
@@ -317,8 +329,11 @@ export async function POST(request) {
         methodUsed,
         totalHeadersChecked: analysis.metadata.totalHeadersChecked,
       },
-      // Optional: Add shareable link
       shareUrl: `/share/${scan._id.toString()}`,
+      links: {
+        self: `/api/scan/${scan._id.toString()}`,
+        share: `/share/${scan._id.toString()}`
+      }
     });
     
   } catch (error) {
@@ -339,14 +354,14 @@ export async function POST(request) {
       { 
         error: "An unexpected error occurred. Please try again.",
         code: "INTERNAL_ERROR",
-        reference: requestId, // For debugging
+        reference: requestId,
       },
       { status: 500 }
     );
   }
 }
 
-// Optional: Add OPTIONS handler for CORS preflight
+// OPTIONS handler for CORS preflight
 export async function OPTIONS() {
   return NextResponse.json(
     {},

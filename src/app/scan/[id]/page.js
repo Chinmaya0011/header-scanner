@@ -1,59 +1,89 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import Navbar from "@/components/Navbar";
-import ScanResults from "@/components/ScanResults";
-import { MdArrowBack, MdHistory } from "react-icons/md";
+import ScanDetailClient from "../components/ScanDetailClient";
+import connectDB from "@/lib/mongodb";
+import Scan from "@/lib/models/Scan";
+import { getCurrentUser } from "@/lib/auth";
 
-async function getScan(id) {
+// Direct server-side DB query function
+async function getScanDirectly(id) {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/scan/${id}`,
-      { cache: "no-store" }
+    if (!id || !id.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log("Invalid scan ID format for direct fetch:", id);
+      return null;
+    }
+
+    await connectDB();
+    const scan = await Scan.findById(id).lean();
+
+    if (!scan) {
+      console.log("Scan not found in direct database fetch:", id);
+      return null;
+    }
+
+    // Role-based auth check on the server
+    const user = await getCurrentUser();
+    const isAuthorized = user && (
+      user.role === "admin" ||
+      (scan.owner && scan.owner.toString() === user._id.toString())
     );
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error("Failed");
-    return res.json();
-  } catch {
+
+    // Apply privacy masking if unauthorized
+    const finalScan = isAuthorized 
+      ? scan 
+      : {
+          ...scan,
+          domain: scan.maskedDomain,
+          url: scan.url ? scan.url.replace(scan.domain, scan.maskedDomain) : scan.maskedDomain,
+        };
+
+    // Serialize MongoDB ObjectIds and Dates for standard client components
+    return JSON.parse(JSON.stringify(finalScan));
+  } catch (error) {
+    console.error("Direct server-side fetch error:", error);
     return null;
   }
 }
 
+// SEO Dynamic Metadata Generation
+export async function generateMetadata({ params }) {
+  const { id } = await params;
+  const scan = await getScanDirectly(id);
+  
+  if (!scan) {
+    return {
+      title: "Report Not Found | HeaderGuard",
+    };
+  }
+
+  const siteDomain = scan.domain || scan.maskedDomain;
+  return {
+    title: `Security Header Audit for ${siteDomain} | Grade ${scan.grade}`,
+    description: `HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View missing security headers and fixes.`,
+    openGraph: {
+      title: `HTTP Security Audit: ${siteDomain} — ${scan.grade}`,
+      description: `Security Score: ${scan.score}/100. Audit checks for Content-Security-Policy (CSP), HSTS, X-Frame-Options, CORS, and more.`,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `HTTP Security Audit: ${siteDomain} — ${scan.grade}`,
+      description: `Security Score: ${scan.score}/100. Actionable recommendations inside.`,
+    },
+  };
+}
+
 export default async function ScanDetailPage({ params }) {
-  const scan = await getScan(params.id);
+  const { id: scanId } = await params;
 
-  if (!scan) notFound();
+  if (!scanId) {
+    notFound();
+  }
 
-  return (
-    <div className="min-h-screen bg-bg">
-      <Navbar />
+  const scan = await getScanDirectly(scanId);
 
-      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-10">
-        <div className="flex items-center gap-4 mb-8">
-          <Link
-            href="/history"
-            className="flex items-center gap-1.5 text-text-dim text-sm hover:text-text transition-colors"
-          >
-            <MdArrowBack />
-            Back to History
-          </Link>
-          <span className="text-border">·</span>
-          <div className="flex items-center gap-1.5 text-text-dim text-xs">
-            <MdHistory className="text-xs" />
-            <span>
-              Scanned{" "}
-              {new Date(scan.createdAt).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          </div>
-        </div>
+  if (!scan) {
+    notFound();
+  }
 
-        <ScanResults result={scan} />
-      </main>
-    </div>
-  );
+  return <ScanDetailClient scan={scan} id={scanId} />;
 }

@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+import User from "./models/User";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -12,6 +14,32 @@ if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
 }
 
+async function seedAdmin() {
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminEmail || !adminPassword) {
+      console.warn("Seeding skipped: ADMIN_EMAIL or ADMIN_PASSWORD not configured in environment variables.");
+      return;
+    }
+
+    const existingAdmin = await User.findOne({ email: adminEmail });
+    if (!existingAdmin) {
+      console.log("Seeding admin user...");
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+      await User.create({
+        email: adminEmail,
+        password: hashedPassword,
+        role: "admin",
+      });
+      console.log("Admin user seeded successfully.");
+    }
+  } catch (error) {
+    console.error("Failed to seed admin:", error);
+  }
+}
+
 async function connectDB() {
   if (cached.conn) return cached.conn;
 
@@ -22,6 +50,7 @@ async function connectDB() {
   }
 
   cached.conn = await cached.promise;
+  await seedAdmin();
   return cached.conn;
 }
 

@@ -1,29 +1,28 @@
 import Navbar from "@/components/Navbar";
 import ScannerForm from "@/components/ScannerForm";
-import { MdShield, MdSpeed, MdStorage } from "react-icons/md";
+import { Shield, Zap, Database } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="min-h-screen bg-bg font-mono">
       <Navbar />
 
-      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20">
+      <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12 sm:py-20 select-none animate-fadeInUp">
         {/* Hero */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent text-xs font-mono mb-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent text-[10px] font-bold uppercase tracking-wider mb-6">
             <span className="h-1.5 w-1.5 rounded-full bg-accent pulse-accent" />
-            Security Analysis Tool
+            Security Analysis Console
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-bold text-text tracking-tight mb-4">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-text tracking-widest uppercase mb-4 leading-tight">
             Scan your site&apos;s
             <br />
             <span className="text-accent">security headers</span>
           </h1>
 
-          <p className="text-text-dim text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
-            Enter any domain or URL to get an instant security report on your HTTP
-            response headers — with a score, grade, and actionable fixes.
+          <p className="text-text-dim text-xs sm:text-sm max-w-md mx-auto leading-relaxed uppercase tracking-wider">
+            Audit response headers for Content-Security-Policy, HSTS, CORS misconfigurations, and receive fix instructions.
           </p>
         </div>
 
@@ -33,19 +32,19 @@ export default function HomePage() {
         {/* Feature chips */}
         <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <FeatureChip
-            icon={MdShield}
+            icon={Shield}
             title="8 Headers Checked"
             desc="CSP, HSTS, X-Frame, CORS, and more"
           />
           <FeatureChip
-            icon={MdSpeed}
+            icon={Zap}
             title="Instant Results"
-            desc="Real-time fetch with scoring & grade"
+            desc="Real-time evaluation with grades"
           />
           <FeatureChip
-            icon={MdStorage}
-            title="Scan History"
-            desc="All results saved with privacy masking"
+            icon={Database}
+            title="Secure logs"
+            desc="All history archived with privacy masking"
           />
         </div>
       </main>
@@ -55,12 +54,12 @@ export default function HomePage() {
 
 function FeatureChip({ icon: Icon, title, desc }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-xl border border-border bg-surface p-5 hover:border-accent/40 transition-colors">
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="text-accent text-lg" />
-        <span className="text-text text-sm font-semibold">{title}</span>
+        <Icon className="text-accent h-4 w-4" />
+        <span className="text-text text-xs font-bold uppercase tracking-wider">{title}</span>
       </div>
-      <p className="text-text-dim text-xs leading-relaxed">{desc}</p>
+      <p className="text-text-dim text-[11px] leading-relaxed">{desc}</p>
     </div>
   );
 }
