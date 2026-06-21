@@ -4,7 +4,7 @@ import { getUserFromRequest } from "@/lib/auth";
 export async function GET(request) {
   try {
     const user = await getUserFromRequest(request);
-    
+
     if (!user) {
       return NextResponse.json({
         success: true,
@@ -21,6 +21,7 @@ export async function GET(request) {
         email: user.email,
         role: user.role,
         createdAt: user.createdAt,
+        emailVerified: user.isVerified,
       },
     });
   } catch (error) {
