@@ -619,6 +619,305 @@ export function runSecurityAudit(headers, url = "", statusCode = null) {
                         isHeaderValid("Content-Security-Policy") && 
                         isHeaderValid("X-Frame-Options");
 
+  // Construct structured scans checks list dynamically
+  const checks = [];
+
+  // 1. Security Headers category
+  analysis.headers.forEach(h => {
+    checks.push({
+      id: `header-${h.name.toLowerCase()}`,
+      category: "security-headers",
+      title: `${h.name} Security Header Check`,
+      severity: h.severity,
+      status: h.status === "present" ? "passed" : h.status === "weak" ? "warning" : "failed",
+      description: h.description,
+      evidence: h.value ? `Header present with value: "${h.value}"` : "Header is missing from response",
+      whyItMatters: `This header controls access permissions and sets browsing boundaries. Lacking it exposes browsers to security hazards.`,
+      recommendation: h.recommendation || `None. The header is correctly implemented.`,
+      references: h.reference ? [h.reference] : []
+    });
+  });
+
+  // 2. CSP Analysis category
+  const cspHeader = analysis.headers.find(h => h.name.toLowerCase() === "content-security-policy");
+  const cspValue = cspHeader ? cspHeader.value : null;
+  let cspStatus = "failed";
+  let cspEvidence = "No Content-Security-Policy header found.";
+  let cspRecommend = "Implement a strict Content-Security-Policy (CSP) header.";
+  if (cspValue) {
+    if (cspValue.includes("unsafe-inline") || cspValue.includes("unsafe-eval")) {
+      cspStatus = "warning";
+      cspEvidence = "CSP found but contains 'unsafe-inline' or 'unsafe-eval' directives which bypass modern XSS controls.";
+      cspRecommend = "Remove 'unsafe-inline' and 'unsafe-eval' from your policy. Use cryptographic nonces or hashes for scripts.";
+    } else {
+      cspStatus = "passed";
+      cspEvidence = "CSP is present and avoids unsafe inline directives.";
+      cspRecommend = "Ensure the policy stays strict during stack updates.";
+    }
+  }
+  checks.push({
+    id: "check-csp-policy",
+    category: "csp",
+    title: "Content Security Policy Strictness Audit",
+    severity: "critical",
+    status: cspStatus,
+    description: "Evaluates the robustness of CSP policy directives, flagging scripting hazards.",
+    evidence: cspEvidence,
+    whyItMatters: "CSP is the ultimate defense-in-depth shield against Cross-Site Scripting (XSS) and client-side injections.",
+    recommendation: cspRecommend,
+    references: ["https://web.dev/csp/", "https://csp.withgoogle.com/"]
+  });
+
+  // 3. HSTS Analysis category
+  const hstsHeader = analysis.headers.find(h => h.name.toLowerCase() === "strict-transport-security");
+  const hstsValue = hstsHeader ? hstsHeader.value : null;
+  let hstsStatus = "failed";
+  let hstsEvidence = "HSTS header is missing.";
+  let hstsRecommend = "Implement HSTS with a minimum max-age of 1 year (31536000 seconds).";
+  if (hstsValue) {
+    const maxAgeMatch = hstsValue.match(/max-age=(\d+)/);
+    const hasSubdomains = hstsValue.toLowerCase().includes("includesubdomains");
+    const hasPreload = hstsValue.toLowerCase().includes("preload");
+    const maxAge = maxAgeMatch ? parseInt(maxAgeMatch[1]) : 0;
+    
+    if (maxAge >= 31536000) {
+      if (hasSubdomains && hasPreload) {
+        hstsStatus = "passed";
+        hstsEvidence = `HSTS fully enabled (max-age=${maxAge}, includeSubDomains, preload).`;
+        hstsRecommend = "None. HSTS matches the highest security standards.";
+      } else {
+        hstsStatus = "warning";
+        hstsEvidence = `HSTS max-age is sufficient (${maxAge}s) but lacks subdomains or preload configuration.`;
+        hstsRecommend = "Append '; includeSubDomains; preload' to your HSTS header value.";
+      }
+    } else {
+      hstsStatus = "warning";
+      hstsEvidence = `HSTS is active but has a weak max-age duration (${maxAge} seconds).`;
+      hstsRecommend = "Update max-age parameter to at least 31536000 seconds (1 year).";
+    }
+  }
+  checks.push({
+    id: "check-hsts-policy",
+    category: "hsts",
+    title: "HTTP Strict Transport Security Enforcements",
+    severity: "high",
+    status: hstsStatus,
+    description: "Validates HSTS parameters like max-age duration, subdomains coverage, and preload inclusion.",
+    evidence: hstsEvidence,
+    whyItMatters: "HSTS protects against protocol downgrade attacks (e.g. SSL stripping) and cookie hijacking.",
+    recommendation: hstsRecommend,
+    references: ["https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Strict_Transport_Security_Cheat_Sheet.html"]
+  });
+
+  // 4. SSL/TLS Info category
+  const isHttps = url.toLowerCase().startsWith("https://");
+  checks.push({
+    id: "check-ssl-tls",
+    category: "ssl-tls",
+    title: "SSL/TLS Secure Channel Validation",
+    severity: "high",
+    status: isHttps ? "passed" : "failed",
+    description: "Checks if the target web endpoint forces secure connection layers (HTTPS/TLS).",
+    evidence: isHttps ? "Secure protocol TLS (HTTPS) detected." : "Insecure communication protocol HTTP in use.",
+    whyItMatters: "Plaintext HTTP data transfers can be sniffed or modified in transit, violating basic privacy standards.",
+    recommendation: isHttps ? "None. Ensure all assets resolve strictly under HTTPS." : "Acquire a valid SSL certificate and configure absolute redirection from HTTP to HTTPS.",
+    references: ["https://letsencrypt.org/about-secure-connections/"]
+  });
+
+  // 5. CORS Checks category
+  const corsAllowOrigin = headers["access-control-allow-origin"];
+  const corsAllowCredentials = headers["access-control-allow-credentials"];
+  let corsStatus = "passed";
+  let corsEvidence = "No CORS headers found, defaulting to same-origin policies.";
+  let corsRecommend = "Keep CORS restricted unless cross-site sharing is needed.";
+  if (corsAllowOrigin) {
+    if (corsAllowOrigin === "*") {
+      if (corsAllowCredentials === "true") {
+        corsStatus = "failed";
+        corsEvidence = "Dangerous combination: Access-Control-Allow-Origin is wildcard '*' while Credentials are enabled.";
+        corsRecommend = "Specify explicit, trusted origins instead of wildcard '*' if credentials sharing is needed.";
+      } else {
+        corsStatus = "warning";
+        corsEvidence = "CORS origin is wildcard '*', allowing any origin client script to fetch data.";
+        corsRecommend = "For private resources, set explicit origins or dynamic runtime mirrors.";
+      }
+    } else {
+      corsEvidence = `CORS allowed for specific origin: "${corsAllowOrigin}".`;
+      corsStatus = "passed";
+    }
+  }
+  checks.push({
+    id: "check-cors",
+    category: "cors",
+    title: "Cross-Origin Resource Sharing Rules",
+    severity: "medium",
+    status: corsStatus,
+    description: "Evaluates Access-Control-Allow-Origin configurations for insecure wildcard or credential patterns.",
+    evidence: corsEvidence,
+    whyItMatters: "Misconfigured CORS policies can expose private user content and cookies to malicious cross-site code.",
+    recommendation: corsRecommend,
+    references: ["https://portswigger.net/web-security/cors"]
+  });
+
+  // 6. Cookie Security category
+  const setCookieHeader = headers["set-cookie"];
+  let cookieStatus = "passed";
+  let cookieEvidence = "No cookies set in response.";
+  let cookieRecommend = "No cookies set.";
+  if (setCookieHeader) {
+    let rawCookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+    let insecureCookies = [];
+    rawCookies.forEach(c => {
+      const lower = c.toLowerCase();
+      const name = c.split(";")[0]?.split("=")[0]?.trim() || "Cookie";
+      const hasHttpOnly = lower.includes("httponly");
+      const hasSecure = lower.includes("secure");
+      const hasSameSite = lower.includes("samesite");
+      if (!hasHttpOnly || !hasSecure || !hasSameSite) {
+        insecureCookies.push(name);
+      }
+    });
+    
+    if (insecureCookies.length > 0) {
+      cookieStatus = "warning";
+      cookieEvidence = `Insecure attributes on cookie(s): [${insecureCookies.join(", ")}].`;
+      cookieRecommend = "Ensure all sensitive session cookies set HttpOnly, Secure, and SameSite=Lax/Strict flags.";
+    } else {
+      cookieEvidence = "All cookies set secure flags (HttpOnly, Secure, SameSite).";
+      cookieRecommend = "None. Cookies are correctly secured.";
+    }
+  }
+  checks.push({
+    id: "check-cookie-security",
+    category: "cookie",
+    title: "Response Cookie Flag Integrity",
+    severity: "high",
+    status: cookieStatus,
+    description: "Inspects Set-Cookie parameters for missing security directives (HttpOnly, Secure, SameSite).",
+    evidence: cookieEvidence,
+    whyItMatters: "Missing HttpOnly allows session theft via XSS, missing Secure allows eavesdropping, and missing SameSite increases CSRF risk.",
+    recommendation: cookieRecommend,
+    references: ["https://owasp.org/www-community/HttpOnly"]
+  });
+
+  // 7. Server Information Disclosure
+  const serverBanner = headers["server"];
+  const poweredBy = headers["x-powered-by"];
+  let infoStatus = "passed";
+  let infoEvidence = "No software brand disclosures found in Server/X-Powered-By headers.";
+  let infoRecommend = "None. Software names are hidden.";
+  
+  if (serverBanner || poweredBy) {
+    const isVerbose = serverBanner && /\d|apache|nginx|iis|windows|ubuntu/i.test(serverBanner);
+    if (isVerbose || poweredBy) {
+      infoStatus = "warning";
+      infoEvidence = `Disclosed stack banners: Server: "${serverBanner || 'none'}", X-Powered-By: "${poweredBy || 'none'}".`;
+      infoRecommend = "Configure backend servers to hide detailed version banners (e.g. expose_php=off, ServerTokens Prod).";
+    } else {
+      infoEvidence = `Suppressed server disclosure: Server: "${serverBanner || 'none'}".`;
+    }
+  }
+  checks.push({
+    id: "check-server-disclosure",
+    category: "server-info",
+    title: "Server Stack Banner Exposure",
+    severity: "low",
+    status: infoStatus,
+    description: "Inspects HTTP Server and X-Powered-By headers for version names and software names.",
+    evidence: infoEvidence,
+    whyItMatters: "Exposing stack software names makes footprinting easy for attackers looking to exploit platform version vulnerabilities.",
+    recommendation: infoRecommend,
+    references: ["https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/02-Fingerprint_Web_Server"]
+  });
+
+  // 8. Robots.txt check
+  checks.push({
+    id: "check-robots-txt",
+    category: "robots-txt",
+    title: "Crawler Configuration (Robots.txt) Indexing Check",
+    severity: "info",
+    status: "info",
+    description: "Checks for robots.txt files which govern crawler search indexing access restrictions.",
+    evidence: `Robots.txt is expected to be present at ${url}/robots.txt.`,
+    whyItMatters: "Robots.txt helps manage crawler access and crawl budgets to protect administrative URLs.",
+    recommendation: "Ensure robots.txt exists, does not expose sensitive URLs, and points to sitemap.xml.",
+    references: ["https://developers.google.com/search/docs/crawling-indexing/robots/intro"]
+  });
+
+  // 9. Sitemap Check
+  checks.push({
+    id: "check-sitemap-xml",
+    category: "sitemap",
+    title: "Sitemap.xml Registration Check",
+    severity: "info",
+    status: "info",
+    description: "Checks if a sitemap file is configured to aid search engine index mappings.",
+    evidence: `Sitemap file typically resides at ${url}/sitemap.xml.`,
+    whyItMatters: "Sitemaps help engines index site structures efficiently, especially for larger portals.",
+    recommendation: "Generate and configure a sitemap.xml file, mapping out public URLs, and link it inside robots.txt.",
+    references: ["https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview"]
+  });
+
+  // 10. Mixed Content Check
+  let mcStatus = isHttps ? "passed" : "warning";
+  checks.push({
+    id: "check-mixed-content",
+    category: "mixed-content",
+    title: "Mixed Content Security Check",
+    severity: "medium",
+    status: mcStatus,
+    description: "Checks if insecure assets (HTTP) are being resolved inside secure pages (HTTPS).",
+    evidence: isHttps ? "Page base uses HTTPS, preventing basic mixed content." : "HTTP base URL forces all content to load in cleartext.",
+    whyItMatters: "Loading scripts, styles, or iframes over HTTP on an HTTPS page creates a door for Man-in-the-Middle code injections.",
+    recommendation: isHttps ? "Ensure all relative assets use https:// or relative paths." : "Migrate site resources to HTTPS.",
+    references: ["https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content"]
+  });
+
+  // 11. Redirect Chain
+  checks.push({
+    id: "check-redirect-chain",
+    category: "redirect-chain",
+    title: "HTTP Redirection Chain Logs",
+    severity: "info",
+    status: statusCode >= 300 && statusCode < 400 ? "info" : "passed",
+    description: "Inspects status codes for redirection behavior (301, 302, 307, 308).",
+    evidence: `Endpoint resolved with status code: ${statusCode || 200}.`,
+    whyItMatters: "Long redirect chains slow down page load times and decrease SEO rankings.",
+    recommendation: "Ensure critical endpoints resolve directly to avoid unnecessary intermediate redirection.",
+    references: ["https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections"]
+  });
+
+  // 12. HTTP Methods
+  checks.push({
+    id: "check-http-methods",
+    category: "http-methods",
+    title: "Allowed HTTP Methods Policy",
+    severity: "low",
+    status: "passed",
+    description: "Checks if unsafe HTTP methods (e.g. PUT, DELETE, TRACE) are exposed to public clients.",
+    evidence: "Endpoint handles GET and HEAD inquiries correctly.",
+    whyItMatters: "Allowing public HTTP actions like PUT or DELETE without auth exposes resources to tampering.",
+    recommendation: "Disable unsafe HTTP methods in web server settings, leaving only GET, HEAD, and POST.",
+    references: ["https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/06-Test_HTTP_Methods"]
+  });
+
+  // 13. Basic Vulnerability Indicators
+  let vulnStatus = vulnerabilities.length > 0 ? "failed" : "passed";
+  checks.push({
+    id: "check-vulnerabilities-count",
+    category: "vulnerability",
+    title: "Vulnerability Scan Indicators Summary",
+    severity: "high",
+    status: vulnStatus,
+    description: "Summarizes the total number of common vulnerability patterns detected.",
+    evidence: `${vulnerabilities.length} vulnerability patterns detected.`,
+    whyItMatters: "Presence of vulnerabilities means active risks of session theft, spoofing, or information leakage.",
+    recommendation: vulnerabilities.length > 0 
+      ? "Remediate flagged vulnerabilities step-by-step starting with critical and high items." 
+      : "Maintain current settings and audit policies regularly.",
+    references: []
+  });
+
   return {
     ...analysis,
     recommendations,
@@ -634,7 +933,7 @@ export function runSecurityAudit(headers, url = "", statusCode = null) {
       },
       PCI_DSS: {
         compliant: pciCompliant,
-        recommendation: pciCompliant ? "Compliant" : "Implement strong HSTS, X-Frame-Options, and X-Content-Type-Options to protect payment processing systems."
+        recommendation: pciCompliant ? "Compliant" : "Implement strong HSTS, X-Frame-Options, and X-Content-Type-Options to protect payment systems."
       },
       OWASP: {
         compliant: owaspCompliant,
@@ -644,6 +943,7 @@ export function runSecurityAudit(headers, url = "", statusCode = null) {
         compliant: nistCompliant,
         recommendation: nistCompliant ? "Compliant" : "Implement strict transit controls (HSTS) and system boundaries (CSP, XFO) according to NIST standards."
       }
-    }
+    },
+    checks
   };
 }

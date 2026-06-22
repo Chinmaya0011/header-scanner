@@ -42,15 +42,17 @@ export async function GET(request) {
       { $group: { _id: "$apiKeyId", count: { $sum: 1 } } }
     ]);
 
-    const keyBreakdown = (user.apiKeys || []).map(k => {
-      const usage = keyUsage.find(ku => ku._id === k._id.toString());
-      return {
-        id: k._id.toString(),
-        name: k.name,
-        isActive: k.isActive !== false,
-        count: usage ? usage.count : 0
-      };
-    });
+    const keyBreakdown = (user.apiKeys || [])
+      .filter(k => k.status !== "deleted")
+      .map(k => {
+        const usage = keyUsage.find(ku => ku._id === k._id.toString());
+        return {
+          id: k._id.toString(),
+          name: k.name,
+          isActive: k.isActive !== false,
+          count: usage ? usage.count : 0
+        };
+      });
 
     // 4. Retrieve recent API scans
     const recentScans = await Scan.find({ owner: user._id, source: "api" })

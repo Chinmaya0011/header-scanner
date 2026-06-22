@@ -18,17 +18,19 @@ export async function GET(request) {
     await connectDB();
     const dbUser = await User.findById(user._id).select("apiKeys").lean();
 
-    const keys = (dbUser.apiKeys || []).map(k => ({
-      id: k._id.toString(),
-      name: k.name,
-      createdAt: k.createdAt,
-      lastUsed: k.lastUsed,
-      isActive: k.isActive !== false,
-      webhookUrl: k.webhookUrl || "",
-      allowedDomains: k.allowedDomains || "",
-      customUserAgent: k.customUserAgent || "",
-      status: k.status || "active",
-    }));
+    const keys = (dbUser.apiKeys || [])
+      .filter(k => k.status !== "deleted")
+      .map(k => ({
+        id: k._id.toString(),
+        name: k.name,
+        createdAt: k.createdAt,
+        lastUsed: k.lastUsed,
+        isActive: k.isActive !== false,
+        webhookUrl: k.webhookUrl || "",
+        allowedDomains: k.allowedDomains || "",
+        customUserAgent: k.customUserAgent || "",
+        status: k.status || "active",
+      }));
 
     return NextResponse.json({ success: true, keys });
   } catch (error) {

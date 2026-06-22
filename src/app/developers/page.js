@@ -289,6 +289,56 @@ export default function DevelopersPage() {
     },
   ];
 
+  const latestUsedTime = apiKeys.reduce((latest, key) => {
+    if (!key.lastUsed) return latest;
+    const time = new Date(key.lastUsed);
+    return !latest || time > latest ? time : latest;
+  }, null);
+
+  const statsCardsRow = (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <Card>
+        <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider font-sans">Key Status</p>
+        <p className="text-xl font-bold font-mono text-text mt-1.5">
+          {apiKeys.filter(k => k.isActive).length} <span className="text-xs text-text-dim font-sans font-normal">Active</span>
+        </p>
+        <p className="text-[8px] text-text-muted mt-1 uppercase">{apiKeys.length} issued total</p>
+      </Card>
+      
+      <Card>
+        <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider font-sans">Daily Limit</p>
+        <p className="text-xl font-bold font-mono text-accent mt-1.5">
+          {usageData?.dailyQuota?.limit || 20}
+        </p>
+        <p className="text-[8px] text-text-muted mt-1 uppercase">Max quota allowed</p>
+      </Card>
+
+      <Card>
+        <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider font-sans">Used Requests</p>
+        <p className="text-xl font-bold font-mono text-warning mt-1.5">
+          {usageData?.dailyQuota?.usage || 0}
+        </p>
+        <p className="text-[8px] text-text-muted mt-1 uppercase">Usage since 00:00 UTC</p>
+      </Card>
+
+      <Card>
+        <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider font-sans">Remaining</p>
+        <p className="text-xl font-bold font-mono text-success mt-1.5">
+          {Math.max(0, (usageData?.dailyQuota?.limit || 20) - (usageData?.dailyQuota?.usage || 0))}
+        </p>
+        <p className="text-[8px] text-text-muted mt-1 uppercase">Left for today</p>
+      </Card>
+
+      <Card className="col-span-2 sm:col-span-1">
+        <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider font-sans">Last Used Time</p>
+        <p className="text-[10px] font-bold font-mono text-text mt-2.5 truncate" title={latestUsedTime ? new Date(latestUsedTime).toLocaleString() : "Never"}>
+          {latestUsedTime ? new Date(latestUsedTime).toLocaleDateString() : "Never"}
+        </p>
+        <p className="text-[8px] text-text-muted mt-1.5 uppercase">Latest API execution</p>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-bg font-sans text-text flex flex-col">
       <Navbar />
@@ -377,6 +427,7 @@ export default function DevelopersPage() {
               {/* Credentials Console page */}
               {activeSection === "credentials" && (
                 <div className="space-y-6 animate-fadeInUp">
+                  {statsCardsRow}
                   <div className="bg-surface border border-white/[0.05] p-6 rounded-xl space-y-5">
                     <div>
                       <h2 className="text-base font-bold text-text uppercase tracking-wider">
@@ -649,42 +700,7 @@ export default function DevelopersPage() {
                   ) : (
                     <>
                       {/* Metrics grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Recent Scans (24h)</span>
-                            <Activity className="h-4.5 w-4.5 text-accent" />
-                          </div>
-                          <p className="text-2xl font-bold font-mono text-text mt-2">{usageData.metrics.last24h}</p>
-                          <p className="text-[9px] text-text-muted mt-1 uppercase">API request volume in past 24h</p>
-                        </Card>
-
-                        <Card>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Total Scans (30d)</span>
-                            <CheckCircle2 className="h-4.5 w-4.5 text-success" />
-                          </div>
-                          <p className="text-2xl font-bold font-mono text-text mt-2">{usageData.metrics.last30d}</p>
-                          <p className="text-[9px] text-text-muted mt-1 uppercase">Cumulative API scans in 30 days</p>
-                        </Card>
-
-                        <Card>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Rate Limit Usage</span>
-                            <Clock className="h-4.5 w-4.5 text-warning" />
-                          </div>
-                          <div className="flex items-baseline gap-1.5 mt-2">
-                            <span className="text-2xl font-bold font-mono text-text">{usageData.rateLimit.currentUsage}</span>
-                            <span className="text-xs text-text-muted">/ {usageData.rateLimit.maxLimit} RPM</span>
-                          </div>
-                          <div className="w-full h-1 bg-white/5 rounded-full mt-2.5 overflow-hidden">
-                            <div 
-                              className={`h-full ${usageData.rateLimit.currentUsage >= 8 ? 'bg-danger' : usageData.rateLimit.currentUsage >= 5 ? 'bg-warning' : 'bg-accent'}`} 
-                              style={{ width: `${Math.min(100, (usageData.rateLimit.currentUsage / usageData.rateLimit.maxLimit) * 100)}%` }}
-                            />
-                          </div>
-                        </Card>
-                      </div>
+                      {statsCardsRow}
 
                       {/* Recharts API Analytics Chart */}
                       {mounted && usageData.chartData && (

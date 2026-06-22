@@ -358,6 +358,7 @@ export async function POST(request) {
       grade: analysis.grade,
       headers: analysis.headers,
       vulnerabilities: securityAudit.vulnerabilities,
+      checks: securityAudit.checks,
       statusCode,
       scanDuration,
       summary: analysis.summary,
