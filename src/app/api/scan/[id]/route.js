@@ -13,7 +13,8 @@ export async function GET(request, { params }) {
   
   try {
     // Get the ID from params - handle both sync and async
-    const id = params?.id;
+    const resolvedParams = await params;
+    const id = resolvedParams?.id;
     
     console.log("Fetching scan with ID:", id);
     
@@ -107,7 +108,8 @@ export async function GET(request, { params }) {
 // DELETE /api/scan/:id
 export async function DELETE(request, { params }) {
   try {
-    const id = params?.id;
+    const resolvedParams = await params;
+    const id = resolvedParams?.id;
     if (!id) {
       return NextResponse.json({ success: false, error: "Scan ID is required." }, { status: 400 });
     }
@@ -133,6 +135,53 @@ export async function DELETE(request, { params }) {
   }
 }
 
+// PATCH /api/scan/:id
+// Toggle public sharing status of a scan
+export async function PATCH(request, { params }) {
+  try {
+    const resolvedParams = await params;
+    const id = resolvedParams?.id;
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Scan ID is required." }, { status: 400 });
+    }
+
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized. Login required." }, { status: 401 });
+    }
+
+    await connectDB();
+    const scan = await Scan.findById(id);
+    if (!scan) {
+      return NextResponse.json({ success: false, error: "Scan not found." }, { status: 404 });
+    }
+
+    // Only owner or admin can share it
+    if (user.role !== "admin" && (!scan.owner || scan.owner.toString() !== user._id.toString())) {
+      return NextResponse.json({ success: false, error: "Forbidden." }, { status: 403 });
+    }
+
+    const { isPublic } = await request.json();
+
+    scan.isPublic = !!isPublic;
+    if (scan.isPublic && !scan.shareToken) {
+      // Generate a unique token
+      scan.shareToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
+
+    await scan.save();
+
+    return NextResponse.json({
+      success: true,
+      isPublic: scan.isPublic,
+      shareToken: scan.shareToken,
+      shareUrl: `/shared/scan/${scan.shareToken}`
+    });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
 // OPTIONS handler for CORS
 export async function OPTIONS() {
   return NextResponse.json(
@@ -140,7 +189,7 @@ export async function OPTIONS() {
     {
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, DELETE, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, PATCH, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
       },
     }

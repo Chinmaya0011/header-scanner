@@ -25,7 +25,24 @@ export async function POST(request, { params }) {
       );
     }
 
-    const recipientEmail = user.email;
+    let recipientEmail = user.email;
+    try {
+      const body = await request.json();
+      if (body && body.recipient && typeof body.recipient === "string") {
+        const trimmedEmail = body.recipient.trim();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailRegex.test(trimmedEmail)) {
+          recipientEmail = trimmedEmail;
+        } else {
+          return NextResponse.json(
+            { error: "Invalid recipient email address format." },
+            { status: 400 }
+          );
+        }
+      }
+    } catch (e) {
+      // Body may be empty, default to user's own email
+    }
 
     // 3. Connect to database and fetch scan
     await connectDB();

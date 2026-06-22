@@ -1,6 +1,5 @@
-// app/layout.js
 import { headers } from "next/headers";
-import { ToastProvider } from "@/components/Toast";
+import { ToastProvider } from "@/components/common/Toast";
 import "./globals.css";
 
 

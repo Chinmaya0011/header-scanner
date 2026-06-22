@@ -1,5 +1,5 @@
-import Navbar from "@/components/Navbar";
-import HistoryTable from "@/components/HistoryTable";
+import Navbar from "@/components/layout/Navbar";
+import HistoryTable from "@/components/tables/HistoryTable";
 import { History } from "lucide-react";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";

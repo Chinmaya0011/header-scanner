@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getUserFromRequest } from "@/lib/auth";
+import { checkRateLimitDB } from "@/lib/rateLimit";
 import {
   analyzeHeaders,
   maskDomain,
@@ -23,46 +24,10 @@ const SCAN_CONFIG = {
   ],
 };
 
-// Rate limiting configuration (optional - implement with Redis or database)
 const RATE_LIMIT = {
   WINDOW_MS: 60 * 1000, // 1 minute
-  MAX_REQUESTS: 10, // 10 requests per minute per IP
+  MAX_REQUESTS: 10, // 10 requests per minute
 };
-
-// In-memory rate limiting (for demo, use Redis in production)
-const rateLimitStore = new Map();
-
-/**
- * Rate limiting check
- */
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT.WINDOW_MS;
-  
-  const requests = rateLimitStore.get(ip) || [];
-  const recentRequests = requests.filter(timestamp => timestamp > windowStart);
-  
-  if (recentRequests.length >= RATE_LIMIT.MAX_REQUESTS) {
-    return false;
-  }
-  
-  recentRequests.push(now);
-  rateLimitStore.set(ip, recentRequests);
-  
-  // Clean up old entries periodically
-  if (Math.random() < 0.1) { // 10% chance to clean
-    for (const [storedIp, timestamps] of rateLimitStore.entries()) {
-      const validTimestamps = timestamps.filter(t => t > now - RATE_LIMIT.WINDOW_MS);
-      if (validTimestamps.length === 0) {
-        rateLimitStore.delete(storedIp);
-      } else {
-        rateLimitStore.set(storedIp, validTimestamps);
-      }
-    }
-  }
-  
-  return true;
-}
 
 /**
  * Validate private IP addresses
@@ -215,11 +180,14 @@ export async function POST(request) {
       );
     }
 
-    // Optional: Rate limiting (get client IP from headers)
+    // Database-backed sliding window rate limiting
     const forwardedFor = request.headers.get("x-forwarded-for");
     const clientIp = forwardedFor ? forwardedFor.split(",")[0] : "unknown";
     
-    if (!checkRateLimit(clientIp)) {
+    const rateLimitKey = user ? user._id.toString() : clientIp;
+    const rateLimitStatus = await checkRateLimitDB(rateLimitKey, "scan", RATE_LIMIT.MAX_REQUESTS, RATE_LIMIT.WINDOW_MS);
+    
+    if (!rateLimitStatus.success) {
       return NextResponse.json(
         {
           error: "Rate limit exceeded. Please wait before scanning again.",
@@ -271,7 +239,7 @@ export async function POST(request) {
     // Analyze headers with enhanced analyzer
     const analysis = analyzeHeaders(headersObj);
     const recommendations = generateRecommendations(analysis);
-    const securityAudit = runSecurityAudit(headersObj);
+    const securityAudit = runSecurityAudit(headersObj, url, statusCode);
     
     const maskedDomain = maskDomain(domain);
 
@@ -285,6 +253,7 @@ export async function POST(request) {
       score: analysis.score,
       grade: analysis.grade,
       headers: analysis.headers,
+      vulnerabilities: securityAudit.vulnerabilities,
       statusCode,
       scanDuration,
       summary: analysis.summary,
@@ -319,6 +288,7 @@ export async function POST(request) {
       score: analysis.score,
       grade: analysis.grade,
       headers: analysis.headers,
+      vulnerabilities: securityAudit.vulnerabilities,
       statusCode,
       scanDuration,
       summary: analysis.summary,

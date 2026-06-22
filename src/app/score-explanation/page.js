@@ -17,7 +17,8 @@ import {
   Skull,
   Swords,
 } from "lucide-react";
-import Navbar from "@/components/Navbar";
+import Navbar from "@/components/layout/Navbar";
+import Loading from "@/components/common/Loading";
 
 function gradeColor(grade) {
   if (grade === "A+" || grade === "A" || grade === "A-") return "var(--success)";
@@ -84,7 +85,7 @@ function ScoreExplanationContent() {
   };
 
   return (
-    <div className="min-h-screen bg-bg font-mono text-text">
+    <div className="min-h-screen bg-bg font-sans text-text">
       <Navbar />
 
       <main className="max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-10">
@@ -320,10 +321,7 @@ export default function ScoreExplanationPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-bg flex items-center justify-center">
-          <div className="text-center space-y-3">
-            <div className="inline-block h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-            <p className="text-text-dim text-xs">Loading...</p>
-          </div>
+          <Loading message="Loading Guide..." />
         </div>
       }
     >

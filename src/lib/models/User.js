@@ -28,6 +28,14 @@ const UserSchema = new mongoose.Schema(
     otpExpires: {
       type: Date,
     },
+    apiKeys: [
+      {
+        keyHash: { type: String, required: true },
+        name: { type: String, default: "Default API Key" },
+        createdAt: { type: Date, default: Date.now },
+        lastUsed: { type: Date }
+      }
+    ],
   },
   { timestamps: true }
 );

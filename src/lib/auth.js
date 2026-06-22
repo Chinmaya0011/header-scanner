@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
+import crypto from "crypto";
 import connectDB from "./mongodb";
 import User from "./models/User";
 
@@ -15,6 +16,25 @@ export function signToken(user) {
 
 export async function getUserFromRequest(request) {
   try {
+    // 1. Check API Key header first (for developer tools & pipelines)
+    if (request && request.headers) {
+      const apiKey = request.headers.get("x-api-key");
+      if (apiKey) {
+        const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
+        await connectDB();
+        const user = await User.findOne({ "apiKeys.keyHash": keyHash }).select("-password");
+        if (user) {
+          // Update key usage timestamp asynchronously
+          User.updateOne(
+            { _id: user._id, "apiKeys.keyHash": keyHash },
+            { $set: { "apiKeys.$.lastUsed": new Date() } }
+          ).catch(err => console.error("Failed to update API key lastUsed date:", err));
+          
+          return { ...user.toObject(), _id: user._id.toString() };
+        }
+      }
+    }
+
     let token = null;
 
     // Check cookies from request if available

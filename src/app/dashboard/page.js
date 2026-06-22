@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
-import { useToast } from "@/components/Toast";
+import Navbar from "@/components/layout/Navbar";
+import { useToast } from "@/components/common/Toast";
+import Loading from "@/components/common/Loading";
 import AdminDashboard from "./components/AdminDashboard";
 import UserDashboard from "./components/UserDashboard";
 
@@ -213,13 +214,10 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg flex flex-col text-text font-mono">
+      <div className="min-h-screen bg-bg flex flex-col text-text font-sans">
         <Navbar />
         <main className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-3">
-            <div className="inline-block h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-            <p className="text-text-dim text-xs">Decrypting secure console session...</p>
-          </div>
+          <Loading message="Decrypting secure console session..." />
         </main>
       </div>
     );
@@ -251,7 +249,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col text-text font-mono">
+    <div className="min-h-screen bg-bg flex flex-col text-text font-sans">
       <Navbar />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">

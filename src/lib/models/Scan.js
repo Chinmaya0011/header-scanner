@@ -22,6 +22,15 @@ const ComplianceItemSchema = new mongoose.Schema({
   recommendation: String,
 });
 
+const VulnerabilitySchema = new mongoose.Schema({
+  id: String,
+  name: String,
+  severity: { type: String, enum: ["critical", "high", "medium", "low", "info"] },
+  category: String,
+  description: String,
+  recommendation: String,
+});
+
 const ScanSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
@@ -30,6 +39,7 @@ const ScanSchema = new mongoose.Schema(
     score: { type: Number, required: true },
     grade: { type: String, required: true },
     headers: [HeaderResultSchema],
+    vulnerabilities: [VulnerabilitySchema],
     statusCode: Number,
     scanDuration: Number,
     summary: {
@@ -46,6 +56,8 @@ const ScanSchema = new mongoose.Schema(
       OWASP: ComplianceItemSchema,
       NIST: ComplianceItemSchema,
     },
+    isPublic: { type: Boolean, default: false },
+    shareToken: { type: String, unique: true, sparse: true },
   },
   { timestamps: true }
 );

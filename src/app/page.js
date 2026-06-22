@@ -1,10 +1,11 @@
-import Navbar from "@/components/Navbar";
-import ScannerForm from "@/components/ScannerForm";
+import Navbar from "@/components/layout/Navbar";
+import ScannerForm from "@/components/forms/ScannerForm";
+import Card from "@/components/ui/Card";
 import { Shield, Zap, Database } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-bg font-mono">
+    <div className="min-h-screen bg-bg font-sans">
       <Navbar />
 
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12 sm:py-20 select-none animate-fadeInUp">
@@ -15,7 +16,7 @@ export default function HomePage() {
             Security Analysis Console
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-text tracking-widest uppercase mb-4 leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-text tracking-wider uppercase mb-4 leading-tight">
             Scan your site&apos;s
             <br />
             <span className="text-accent">security headers</span>
@@ -35,16 +36,19 @@ export default function HomePage() {
             icon={Shield}
             title="8 Headers Checked"
             desc="CSP, HSTS, X-Frame, CORS, and more"
+            index={1}
           />
           <FeatureChip
             icon={Zap}
             title="Instant Results"
             desc="Real-time evaluation with grades"
+            index={2}
           />
           <FeatureChip
             icon={Database}
             title="Secure logs"
             desc="All history archived with privacy masking"
+            index={3}
           />
         </div>
       </main>
@@ -52,14 +56,16 @@ export default function HomePage() {
   );
 }
 
-function FeatureChip({ icon: Icon, title, desc }) {
+function FeatureChip({ icon: Icon, title, desc, index }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-5 hover:border-accent/40 transition-colors">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className="text-accent h-4 w-4" />
-        <span className="text-text text-xs font-bold uppercase tracking-wider">{title}</span>
+    <Card hoverable className={`p-5 flex flex-col justify-between animate-fadeInUp stagger-${index}`}>
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Icon className="text-accent h-4 w-4" />
+          <span className="text-text text-xs font-bold uppercase tracking-wider">{title}</span>
+        </div>
+        <p className="text-text-dim text-[11px] leading-relaxed">{desc}</p>
       </div>
-      <p className="text-text-dim text-[11px] leading-relaxed">{desc}</p>
-    </div>
+    </Card>
   );
 }
