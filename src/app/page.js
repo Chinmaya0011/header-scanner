@@ -11,7 +11,7 @@ export default function HomePage() {
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-12 sm:py-20 select-none animate-fadeInUp">
         {/* Hero */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent text-[10px] font-bold uppercase tracking-wider mb-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold uppercase tracking-wider mb-6">
             <span className="h-1.5 w-1.5 rounded-full bg-accent pulse-accent" />
             Security Analysis Console
           </div>

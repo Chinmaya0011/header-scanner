@@ -76,10 +76,10 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 border ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
                   pathname === link.href
-                    ? "text-accent bg-accent/5 border-accent/20 shadow-glow"
-                    : "text-text-dim hover:text-text hover:bg-surface border-transparent"
+                    ? "text-accent bg-accent/10 font-bold"
+                    : "text-text-dim hover:text-text hover:bg-white/5"
                 }`}
               >
                 {link.label}
@@ -89,15 +89,15 @@ export default function Navbar() {
             {user ? (
               <div className="flex items-center gap-2.5 ml-2">
                 {/* User Session status */}
-                <div className="flex items-center gap-2 border border-border/80 bg-surface px-3 py-1.5 rounded-lg text-xs">
+                <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg text-xs">
                   <User className="text-accent h-3.5 w-3.5" />
                   <span className="text-text font-semibold truncate max-w-[120px]" title={user.email}>
                     {user.email.split("@")[0]}
                   </span>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold tracking-wider border uppercase ${
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold tracking-wider uppercase ${
                     user.role === "admin" 
-                      ? "border-accent/40 bg-accent/10 text-accent" 
-                      : "border-success/30 bg-success/10 text-success"
+                      ? "bg-accent/15 text-accent" 
+                      : "bg-success/15 text-success"
                   }`}>
                     {user.role}
                   </span>
@@ -105,7 +105,7 @@ export default function Navbar() {
 
                 <button
                   onClick={handleLogout}
-                  className="p-2 rounded-lg text-danger hover:bg-danger/10 border border-transparent hover:border-danger/25 transition-all duration-200 flex items-center justify-center"
+                  className="p-2 rounded-lg text-danger hover:bg-danger/10 transition-all duration-200 flex items-center justify-center"
                   title="Logout"
                   aria-label="Logout"
                 >
@@ -113,20 +113,20 @@ export default function Navbar() {
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 ml-2">
+              <div className="flex items-center gap-2 ml-2 font-sans">
                 <Link
                   href="/login"
-                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 border ${
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
                     pathname === "/login"
-                      ? "text-accent bg-accent/5 border-accent/20"
-                      : "text-text-dim hover:text-text hover:bg-surface border-transparent"
+                      ? "text-accent bg-accent/10"
+                      : "text-text-dim hover:text-text hover:bg-white/5"
                   }`}
                 >
                   Login
                 </Link>
                 <Link
                   href="/register"
-                  className="px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider bg-accent text-bg hover:bg-accent-light hover:shadow-glow transition-all duration-200 font-bold"
+                  className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-accent text-bg hover:bg-accent-light hover:shadow-lg transition-all duration-200"
                 >
                   Register
                 </Link>

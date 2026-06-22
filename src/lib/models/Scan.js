@@ -31,6 +31,19 @@ const VulnerabilitySchema = new mongoose.Schema({
   recommendation: String,
 });
 
+const CheckSchema = new mongoose.Schema({
+  id: String,
+  category: String,
+  title: String,
+  severity: { type: String, enum: ["critical", "high", "medium", "low", "info"] },
+  status: { type: String, enum: ["passed", "failed", "warning", "info"] },
+  description: String,
+  evidence: String,
+  whyItMatters: String,
+  recommendation: String,
+  references: [String],
+});
+
 const ScanSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
@@ -40,6 +53,7 @@ const ScanSchema = new mongoose.Schema(
     grade: { type: String, required: true },
     headers: [HeaderResultSchema],
     vulnerabilities: [VulnerabilitySchema],
+    checks: [CheckSchema],
     statusCode: Number,
     scanDuration: Number,
     summary: {
@@ -58,6 +72,10 @@ const ScanSchema = new mongoose.Schema(
     },
     isPublic: { type: Boolean, default: false },
     shareToken: { type: String, unique: true, sparse: true },
+    source: { type: String, enum: ["web", "api"], default: "web" },
+    apiKeyId: { type: String, default: null },
+    isSuccess: { type: Boolean, default: true },
+    failReason: { type: String, default: null },
   },
   { timestamps: true }
 );

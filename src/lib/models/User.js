@@ -33,9 +33,18 @@ const UserSchema = new mongoose.Schema(
         keyHash: { type: String, required: true },
         name: { type: String, default: "Default API Key" },
         createdAt: { type: Date, default: Date.now },
-        lastUsed: { type: Date }
+        lastUsed: { type: Date },
+        isActive: { type: Boolean, default: true },
+        webhookUrl: { type: String, default: "" },
+        allowedDomains: { type: String, default: "" },
+        customUserAgent: { type: String, default: "" },
+        status: { type: String, enum: ["active", "revoked", "expired", "deleted"], default: "active" }
       }
     ],
+    apiAccessEnabled: { type: Boolean, default: true },
+    dailyLimit: { type: Number, default: 20 },
+    dailyUsage: { type: Number, default: 0 },
+    lastUsageReset: { type: Date, default: Date.now }
   },
   { timestamps: true }
 );

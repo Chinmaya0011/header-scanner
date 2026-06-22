@@ -24,13 +24,29 @@ export async function getUserFromRequest(request) {
         await connectDB();
         const user = await User.findOne({ "apiKeys.keyHash": keyHash }).select("-password");
         if (user) {
-          // Update key usage timestamp asynchronously
-          User.updateOne(
-            { _id: user._id, "apiKeys.keyHash": keyHash },
-            { $set: { "apiKeys.$.lastUsed": new Date() } }
-          ).catch(err => console.error("Failed to update API key lastUsed date:", err));
-          
-          return { ...user.toObject(), _id: user._id.toString() };
+          const matchedKey = user.apiKeys.find(k => k.keyHash === keyHash);
+          if (matchedKey) {
+            if (matchedKey.isActive === false || matchedKey.status !== "active") {
+              console.log(`API key "${matchedKey.name}" is inactive or not active (status: ${matchedKey.status}).`);
+              return null;
+            }
+
+            // Update key usage timestamp asynchronously
+            User.updateOne(
+              { _id: user._id, "apiKeys.keyHash": keyHash },
+              { $set: { "apiKeys.$.lastUsed": new Date() } }
+            ).catch(err => console.error("Failed to update API key lastUsed date:", err));
+            
+            return {
+              ...user.toObject(),
+              _id: user._id.toString(),
+              authMethod: "api-key",
+              apiKeyId: matchedKey._id.toString(),
+              webhookUrl: matchedKey.webhookUrl || "",
+              allowedDomains: matchedKey.allowedDomains || "",
+              customUserAgent: matchedKey.customUserAgent || "",
+            };
+          }
         }
       }
     }

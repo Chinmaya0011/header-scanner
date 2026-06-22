@@ -50,10 +50,11 @@ function isPrivateIP(domain) {
 /**
  * Fetch headers with fallback strategy
  */
-async function fetchHeaders(url, domain) {
+async function fetchHeaders(url, domain, customUserAgent) {
   let headersObj = {};
   let statusCode = null;
   let methodUsed = "HEAD";
+  const userAgentToUse = customUserAgent || SCAN_CONFIG.USER_AGENT;
   
   try {
     // First attempt: HEAD request
@@ -62,7 +63,7 @@ async function fetchHeaders(url, domain) {
       redirect: "follow",
       signal: AbortSignal.timeout(SCAN_CONFIG.TIMEOUT_MS),
       headers: {
-        "User-Agent": SCAN_CONFIG.USER_AGENT,
+        "User-Agent": userAgentToUse,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
     });
@@ -87,7 +88,7 @@ async function fetchHeaders(url, domain) {
         redirect: "follow",
         signal: AbortSignal.timeout(SCAN_CONFIG.TIMEOUT_MS),
         headers: {
-          "User-Agent": SCAN_CONFIG.USER_AGENT,
+          "User-Agent": userAgentToUse,
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         },
       });
@@ -105,6 +106,29 @@ async function fetchHeaders(url, domain) {
   return { headersObj, statusCode, methodUsed };
 }
 
+async function logFailedScan(user, url, domain, reason, statusCode) {
+  if (user) {
+    try {
+      await connectDB();
+      await Scan.create({
+        url: url || "unknown",
+        domain: domain || "unknown",
+        maskedDomain: domain ? maskDomain(domain) : "unknown",
+        score: 0,
+        grade: "F",
+        statusCode: statusCode || 400,
+        owner: user._id,
+        source: user.authMethod === "api-key" ? "api" : "web",
+        apiKeyId: user.authMethod === "api-key" ? user.apiKeyId : null,
+        isSuccess: false,
+        failReason: reason,
+      });
+    } catch (err) {
+      console.error("Failed to log scan failure:", err);
+    }
+  }
+}
+
 /**
  * POST /api/scan
  * Scan a website for security headers
@@ -120,13 +144,64 @@ export async function POST(request) {
       { status: 401 }
     );
   }
+
+  // Admin access disable block
+  if (user.apiAccessEnabled === false) {
+    return NextResponse.json(
+      {
+        error: "Your API access has been disabled by an administrator.",
+        code: "API_ACCESS_DISABLED"
+      },
+      { status: 403 }
+    );
+  }
+
+  // Parse request body safely (clone request to read it)
+  let rawUrl = "";
+  try {
+    const bodyCopy = await request.clone().json();
+    rawUrl = bodyCopy.url;
+  } catch (err) {
+    // Handled below
+  }
+
+  // Daily Usage Reset & Limit check
+  const now = new Date();
+  const lastReset = user.lastUsageReset ? new Date(user.lastUsageReset) : new Date();
+  const isDifferentDay = now.getUTCFullYear() !== lastReset.getUTCFullYear() ||
+                         now.getUTCMonth() !== lastReset.getUTCMonth() ||
+                         now.getUTCDate() !== lastReset.getUTCDate();
+
+  let currentUsage = user.dailyUsage || 0;
+  if (isDifferentDay) {
+    currentUsage = 0;
+  }
+
+  const limit = user.dailyLimit !== undefined ? user.dailyLimit : 20;
+
+  if (currentUsage >= limit) {
+    const reqUrl = rawUrl || "unknown";
+    const reqDomain = reqUrl !== "unknown" ? extractDomain(normalizeUrl(reqUrl)) : "unknown";
+    await logFailedScan(user, reqUrl, reqDomain, "Daily API request limit exceeded.", 429);
+
+    return NextResponse.json(
+      {
+        error: `Daily API request limit exceeded (${limit} requests allowed per day).`,
+        code: "QUOTA_EXCEEDED"
+      },
+      { 
+        status: 429,
+        headers: {
+          "Retry-After": "86400"
+        }
+      }
+    );
+  }
+
   const requestId = Math.random().toString(36).substring(7);
   const startTime = Date.now();
   
   try {
-    // Parse request body
-    const { url: rawUrl } = await request.json();
-
     // Input validation
     if (!rawUrl || typeof rawUrl !== "string") {
       return NextResponse.json(
@@ -170,6 +245,7 @@ export async function POST(request) {
 
     // Security: Block private IPs and localhost
     if (isPrivateIP(domain)) {
+      await logFailedScan(user, url, domain, "Scanning private/local addresses is not allowed.", 400);
       return NextResponse.json(
         { 
           error: "Scanning private/local addresses is not allowed for security reasons.",
@@ -180,6 +256,30 @@ export async function POST(request) {
       );
     }
 
+    // Check Allowed Domains lock for Developer API keys
+    if (user && user.authMethod === "api-key" && user.allowedDomains) {
+      const allowed = user.allowedDomains
+        .split(",")
+        .map(d => d.trim().toLowerCase())
+        .filter(Boolean);
+        
+      if (allowed.length > 0) {
+        const isAllowed = allowed.some(allowedDomain => 
+          domain === allowedDomain || domain.endsWith("." + allowedDomain)
+        );
+        if (!isAllowed) {
+          await logFailedScan(user, url, domain, `Domain lock constraint violation. Allowed: ${user.allowedDomains}`, 403);
+          return NextResponse.json(
+            {
+              error: `Scanned domain "${domain}" is not authorized by this API key. Allowed domains: ${user.allowedDomains}`,
+              code: "DOMAIN_RESTRICTED"
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     // Database-backed sliding window rate limiting
     const forwardedFor = request.headers.get("x-forwarded-for");
     const clientIp = forwardedFor ? forwardedFor.split(",")[0] : "unknown";
@@ -188,6 +288,7 @@ export async function POST(request) {
     const rateLimitStatus = await checkRateLimitDB(rateLimitKey, "scan", RATE_LIMIT.MAX_REQUESTS, RATE_LIMIT.WINDOW_MS);
     
     if (!rateLimitStatus.success) {
+      await logFailedScan(user, url, domain, "Sliding-window IP rate limit exceeded.", 429);
       return NextResponse.json(
         {
           error: "Rate limit exceeded. Please wait before scanning again.",
@@ -208,12 +309,14 @@ export async function POST(request) {
     // Fetch headers
     let headersObj, statusCode, methodUsed;
     try {
-      const result = await fetchHeaders(url, domain);
+      const customUA = user?.authMethod === "api-key" ? user.customUserAgent : null;
+      const result = await fetchHeaders(url, domain, customUA);
       headersObj = result.headersObj;
       statusCode = result.statusCode;
       methodUsed = result.methodUsed;
     } catch (fetchError) {
       if (fetchError.message.includes("Timeout")) {
+        await logFailedScan(user, url, domain, "Request timed out.", 504);
         return NextResponse.json(
           { 
             error: "Request timed out. The server may be slow or unreachable.",
@@ -224,6 +327,7 @@ export async function POST(request) {
         );
       }
       
+      await logFailedScan(user, url, domain, `Connection failed: ${fetchError.message}`, 502);
       return NextResponse.json(
         {
           error: `Unable to reach ${maskDomain(domain)}. Please verify the URL and try again.`,
@@ -258,11 +362,14 @@ export async function POST(request) {
       scanDuration,
       summary: analysis.summary,
       owner: user._id,
+      source: user?.authMethod === "api-key" ? "api" : "web",
+      apiKeyId: user?.authMethod === "api-key" ? user.apiKeyId : null,
+      isSuccess: true,
       metadata: {
         ...analysis.metadata,
         methodUsed,
         requestId,
-        userAgent: SCAN_CONFIG.USER_AGENT,
+        userAgent: (user?.authMethod === "api-key" && user.customUserAgent) ? user.customUserAgent : SCAN_CONFIG.USER_AGENT,
         timestamp: new Date().toISOString(),
       },
       recommendations: recommendations.map(rec => ({
@@ -275,8 +382,53 @@ export async function POST(request) {
       compliance: securityAudit.compliance,
     });
 
+    // Increment daily usage in database for user
+    const User = (await import("@/lib/models/User")).default; // dynamically import to avoid circular dependencies
+    await User.updateOne(
+      { _id: user._id },
+      { 
+        $set: { 
+          dailyUsage: isDifferentDay ? 1 : currentUsage + 1,
+          lastUsageReset: isDifferentDay ? now : lastReset
+        } 
+      }
+    );
+
     // Log successful scan
     console.log(`[${requestId}] Scan completed for ${domain} | Score: ${analysis.score} | Grade: ${analysis.grade} | Duration: ${scanDuration}ms`);
+
+    // Trigger Webhook asynchronously if configured
+    if (user?.authMethod === "api-key" && user.webhookUrl) {
+      const webhookPayload = {
+        event: "scan.completed",
+        timestamp: new Date().toISOString(),
+        scanId: scan._id.toString(),
+        url: scan.url,
+        domain: scan.domain,
+        score: scan.score,
+        grade: scan.grade,
+        summary: scan.summary,
+        vulnerabilitiesCount: scan.vulnerabilities?.length || 0,
+        compliance: scan.compliance,
+        shareUrl: `${request.nextUrl.origin}/share/${scan._id.toString()}`
+      };
+      
+      console.log(`Firing webhook to: ${user.webhookUrl}`);
+      fetch(user.webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "HeaderGuard-Webhook/2.0"
+        },
+        body: JSON.stringify(webhookPayload)
+      })
+      .then(res => {
+        console.log(`Webhook responded with status: ${res.status}`);
+      })
+      .catch(err => {
+        console.error(`Webhook delivery failed:`, err.message);
+      });
+    }
 
     // Return response
     return NextResponse.json({

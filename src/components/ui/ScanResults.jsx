@@ -104,7 +104,8 @@ export default function ScanResults({ result }) {
             </div>
 
             {/* Stats grid */}
-            <div className="grid grid-cols-4 divide-x divide-border/60 border-y border-border/60 py-3.5 bg-panel/20 rounded-lg">
+            {/* Stats grid */}
+            <div className="grid grid-cols-4 py-3.5 bg-panel/25 rounded-xl">
               <StatItem label="Present" value={summary?.present || 0} color="text-success" />
               <StatItem label="Weak" value={summary?.weak || 0} color="text-warning" />
               <StatItem label="Missing" value={summary?.missing || 0} color="text-danger" />
@@ -146,7 +147,7 @@ export default function ScanResults({ result }) {
             if (key === "GDDR") return null; // Avoid duplicated GDPR item if sent by backend
             const isCompliant = val?.compliant ?? false;
             return (
-              <Card key={key} className="border border-border/80 bg-surface/50 flex flex-col justify-between p-4.5">
+              <Card key={key} className="bg-surface/50 flex flex-col justify-between p-4.5">
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-text uppercase tracking-wider">{key}</span>
@@ -160,7 +161,7 @@ export default function ScanResults({ result }) {
                     {val?.recommendation || "Framework requirements"}
                   </p>
                 </div>
-                <div className="mt-4 pt-2 border-t border-border/40 flex justify-between items-center">
+                <div className="mt-4 pt-2 border-t border-border/20 flex justify-between items-center">
                   <span className="text-[10px] uppercase font-semibold text-text-muted">Target status</span>
                   <span
                     className={`text-[10px] font-bold uppercase tracking-wider ${
@@ -186,8 +187,8 @@ export default function ScanResults({ result }) {
           />
           <div className="space-y-3">
             {vulnerabilities.map((vuln) => (
-              <Card key={vuln.id} className="border border-border/80 bg-surface/50 p-4.5">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-border/40">
+              <Card key={vuln.id} className="bg-surface/50 p-4.5">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-white/5">
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 p-1 rounded bg-danger/10">
                       <AlertTriangle className={`h-4.5 w-4.5 ${
@@ -239,7 +240,7 @@ export default function ScanResults({ result }) {
           </Badge>
         </div>
 
-        <div className="border border-border bg-surface/40 rounded-xl divide-y divide-border overflow-hidden">
+        <div className="bg-surface/40 rounded-xl divide-y divide-white/5 overflow-hidden">
           {headers?.map((header, index) => {
             const isExpanded = expandedHeaders.includes(index);
             const statusBadge = getStatusBadge(header.status);
@@ -291,7 +292,7 @@ export default function ScanResults({ result }) {
                 </div>
 
                 {isExpanded && (
-                  <div className="px-5 pb-5 pt-2 space-y-4 bg-panel/10 border-t border-border/40 animate-fadeInUp">
+                  <div className="px-5 pb-5 pt-2 space-y-4 bg-panel/10 border-t border-white/5 animate-fadeInUp">
                     {header.description && (
                       <div className="text-xs text-text-dim leading-relaxed">
                         <strong className="text-text block mb-1">Security Risk Explanation</strong>
@@ -300,22 +301,22 @@ export default function ScanResults({ result }) {
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {header.value && (
-                        <div className="bg-bg/85 rounded-lg p-3 border border-border">
-                          <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-1">
+                        <div className="bg-bg/60 rounded-lg p-3.5">
+                          <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-1.5 font-sans">
                             Current Header Value
                           </p>
                           <code className="text-xs text-text break-all font-mono">{header.value}</code>
                         </div>
                       )}
                       {header.recommendation && (
-                        <div className="bg-accent/5 rounded-lg p-3 border border-accent/20">
-                          <p className="text-[9px] font-bold text-accent uppercase tracking-wider mb-1">
+                        <div className="bg-accent/5 rounded-lg p-3.5">
+                          <p className="text-[9px] font-bold text-accent uppercase tracking-wider mb-1.5 font-sans">
                             Remediation Advice
                           </p>
                           <p className="text-xs text-text-dim leading-relaxed">{header.recommendation}</p>
                           {header.expectedFormat && (
                             <div className="mt-2 pt-2 border-t border-accent/10">
-                              <span className="text-[8px] font-bold text-text-muted uppercase tracking-wider">Target Format</span>
+                              <span className="text-[8px] font-bold text-text-muted uppercase tracking-wider font-sans">Target Format</span>
                               <code className="block text-[10px] text-accent mt-0.5 break-all font-mono">{header.expectedFormat}</code>
                             </div>
                           )}
@@ -324,18 +325,18 @@ export default function ScanResults({ result }) {
                     </div>
 
                     {/* Implementation Configuration Guides */}
-                    <div className="pt-3 border-t border-border/30">
+                    <div className="pt-3 border-t border-white/5">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
                         <span className="text-[10px] font-bold text-text uppercase tracking-wider">
                           SaaS Deployment & Configuration Guide
                         </span>
-                        <div className="flex flex-wrap gap-1 bg-surface border border-border/80 rounded-md p-0.5">
+                        <div className="flex flex-wrap gap-1 bg-bg/50 rounded-md p-0.5">
                           {["nginx", "apache", "nextjs", "iis", "cloudflare"].map((tab) => (
                             <button
                               key={tab}
                               onClick={(e) => {
-                                e.stopPropagation();
-                                setRemediationTab(tab);
+                                  e.stopPropagation();
+                                  setRemediationTab(tab);
                               }}
                               className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all uppercase tracking-wider ${
                                 remediationTab === tab
@@ -348,7 +349,7 @@ export default function ScanResults({ result }) {
                           ))}
                         </div>
                       </div>
-                      <div className="bg-bg/95 border border-border/80 rounded-lg p-3.5 relative group min-h-[60px]">
+                      <div className="bg-bg/70 rounded-lg p-3.5 relative group min-h-[60px]">
                         <CopyConfigButton text={snippetText} />
                         <pre className="text-xs text-accent-light/90 font-mono break-all whitespace-pre-wrap overflow-x-auto">
                           {snippetText}
@@ -384,10 +385,10 @@ function CopyConfigButton({ text }) {
   return (
     <button
       onClick={handleCopy}
-      className={`absolute top-3 right-3 text-[10px] font-semibold border rounded-md px-2.5 py-1.5 transition-all ${
+      className={`absolute top-3 right-3 text-[10px] font-semibold rounded-lg px-2.5 py-1.5 transition-all ${
         copied
-          ? "bg-success/20 border-success/30 text-success"
-          : "bg-surface/80 border-border text-text-muted hover:text-accent hover:border-accent/40 opacity-0 group-hover:opacity-100 focus:opacity-100"
+          ? "bg-success/20 text-success"
+          : "bg-surface/80 text-text-muted hover:text-accent hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
       }`}
     >
       {copied ? "Copied!" : "Copy Snippet"}
