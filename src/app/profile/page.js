@@ -90,9 +90,10 @@ export default function ProfilePage() {
       <Navbar />
 
       <main className="mx-auto max-w-4xl px-4 sm:px-6 py-10">
-        <div className="flex flex-col gap-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
+        <div className="flex flex-col gap-8">
+          {/* Header with gradient underline */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 relative">
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-accent/40 via-accent/20 to-transparent" />
             <div>
               <div className="flex items-center gap-2">
                 <UserCircle className="h-5 w-5 text-accent" />
@@ -107,9 +108,9 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left Column - User Details card */}
             <div className="lg:col-span-5 space-y-6">
-              <Card className="flex flex-col space-y-4 bg-surface/50 border border-border">
+              <Card className="flex flex-col space-y-4 bg-gradient-to-br from-surface/80 to-surface/40 shadow-lg shadow-black/5 backdrop-blur-sm">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center text-accent text-sm font-bold font-mono">
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center text-accent text-sm font-bold font-mono shadow-inner">
                     {user?.email ? user.email.slice(0, 2).toUpperCase() : "U"}
                   </div>
                   <div>
@@ -117,7 +118,7 @@ export default function ProfilePage() {
                       {user?.email}
                     </h2>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse shadow-sm shadow-success/30" />
                       <span className="text-[9px] text-text-dim capitalize font-semibold tracking-wider">
                         {user?.role || "user"} access
                       </span>
@@ -125,15 +126,16 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Micro Stats grid */}
-                <div className="grid grid-cols-2 divide-x divide-border/60 border-y border-border/60 py-3 bg-panel/15 rounded-lg text-center">
-                  <div className="px-1">
+                {/* Micro Stats grid with glass effect */}
+                <div className="grid grid-cols-2 gap-4 py-3 px-2 bg-white/5 rounded-xl backdrop-blur-sm">
+                  <div className="text-center">
                     <p className="text-lg font-bold font-mono text-accent">
                       {stats.totalScans || "0"}
                     </p>
                     <p className="text-[9px] text-text-dim uppercase tracking-wider font-semibold">Total Scans</p>
                   </div>
-                  <div className="px-1">
+                  <div className="text-center relative">
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-px bg-gradient-to-b from-transparent via-text-dim/20 to-transparent" />
                     <p className="text-lg font-bold font-mono text-success">
                       {stats.averageScore || "0"}
                     </p>
@@ -141,26 +143,34 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div className="border-t border-border/60" />
+                {/* Decorative divider with dots */}
+                <div className="flex items-center gap-2 py-1">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-text-dim/10 to-transparent" />
+                  <div className="flex gap-1">
+                    <span className="h-1 w-1 rounded-full bg-accent/30" />
+                    <span className="h-1 w-1 rounded-full bg-accent/20" />
+                    <span className="h-1 w-1 rounded-full bg-accent/10" />
+                  </div>
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-text-dim/10 to-transparent" />
+                </div>
 
-                {/* Details list */}
+                {/* Details list with hover effects */}
                 <div className="space-y-4">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors duration-200">
                     <Mail className="h-4.5 w-4.5 text-text-dim mt-0.5" />
                     <div className="min-w-0">
                       <p className="text-[9px] text-text-muted uppercase tracking-wider font-bold">Primary Email</p>
                       <p className="text-xs text-text font-mono truncate">{user?.email}</p>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors duration-200">
                     <Calendar className="h-4.5 w-4.5 text-text-dim mt-0.5" />
                     <div className="min-w-0">
                       <p className="text-[9px] text-text-muted uppercase tracking-wider font-bold">Registered</p>
                       <p className="text-xs text-text font-mono">{formatDate(user?.createdAt)}</p>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors duration-200">
                     <Clock className="h-4.5 w-4.5 text-text-dim mt-0.5" />
                     <div className="min-w-0">
                       <p className="text-[9px] text-text-muted uppercase tracking-wider font-bold">Last Verification</p>
@@ -173,8 +183,9 @@ export default function ProfilePage() {
 
             {/* Right Column - Credentials Card */}
             <div className="lg:col-span-7 space-y-6">
-              <Card className="flex flex-col space-y-4 bg-surface/50 border border-border">
-                <div className="flex items-center gap-2 pb-3 border-b border-border/60">
+              <Card className="flex flex-col space-y-4 bg-gradient-to-br from-surface/80 to-surface/40 shadow-lg shadow-black/5 backdrop-blur-sm">
+                <div className="flex items-center gap-2 pb-3 relative">
+                  <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-accent/30 via-accent/10 to-transparent" />
                   <Lock className="h-4.5 w-4.5 text-accent" />
                   <div>
                     <h2 className="text-xs font-bold uppercase tracking-wider text-text">

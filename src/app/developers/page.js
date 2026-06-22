@@ -159,34 +159,34 @@ export default function DevelopersPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-bg font-sans text-text">
+    <div className="min-h-screen bg-bg font-sans text-text flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-10">
-        <div className="flex flex-col gap-8">
+      <main className="flex-1 mx-auto max-w-6xl px-4 sm:px-6 py-10 w-full">
+        <div className="flex flex-col gap-8 h-full">
           {/* Header Banner */}
-          <div className="flex items-center gap-3 border-b border-border/80 pb-5">
-            <div className="p-2 rounded-lg bg-accent/15 text-accent border border-accent/20">
-              <Cpu className="h-6 w-6 text-accent animate-pulse" />
+          <div className="flex items-center gap-4 pb-6 flex-shrink-0">
+            <div className="p-3 rounded-xl bg-accent/10 text-accent flex-shrink-0">
+              <Cpu className="h-7 w-7" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold uppercase tracking-wider text-text">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-text">
                 Developer API Hub
               </h1>
-              <p className="text-xs text-text-dim mt-0.5">
-                Automate your security posture assessments and configure CI/CD quality gates
+              <p className="text-sm text-text-dim mt-1">
+                Automate security assessments and integrate with your CI/CD pipeline
               </p>
             </div>
           </div>
 
-          {/* Double Column Container */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left Column: Docs Navigation Sidebar */}
-            <aside className="lg:col-span-3 space-y-6">
-              <div className="bg-surface/50 border border-border rounded-xl p-4.5 space-y-5">
+          {/* Double Column Container with fixed sidebar and scrollable content */}
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-0">
+            {/* Left Column: Fixed Docs Navigation Sidebar */}
+            <aside className="lg:col-span-3 lg:sticky lg:top-24 self-start max-h-[calc(100vh-12rem)]">
+              <div className="card-fade p-5 space-y-6 h-full overflow-y-auto scrollbar-hide">
                 {menuGroups.map((group) => (
-                  <div key={group.group} className="space-y-1.5">
-                    <p className="text-[9px] text-text-muted font-bold uppercase tracking-wider pl-2.5">
+                  <div key={group.group} className="space-y-2">
+                    <p className="text-[10px] text-text-muted font-semibold uppercase tracking-wider pl-3">
                       {group.group}
                     </p>
                     <nav className="space-y-1">
@@ -197,10 +197,10 @@ export default function DevelopersPage() {
                           <button
                             key={item.id}
                             onClick={() => setActiveSection(item.id)}
-                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg font-semibold transition-all duration-200 border text-left ${
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg font-medium transition-all duration-200 text-left ${
                               isSelected
-                                ? "bg-accent/10 border-accent/30 text-accent font-bold"
-                                : "border-transparent text-text-dim hover:text-text hover:bg-panel/30"
+                                ? "bg-accent text-white shadow-lg shadow-accent/20"
+                                : "text-text-dim hover:text-text hover:bg-white/5"
                             }`}
                           >
                             <IconComponent className="h-4 w-4 flex-shrink-0" />
@@ -214,49 +214,49 @@ export default function DevelopersPage() {
               </div>
             </aside>
 
-            {/* Right Column: Active Content Panel */}
-            <section className="lg:col-span-9 bg-surface/30 border border-border/80 rounded-xl p-6.5 min-h-[450px]">
+            {/* Right Column: Scrollable Content Panel */}
+            <section className="lg:col-span-9 card-fade p-7 overflow-y-auto max-h-[calc(100vh-12rem)] scrollbar-hide">
               {/* Introduction Page */}
               {activeSection === "introduction" && (
-                <div className="space-y-5 animate-fadeInUp">
+                <div className="space-y-6 animate-fadeInUp">
                   <div>
-                    <h2 className="text-lg font-bold text-text uppercase tracking-wider">
+                    <h2 className="text-xl font-bold text-text tracking-tight">
                       Developer API Introduction
                     </h2>
-                    <p className="text-xs text-text-dim mt-1.5 leading-relaxed">
-                      The HeaderGuard REST API enables you to programmatic scan domains, verify security compliance headers, and fetch structural reports. Integrate security auditing directly into staging releases, regression checks, or CI pipelines to catch vulnerabilities before code reaches production.
+                    <p className="text-sm text-text-dim mt-2 leading-relaxed">
+                      The HeaderGuard REST API enables you to programmatically scan domains, verify security compliance headers, and fetch structural reports. Integrate security auditing directly into staging releases, regression checks, or CI pipelines to catch vulnerabilities before code reaches production.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
-                    <Card className="border border-border p-4.5 bg-bg/25">
-                      <div className="flex items-center gap-2 mb-2 text-accent font-bold text-xs uppercase tracking-wider">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+                    <div className="bg-white/5 p-5 rounded-xl">
+                      <div className="flex items-center gap-2 mb-3 text-accent font-semibold text-sm">
                         <Terminal className="h-4 w-4" />
                         <span>Build Pipeline Integration</span>
                       </div>
-                      <p className="text-[11px] text-text-dim leading-relaxed">
+                      <p className="text-sm text-text-dim leading-relaxed">
                         Add a scanning step in your Github Actions, GitLab CI, or Jenkins pipelines. Query scan score trends on deployment and fail builds if compliance audits drop below a baseline criteria.
                       </p>
-                    </Card>
+                    </div>
 
-                    <Card className="border border-border p-4.5 bg-bg/25">
-                      <div className="flex items-center gap-2 mb-2 text-success font-bold text-xs uppercase tracking-wider">
+                    <div className="bg-white/5 p-5 rounded-xl">
+                      <div className="flex items-center gap-2 mb-3 text-success font-semibold text-sm">
                         <Shield className="h-4 w-4" />
                         <span>Extended Audits Integration</span>
                       </div>
-                      <p className="text-[11px] text-text-dim leading-relaxed">
+                      <p className="text-sm text-text-dim leading-relaxed">
                         Audit cookie security properties, CORS configurations, and tech stack server banners programmatically to generate report JSONs for external clients or internal SecOps logs.
                       </p>
-                    </Card>
+                    </div>
                   </div>
 
-                  <div className="bg-panel/20 border border-border/80 rounded-xl p-4 text-xs leading-relaxed space-y-2">
-                    <strong className="text-text font-bold block mb-1">Standard Dev Portal Setup</strong>
-                    <ol className="list-decimal list-inside space-y-1 text-text-dim text-[11px]">
-                      <li>Navigate to the <button onClick={() => setActiveSection("credentials")} className="text-accent hover:underline font-bold">Credentials Manager</button> tab.</li>
+                  <div className="bg-white/5 rounded-xl p-5 text-sm leading-relaxed space-y-3">
+                    <strong className="text-text font-semibold block">Standard Dev Portal Setup</strong>
+                    <ol className="list-decimal list-inside space-y-2 text-text-dim">
+                      <li>Navigate to the <button onClick={() => setActiveSection("credentials")} className="text-accent hover:underline font-medium">Credentials Manager</button> tab.</li>
                       <li>Generate a description key.</li>
                       <li>Store the raw API key securely.</li>
-                      <li>Send request headers containing <code className="font-mono text-accent">X-API-Key: YOUR_KEY</code>.</li>
+                      <li>Send request headers containing <code className="font-mono text-accent bg-accent/10 px-2 py-0.5 rounded">X-API-Key: YOUR_KEY</code>.</li>
                     </ol>
                   </div>
                 </div>
@@ -264,29 +264,29 @@ export default function DevelopersPage() {
 
               {/* Authentication Page */}
               {activeSection === "authentication" && (
-                <div className="space-y-5 animate-fadeInUp">
+                <div className="space-y-6 animate-fadeInUp">
                   <div>
-                    <h2 className="text-lg font-bold text-text uppercase tracking-wider">
+                    <h2 className="text-xl font-bold text-text tracking-tight">
                       Authentication
                     </h2>
-                    <p className="text-xs text-text-dim mt-1.5 leading-relaxed">
-                      API requests to HeaderGuard must include a valid credentials key sent in the HTTP request headers. Unauthorized requests will fail with a <code className="font-mono text-danger">401 Unauthorized</code> status.
+                    <p className="text-sm text-text-dim mt-2 leading-relaxed">
+                      API requests to HeaderGuard must include a valid credentials key sent in the HTTP request headers. Unauthorized requests will fail with a <code className="font-mono text-danger bg-danger/10 px-2 py-0.5 rounded">401 Unauthorized</code> status.
                     </p>
                   </div>
 
-                  <div className="bg-bg/95 border border-border rounded-lg p-4 font-mono text-xs text-accent-light space-y-1 leading-relaxed">
+                  <div className="bg-bg/50 rounded-xl p-5 font-mono text-sm text-accent-light space-y-1 leading-relaxed">
                     <p className="text-text-muted"># Pass authentication token via X-API-Key</p>
                     <p>
-                      X-API-Key: <span className="text-success font-bold">hg_sec_a3f9e...</span>
+                      X-API-Key: <span className="text-success font-semibold">hg_sec_a3f9e...</span>
                     </p>
                   </div>
 
-                  <div className="bg-danger/5 border border-danger/20 rounded-xl p-4 space-y-2 text-xs">
-                    <div className="flex items-center gap-2 text-danger font-bold text-[10px] uppercase tracking-wider">
+                  <div className="bg-danger/5 rounded-xl p-5 space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-danger font-semibold text-xs uppercase tracking-wider">
                       <AlertCircle className="h-4 w-4" />
                       <span>Security Warning</span>
                     </div>
-                    <p className="text-text-dim text-[11px] leading-relaxed">
+                    <p className="text-text-dim leading-relaxed">
                       Do not commit your API keys to version control (Git repositories). Ensure they are stored safely in build env variables or secure cloud vaults. If a key is leaked, revoke it immediately in the credentials tab.
                     </p>
                   </div>
@@ -295,51 +295,51 @@ export default function DevelopersPage() {
 
               {/* Rate Limits Page */}
               {activeSection === "rate-limits" && (
-                <div className="space-y-5 animate-fadeInUp">
+                <div className="space-y-6 animate-fadeInUp">
                   <div>
-                    <h2 className="text-lg font-bold text-text uppercase tracking-wider">
+                    <h2 className="text-xl font-bold text-text tracking-tight">
                       Rate Limits & HTTP Response Status
                     </h2>
-                    <p className="text-xs text-text-dim mt-1.5 leading-relaxed">
+                    <p className="text-sm text-text-dim mt-2 leading-relaxed">
                       To prevent platform abuse and ensure stable scanning resources, the developer API imposes a standard rate limit of <strong className="text-text">10 requests per minute</strong> per credential token.
                     </p>
                   </div>
 
                   {/* HTTP Status codes table */}
-                  <div className="border border-border/80 rounded-xl overflow-hidden bg-bg/25">
-                    <table className="w-full text-left border-collapse text-xs">
+                  <div className="rounded-xl overflow-hidden bg-white/5">
+                    <table className="w-full text-left text-sm">
                       <thead>
-                        <tr className="bg-panel/40 border-b border-border/80 text-[10px] text-text-muted font-bold uppercase tracking-wider">
-                          <th className="px-4 py-2.5">HTTP Status</th>
-                          <th className="px-4 py-2.5">Description</th>
-                          <th className="px-4 py-2.5">Response JSON Code</th>
+                        <tr className="bg-white/5 text-xs text-text-muted font-semibold uppercase tracking-wider">
+                          <th className="px-5 py-3">HTTP Status</th>
+                          <th className="px-5 py-3">Description</th>
+                          <th className="px-5 py-3">Response JSON Code</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border/40 font-mono text-text-dim">
-                        <tr className="hover:bg-panel/10">
-                          <td className="px-4 py-3 text-success font-bold">200 OK</td>
-                          <td className="px-4 py-3 font-sans">Scan completed successfully.</td>
-                          <td className="px-4 py-3">N/A</td>
+                      <tbody className="table-fade">
+                        <tr className="hover:bg-white/5">
+                          <td className="px-5 py-3.5 text-success font-semibold">200 OK</td>
+                          <td className="px-5 py-3.5">Scan completed successfully.</td>
+                          <td className="px-5 py-3.5 font-mono text-text-dim">N/A</td>
                         </tr>
-                        <tr className="hover:bg-panel/10">
-                          <td className="px-4 py-3 text-warning font-bold">400 Bad Request</td>
-                          <td className="px-4 py-3 font-sans">Invalid URL format or missing payload.</td>
-                          <td className="px-4 py-3 text-warning">INVALID_URL</td>
+                        <tr className="hover:bg-white/5">
+                          <td className="px-5 py-3.5 text-warning font-semibold">400 Bad Request</td>
+                          <td className="px-5 py-3.5">Invalid URL format or missing payload.</td>
+                          <td className="px-5 py-3.5 font-mono text-warning">INVALID_URL</td>
                         </tr>
-                        <tr className="hover:bg-panel/10">
-                          <td className="px-4 py-3 text-danger font-bold">401 Unauthorized</td>
-                          <td className="px-4 py-3 font-sans">Missing or invalid X-API-Key token.</td>
-                          <td className="px-4 py-3 text-danger">UNAUTHORIZED</td>
+                        <tr className="hover:bg-white/5">
+                          <td className="px-5 py-3.5 text-danger font-semibold">401 Unauthorized</td>
+                          <td className="px-5 py-3.5">Missing or invalid X-API-Key token.</td>
+                          <td className="px-5 py-3.5 font-mono text-danger">UNAUTHORIZED</td>
                         </tr>
-                        <tr className="hover:bg-panel/10">
-                          <td className="px-4 py-3 text-danger font-bold">429 Too Many Requests</td>
-                          <td className="px-4 py-3 font-sans">Exceeded maximum requests rate boundary.</td>
-                          <td className="px-4 py-3 text-danger">RATE_LIMIT_EXCEEDED</td>
+                        <tr className="hover:bg-white/5">
+                          <td className="px-5 py-3.5 text-danger font-semibold">429 Too Many Requests</td>
+                          <td className="px-5 py-3.5">Exceeded maximum requests rate boundary.</td>
+                          <td className="px-5 py-3.5 font-mono text-danger">RATE_LIMIT_EXCEEDED</td>
                         </tr>
-                        <tr className="hover:bg-panel/10">
-                          <td className="px-4 py-3 text-text-muted font-bold">502 Bad Gateway</td>
-                          <td className="px-4 py-3 font-sans">Failed to establish connection with target site.</td>
-                          <td className="px-4 py-3">CONNECTION_FAILED</td>
+                        <tr className="hover:bg-white/5">
+                          <td className="px-5 py-3.5 text-text-muted font-semibold">502 Bad Gateway</td>
+                          <td className="px-5 py-3.5">Failed to establish connection with target site.</td>
+                          <td className="px-5 py-3.5 font-mono text-text-dim">CONNECTION_FAILED</td>
                         </tr>
                       </tbody>
                     </table>
@@ -351,43 +351,43 @@ export default function DevelopersPage() {
               {activeSection === "api-reference" && (
                 <div className="space-y-6 animate-fadeInUp">
                   <div>
-                    <h2 className="text-lg font-bold text-text uppercase tracking-wider">
+                    <h2 className="text-xl font-bold text-text tracking-tight">
                       Audit Security Headers
                     </h2>
-                    <p className="text-xs text-text-dim mt-1.5 leading-relaxed">
+                    <p className="text-sm text-text-dim mt-2 leading-relaxed">
                       Triggers a security header scan for the target domain URL, logs the results under your user session history, and evaluates compliance frameworks.
                     </p>
                   </div>
 
                   {/* Route Badge */}
-                  <div className="flex items-center gap-3 bg-panel/30 border border-border/80 p-3 rounded-lg font-mono text-xs">
-                    <span className="bg-accent px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider">
+                  <div className="flex items-center gap-3 bg-white/5 p-4 rounded-xl font-mono text-sm">
+                    <span className="bg-accent px-3 py-1 rounded text-xs font-bold text-white uppercase tracking-wider">
                       POST
                     </span>
                     <span className="text-text font-semibold">{originUrl}/api/scan</span>
                   </div>
 
                   {/* Parameter table */}
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold text-text-dim uppercase tracking-wider">
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-semibold text-text-dim uppercase tracking-wider">
                       Request Parameters (JSON Body)
                     </h3>
-                    <div className="border border-border/80 rounded-xl overflow-hidden bg-bg/25">
-                      <table className="w-full text-left border-collapse text-xs">
+                    <div className="rounded-xl overflow-hidden bg-white/5">
+                      <table className="w-full text-left text-sm">
                         <thead>
-                          <tr className="bg-panel/40 border-b border-border/80 text-[10px] text-text-muted font-bold uppercase tracking-wider">
-                            <th className="px-4 py-2.5">Field</th>
-                            <th className="px-4 py-2.5">Type</th>
-                            <th className="px-4 py-2.5">Required</th>
-                            <th className="px-4 py-2.5">Description</th>
+                          <tr className="bg-white/5 text-xs text-text-muted font-semibold uppercase tracking-wider">
+                            <th className="px-5 py-3">Field</th>
+                            <th className="px-5 py-3">Type</th>
+                            <th className="px-5 py-3">Required</th>
+                            <th className="px-5 py-3">Description</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-border/40 text-text-dim">
-                          <tr className="hover:bg-panel/10">
-                            <td className="px-4 py-3 font-mono font-semibold text-accent">url</td>
-                            <td className="px-4 py-3 font-mono">string</td>
-                            <td className="px-4 py-3 text-warning font-bold uppercase text-[9px]">Yes</td>
-                            <td className="px-4 py-3 font-sans">The destination address or URL to scan (e.g. "example.com").</td>
+                        <tbody className="table-fade">
+                          <tr className="hover:bg-white/5">
+                            <td className="px-5 py-3.5 font-mono font-semibold text-accent">url</td>
+                            <td className="px-5 py-3.5 font-mono">string</td>
+                            <td className="px-5 py-3.5 text-warning font-semibold uppercase text-xs">Yes</td>
+                            <td className="px-5 py-3.5">The destination address or URL to scan (e.g. "example.com").</td>
                           </tr>
                         </tbody>
                       </table>
@@ -395,20 +395,20 @@ export default function DevelopersPage() {
                   </div>
 
                   {/* Tabbed Code Snippet */}
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <h3 className="text-xs font-bold text-text-dim uppercase tracking-wider">
+                      <h3 className="text-xs font-semibold text-text-dim uppercase tracking-wider">
                         Request Snippet Examples
                       </h3>
-                      <div className="flex bg-surface border border-border/80 rounded-md p-0.5">
+                      <div className="flex bg-white/5 rounded-lg p-1">
                         {["curl", "javascript", "python", "go"].map((tab) => (
                           <button
                             key={tab}
                             onClick={() => setDocsTab(tab)}
-                            className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all uppercase tracking-wider ${
+                            className={`text-[10px] font-semibold px-3 py-1 rounded transition-all uppercase tracking-wider ${
                               docsTab === tab
-                                ? "bg-accent text-white"
-                                : "text-text-dim hover:text-text hover:bg-panel/30"
+                                ? "bg-accent text-white shadow-lg shadow-accent/20"
+                                : "text-text-dim hover:text-text"
                             }`}
                           >
                             {tab === "javascript" ? "JS" : tab}
@@ -417,23 +417,23 @@ export default function DevelopersPage() {
                       </div>
                     </div>
 
-                    <div className="bg-bg/95 border border-border rounded-lg p-4 relative group min-h-[60px]">
+                    <div className="code-fade p-5 relative group min-h-[60px]">
                       <CopyDocsButton text={getCodeSnippet(docsTab, originUrl)} />
-                      <pre className="text-[11px] text-accent font-mono break-all whitespace-pre-wrap overflow-x-auto select-all leading-relaxed">
+                      <pre className="text-sm text-accent font-mono break-all whitespace-pre-wrap overflow-x-auto select-all leading-relaxed">
                         {getCodeSnippet(docsTab, originUrl)}
                       </pre>
                     </div>
                   </div>
 
                   {/* Schema description details */}
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold text-text-dim uppercase tracking-wider">
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-semibold text-text-dim uppercase tracking-wider">
                       API Response Details
                     </h3>
-                    <div className="border border-border bg-bg/25 rounded-xl overflow-hidden">
-                      <div className="p-3.5 border-t border-border/40 font-mono text-[9px] text-text-dim/80 space-y-2">
-                        <p className="text-[10px] font-bold text-accent">POST /api/scan Response (JSON):</p>
-                        <pre className="text-text-muted whitespace-pre-wrap leading-relaxed">
+                    <div className="bg-white/5 rounded-xl overflow-hidden">
+                      <div className="p-5 font-mono text-xs text-text-dim/80 space-y-3">
+                        <p className="text-sm font-semibold text-accent">POST /api/scan Response (JSON):</p>
+                        <pre className="text-text-muted whitespace-pre-wrap leading-relaxed text-xs">
                           {`{
   "success": true,
   "scanId": "6a38c158cd150841c5aba33e",
@@ -473,41 +473,41 @@ export default function DevelopersPage() {
               {activeSection === "credentials" && (
                 <div className="space-y-6 animate-fadeInUp">
                   <div>
-                    <h2 className="text-lg font-bold text-text uppercase tracking-wider">
+                    <h2 className="text-xl font-bold text-text tracking-tight">
                       Developer Credentials Manager
                     </h2>
-                    <p className="text-xs text-text-dim mt-1.5 leading-relaxed">
+                    <p className="text-sm text-text-dim mt-2 leading-relaxed">
                       Issue client access key identifiers to invoke security header audits over curl/scripts or build integrations.
                     </p>
                   </div>
 
                   {/* API Key Generation Form */}
-                  <Card className="border border-border/80 bg-panel/20 p-5 space-y-4">
-                    <form onSubmit={handleCreateKey} className="flex gap-2">
+                  <div className="card-fade p-6 space-y-5">
+                    <form onSubmit={handleCreateKey} className="flex gap-3">
                       <input
                         type="text"
                         placeholder="Key identifier description (e.g. GitLab-CI)"
                         value={apiKeyName}
                         onChange={(e) => setApiKeyName(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-bg border border-border focus:border-accent rounded-lg text-xs font-mono text-text outline-none"
+                        className="flex-1 px-4 py-2.5 bg-bg rounded-lg text-sm font-mono text-text outline-none focus:ring-2 focus:ring-accent/50 transition-all input-fade"
                       />
-                      <Button type="submit" variant="secondary" size="sm">
+                      <Button type="submit" variant="secondary" size="md">
                         Issue Key
                       </Button>
                     </form>
 
                     {/* Generated Raw Key display (Once) */}
                     {newKeyGenerated && (
-                      <div className="bg-success/5 border border-success/30 rounded-xl p-4 space-y-2 animate-fadeInUp">
-                        <p className="text-[9px] text-success font-bold uppercase tracking-wider">
+                      <div className="bg-success/5 rounded-xl p-5 space-y-3 animate-fadeInUp">
+                        <p className="text-xs text-success font-semibold uppercase tracking-wider">
                           Copy API Key (Displayed Once!)
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           <input
                             type="text"
                             readOnly
                             value={newKeyGenerated.rawKey}
-                            className="flex-1 bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-success select-all outline-none"
+                            className="flex-1 bg-bg rounded-lg px-3 py-2 text-sm font-mono text-success select-all outline-none"
                           />
                           <button
                             onClick={() => {
@@ -515,18 +515,18 @@ export default function DevelopersPage() {
                               toast.success("API key copied to clipboard!");
                             }}
                             type="button"
-                            className="text-[9px] font-bold bg-success/20 text-success rounded px-3 py-1.5 border border-success/30 hover:bg-success/35 transition-colors"
+                            className="text-xs font-semibold bg-success/20 text-success px-4 py-2 rounded-lg hover:bg-success/30 transition-colors"
                           >
                             Copy
                           </button>
                         </div>
-                        <p className="text-[9px] text-text-dim leading-relaxed">
+                        <p className="text-xs text-text-dim leading-relaxed">
                           Make sure to store this key securely. You will not be able to retrieve it again.
                         </p>
                         <button
                           onClick={() => setNewKeyGenerated(null)}
                           type="button"
-                          className="text-[9px] font-bold text-accent hover:underline block pt-1 text-left"
+                          className="text-xs font-semibold text-accent hover:underline block pt-1 text-left"
                         >
                           I have saved this key
                         </button>
@@ -534,44 +534,44 @@ export default function DevelopersPage() {
                     )}
 
                     {/* Active API Keys list table */}
-                    <div className="space-y-3.5 pt-2">
-                      <p className="text-[9px] text-text-muted uppercase tracking-wider font-bold">
+                    <div className="space-y-4 pt-2">
+                      <p className="text-xs text-text-muted uppercase tracking-wider font-semibold">
                         Active Credentials
                       </p>
                       {keysLoading ? (
-                        <p className="text-xs text-text-dim italic">Loading keys...</p>
+                        <p className="text-sm text-text-dim italic">Loading keys...</p>
                       ) : apiKeys.length === 0 ? (
-                        <p className="text-xs text-text-dim italic">No developer keys generated yet.</p>
+                        <p className="text-sm text-text-dim italic">No developer keys generated yet.</p>
                       ) : (
-                        <div className="border border-border/80 rounded-xl overflow-hidden bg-bg/30 text-xs">
-                          <table className="w-full text-left border-collapse">
+                        <div className="rounded-xl overflow-hidden bg-white/5">
+                          <table className="w-full text-left text-sm">
                             <thead>
-                              <tr className="bg-panel/40 border-b border-border/80 text-[10px] text-text-muted font-bold uppercase tracking-wider">
-                                <th className="px-4 py-2.5">Key Name</th>
-                                <th className="px-4 py-2.5 font-mono">Issued At</th>
-                                <th className="px-4 py-2.5 font-mono">Last Used</th>
-                                <th className="px-4 py-2.5 text-right" />
+                              <tr className="bg-white/5 text-xs text-text-muted font-semibold uppercase tracking-wider">
+                                <th className="px-5 py-3">Key Name</th>
+                                <th className="px-5 py-3 font-mono">Issued At</th>
+                                <th className="px-5 py-3 font-mono">Last Used</th>
+                                <th className="px-5 py-3 text-right" />
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-border/40 text-text-dim">
+                            <tbody className="table-fade">
                               {apiKeys.map((key) => (
-                                <tr key={key.id} className="hover:bg-panel/10">
-                                  <td className="px-4 py-3.5 font-bold text-text truncate max-w-[120px]">
+                                <tr key={key.id} className="hover:bg-white/5">
+                                  <td className="px-5 py-3.5 font-semibold text-text truncate max-w-[120px]">
                                     {key.name}
                                   </td>
-                                  <td className="px-4 py-3.5 font-mono text-[10px]">
+                                  <td className="px-5 py-3.5 font-mono text-xs">
                                     {new Date(key.createdAt).toLocaleDateString()}
                                   </td>
-                                  <td className="px-4 py-3.5 font-mono text-[10px] text-accent">
+                                  <td className="px-5 py-3.5 font-mono text-xs text-accent">
                                     {key.lastUsed
                                       ? new Date(key.lastUsed).toLocaleDateString()
                                       : "Never"}
                                   </td>
-                                  <td className="px-4 py-3.5 text-right">
+                                  <td className="px-5 py-3.5 text-right">
                                     <button
                                       onClick={() => handleRevokeKey(key.id)}
                                       type="button"
-                                      className="p-1.5 text-danger hover:bg-danger/10 rounded border border-transparent hover:border-danger/20 transition-all flex items-center gap-1 text-[10px] ml-auto uppercase font-bold"
+                                      className="px-3 py-1.5 text-danger hover:bg-danger/10 rounded-lg transition-all flex items-center gap-1.5 text-xs ml-auto font-semibold"
                                       title="Revoke Key"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
@@ -585,7 +585,7 @@ export default function DevelopersPage() {
                         </div>
                       )}
                     </div>
-                  </Card>
+                  </div>
                 </div>
               )}
             </section>
@@ -607,10 +607,10 @@ function CopyDocsButton({ text }) {
     <button
       onClick={handleCopy}
       type="button"
-      className={`absolute top-2.5 right-2.5 text-[8px] font-bold border rounded px-2.5 py-1.5 transition-all ${
+      className={`absolute top-3 right-3 text-[10px] font-semibold rounded-lg px-3 py-1.5 transition-all ${
         copied
-          ? "bg-success/20 border-success/30 text-success"
-          : "bg-surface border-border text-text-muted hover:text-accent hover:border-accent/40 opacity-0 group-hover:opacity-100 focus:opacity-100"
+          ? "bg-success/20 text-success"
+          : "bg-white/5 text-text-muted hover:text-accent hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
       }`}
     >
       {copied ? "COPIED" : "COPY"}
