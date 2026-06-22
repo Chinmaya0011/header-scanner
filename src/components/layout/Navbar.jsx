@@ -77,9 +77,7 @@ export default function Navbar() {
           
           {/* Logo */}
           <Link href="/home" className="flex items-center gap-2.5 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 border border-accent/20 group-hover:border-accent/40 group-hover:bg-accent/20 transition-all duration-300">
-              <Shield className="text-accent h-5 w-5" />
-            </div>
+            
             <span className="font-bold text-text text-sm tracking-wider uppercase">
               Header<span className="text-accent font-extrabold">Guard</span>
             </span>
