@@ -147,7 +147,6 @@ export default function UserDemoPage() {
   };
 
   const handleRegenerateKey = (id) => {
-    if (!confirm("Are you sure you want to regenerate this mock API key?")) return;
     const generatedRaw = `hg_live_demo_usr_key_regen_${Math.random().toString(36).substring(2)}`;
     setKeys(keys.map(k => k.id === id ? {
       ...k,
@@ -164,13 +163,11 @@ export default function UserDemoPage() {
   };
 
   const handleRevokeKey = (id) => {
-    if (!confirm("Are you sure you want to permanently revoke this mock API key?")) return;
     setKeys(keys.filter(k => k.id !== id));
     toast.success("Simulated Key revoked.");
   };
 
   const handleDeleteScan = (id) => {
-    if (!confirm("Are you sure you want to delete this scan from mock history?")) return;
     setMockScans(mockScans.filter(s => s.id !== id));
     toast.success("Scan deleted from mock history.");
   };

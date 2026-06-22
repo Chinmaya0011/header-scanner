@@ -78,10 +78,7 @@ export default function DashboardPage() {
     fetchData();
   }, [currentPage, searchDomain]);
 
-  // Handle deletion of scans (Admin only)
   const handleDeleteScan = async (scanId) => {
-    if (!confirm("Are you sure you want to permanently delete this scan?")) return;
-    
     try {
       const res = await fetch(`/api/scan/${scanId}`, { method: "DELETE" });
       const data = await res.json();
@@ -97,11 +94,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Handle clear all history (Admin only)
   const handleClearAllHistory = async () => {
-    if (!confirm("Are you sure you want to permanently clear ALL scan history in the system?")) return;
-    if (!confirm("This action is destructive and CANNOT be undone. Confirm clear all?")) return;
-
     try {
       const res = await fetch("/api/scans", { method: "DELETE" });
       const data = await res.json();

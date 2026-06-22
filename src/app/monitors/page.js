@@ -103,8 +103,6 @@ export default function MonitorsPage() {
   };
 
   const handleDeleteMonitor = async (monitorId) => {
-    if (!confirm("Are you sure you want to permanently delete this website monitor?")) return;
-
     try {
       const res = await fetch("/api/monitors", {
         method: "DELETE",

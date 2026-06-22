@@ -433,11 +433,7 @@ export default function AdminDashboard({
               {usersList.length > 1 && (
                 <button
                   onClick={() => {
-                    if (confirm("⚠️ Are you sure you want to delete ALL users except yourself?\n\nThis action is destructive and CANNOT be undone!")) {
-                      if (confirm("Final confirmation: Delete ALL user accounts and their associated scans?")) {
-                        handleDeleteAllUsers();
-                      }
-                    }
+                    handleDeleteAllUsers();
                   }}
                   className="flex items-center gap-1.5 px-2 py-1 bg-danger/5 border border-danger/20 rounded text-[9px] font-bold text-danger hover:bg-danger/10 transition-colors flex-shrink-0 uppercase"
                 >
@@ -476,9 +472,7 @@ export default function AdminDashboard({
                           {u.email !== user?.email && (
                             <button
                               onClick={() => {
-                                if (confirm(`Are you sure you want to delete user "${u.email}" and all their scans?`)) {
-                                  handleDeleteUser(u._id, u.email);
-                                }
+                                handleDeleteUser(u._id, u.email);
                               }}
                               disabled={deletingUser === u._id}
                               className="text-danger hover:bg-danger/10 p-1.5 rounded transition-all"
@@ -559,9 +553,7 @@ export default function AdminDashboard({
                                         {isKeyActive && (
                                           <button
                                             onClick={() => {
-                                              if (confirm(`Revoke key "${key.name}"? This stops the key immediately.`)) {
-                                                handleUpdateUserConfig(u._id, u.apiAccessEnabled, u.dailyLimit, key._id);
-                                              }
+                                              handleUpdateUserConfig(u._id, u.apiAccessEnabled, u.dailyLimit, key._id);
                                             }}
                                             disabled={isUserUpdating}
                                             className="text-danger hover:underline text-[8px] font-bold uppercase"

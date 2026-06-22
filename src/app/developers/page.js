@@ -130,7 +130,6 @@ export default function DevelopersPage() {
   };
 
   const handleRevokeKey = async (keyId) => {
-    if (!confirm("Are you sure you want to permanently revoke this API key? This key will stop working immediately.")) return;
     try {
       const res = await fetch("/api/auth/api-keys", {
         method: "DELETE",
@@ -152,7 +151,6 @@ export default function DevelopersPage() {
   };
 
   const handleRegenerateKey = async (keyId) => {
-    if (!confirm("Are you sure you want to regenerate this API key? The current raw credentials will stop working immediately, and you will get a new raw key once.")) return;
     try {
       const res = await fetch("/api/auth/api-keys", {
         method: "POST",
