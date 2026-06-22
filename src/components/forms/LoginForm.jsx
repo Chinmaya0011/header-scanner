@@ -13,18 +13,15 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanEmail = email.trim();
     if (!cleanEmail || !password) {
-      setError("Please fill out all credentials.");
+      toast.error("Please fill out all credentials.");
       return;
     }
 
-    setError(null);
     setLoading(true);
 
     try {
@@ -40,13 +37,11 @@ export default function LoginForm() {
         throw new Error(data.error || "Login failed");
       }
 
-      setSuccess(true);
       toast.success("Access granted. Redirecting to dashboard...");
       
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err.message);
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -72,20 +67,6 @@ export default function LoginForm() {
         </p>
       </div>
 
-      {error && (
-        <div className="flex gap-2.5 items-start p-3.5 bg-danger/5 border border-danger/20 text-danger text-xs rounded-lg mb-6 font-mono">
-          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <span className="leading-relaxed font-sans">{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div className="flex gap-2.5 items-start p-3.5 bg-success/5 border border-success/20 text-success text-xs rounded-lg mb-6 font-mono">
-          <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <span className="leading-relaxed font-sans">Access authorized. Spawning session dashboard...</span>
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
@@ -102,7 +83,7 @@ export default function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
               placeholder="e.g. admin@example.com"
-              disabled={loading || success}
+              disabled={loading}
             />
           </div>
         </div>
@@ -122,7 +103,7 @@ export default function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
               placeholder="••••••••"
-              disabled={loading || success}
+              disabled={loading}
             />
           </div>
         </div>
@@ -130,7 +111,7 @@ export default function LoginForm() {
         <Button
           type="submit"
           loading={loading}
-          disabled={loading || success || !email.trim() || !password}
+          disabled={loading || !email.trim() || !password}
           className="w-full mt-6"
         >
           Verify & Authenticate

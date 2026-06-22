@@ -225,7 +225,7 @@ function scoreToGrade(score) {
  */
 export function analyzeHeaders(headersObj) {
   const results = [];
-  let score = 100;
+  let score = 0;
   const timestamp = new Date().toISOString();
   const statusMap = {};
 
@@ -234,21 +234,17 @@ export function analyzeHeaders(headersObj) {
     const status = def.validate(value);
     statusMap[def.key] = status;
 
-    // Deduct points based on status and severity
-    let deduction = 0;
-    if (status === "missing") {
-      if (def.severity === "critical") deduction = 30;
-      else if (def.severity === "high") deduction = 20;
-      else if (def.severity === "medium") deduction = 10;
-      else if (def.severity === "low") deduction = 5;
-    } else if (status === "weak" || status === "invalid") {
-      if (def.severity === "critical") deduction = 15;
-      else if (def.severity === "high") deduction = 10;
-      else if (def.severity === "medium") deduction = 5;
-      else if (def.severity === "low") deduction = 2;
+    // Calculate points earned based on weight and status
+    let pointsEarned = 0;
+    if (status === "present") {
+      pointsEarned = def.weight;
+    } else if (status === "weak") {
+      pointsEarned = def.weight * 0.5;
+    } else {
+      pointsEarned = 0; // "missing" or "invalid" gets 0 points
     }
 
-    score -= deduction;
+    score += pointsEarned;
 
     results.push({
       name: def.name,
@@ -263,54 +259,12 @@ export function analyzeHeaders(headersObj) {
     });
   }
 
-  // Ensure score is within 0-100 bounds
-  score = Math.max(0, score);
+  // Ensure score is a clean integer and bounded between 0 and 100
+  score = Math.min(100, Math.max(0, Math.round(score)));
 
-  // Apply Grade Caps (Aligning with Real-World Security Standards)
-  let capApplied = false;
-  let capReason = "";
-
-  // 1. CSP check (Critical)
-  if (statusMap["content-security-policy"] === "missing") {
-    if (score > 49) {
-      score = 49; // Max grade D
-      capApplied = true;
-      capReason = "Missing Content-Security-Policy limits the maximum grade to D";
-    }
-  } else if (statusMap["content-security-policy"] === "weak" || statusMap["content-security-policy"] === "invalid") {
-    if (score > 64) {
-      score = 64; // Max grade C
-      capApplied = true;
-      capReason = "Weak/Invalid Content-Security-Policy limits the maximum grade to C";
-    }
-  }
-
-  // 2. HSTS check (High)
-  if (statusMap["strict-transport-security"] === "missing" || statusMap["strict-transport-security"] === "invalid") {
-    if (score > 64) {
-      score = 64; // Max grade C
-      capApplied = true;
-      capReason = "Missing/Invalid Strict-Transport-Security limits the maximum grade to C";
-    }
-  }
-
-  // 3. X-Frame-Options check (High)
-  if (statusMap["x-frame-options"] === "missing" || statusMap["x-frame-options"] === "invalid") {
-    if (score > 64) {
-      score = 64; // Max grade C
-      capApplied = true;
-      capReason = "Missing/Invalid X-Frame-Options limits the maximum grade to C";
-    }
-  }
-
-  // 4. X-Content-Type-Options check (Medium)
-  if (statusMap["x-content-type-options"] === "missing" || statusMap["x-content-type-options"] === "invalid") {
-    if (score > 79) {
-      score = 79; // Max grade B
-      capApplied = true;
-      capReason = "Missing/Invalid X-Content-Type-Options limits the maximum grade to B";
-    }
-  }
+  // For compatibility with UI/database schema, keep capApplied and capReason
+  const capApplied = false;
+  const capReason = "";
 
   const grade = scoreToGrade(score);
   

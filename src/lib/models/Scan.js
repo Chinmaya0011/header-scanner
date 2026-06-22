@@ -44,6 +44,152 @@ const CheckSchema = new mongoose.Schema({
   references: [String],
 });
 
+// EASM extensions
+const SslDetailsSchema = new mongoose.Schema({
+  valid: Boolean,
+  tlsVersion: String,
+  supportedVersions: [String],
+  cipherSuite: String,
+  expirationDate: Date,
+  daysRemaining: Number,
+  issuer: String,
+  wildcard: Boolean,
+  sans: [String],
+  ocspStatus: String,
+  hstsPreload: Boolean,
+  keyType: String,
+  keyLength: Number,
+});
+
+const DnsDetailsSchema = new mongoose.Schema({
+  a: [String],
+  aaaa: [String],
+  cname: [String],
+  mx: [String],
+  txt: [String],
+  spf: { value: String, valid: Boolean, error: String },
+  dkim: { value: String, found: Boolean },
+  dmarc: { value: String, valid: Boolean, error: String },
+  dnssec: Boolean,
+  caa: [String],
+});
+
+const InfraDetailsSchema = new mongoose.Schema({
+  cdn: String,
+  waf: String,
+  reverseProxy: String,
+  hosting: String,
+  asn: String,
+  isp: String,
+  country: String,
+  region: String,
+});
+
+const TechItemSchema = new mongoose.Schema({
+  name: String,
+  category: String,
+  version: String,
+});
+
+const DetailedCookieSchema = new mongoose.Schema({
+  name: String,
+  value: String,
+  domain: String,
+  path: String,
+  secure: Boolean,
+  httpOnly: Boolean,
+  sameSite: String,
+  maxAge: Number,
+  expires: String,
+  hostPrefix: Boolean,
+  securePrefix: Boolean,
+  risk: String,
+});
+
+const CspAnalyzerSchema = new mongoose.Schema({
+  unsafeInline: Boolean,
+  unsafeEval: Boolean,
+  strictDynamic: Boolean,
+  nonceUsage: Boolean,
+  hashUsage: Boolean,
+  reportUri: String,
+  reportTo: String,
+  directives: mongoose.Schema.Types.Mixed,
+});
+
+const ProtocolDetailsSchema = new mongoose.Schema({
+  version: String,
+  http2: Boolean,
+  http3: Boolean,
+  quic: Boolean,
+  compression: String,
+  keepAlive: Boolean,
+  redirectChain: [String],
+});
+
+const PerfMetricsSchema = new mongoose.Schema({
+  dnsLookup: Number,
+  tlsHandshake: Number,
+  ttfb: Number,
+  responseTime: Number,
+  redirectTime: Number,
+  totalTime: Number,
+});
+
+const RobotsDetailsSchema = new mongoose.Schema({
+  exists: Boolean,
+  sitemaps: [String],
+  sensitiveExposed: Boolean,
+  exposedPathsCount: Number,
+});
+
+const SitemapDetailsSchema = new mongoose.Schema({
+  exists: Boolean,
+  urlCount: Number,
+  brokenUrls: [String],
+  lastModified: Date,
+});
+
+const SensitiveFileSchema = new mongoose.Schema({
+  path: String,
+  exists: Boolean,
+  status: Number,
+  severity: String,
+});
+
+const SecurityTxtSchema = new mongoose.Schema({
+  exists: Boolean,
+  contact: String,
+  expires: String,
+  encryption: String,
+  policy: String,
+});
+
+const EmailSecuritySchema = new mongoose.Schema({
+  score: Number,
+  spfPresent: Boolean,
+  dmarcPresent: Boolean,
+  bimiPresent: Boolean,
+  mtaStsPresent: Boolean,
+  tlsRptPresent: Boolean,
+});
+
+const BenchmarkSchema = new mongoose.Schema({
+  googleScore: Number,
+  githubScore: Number,
+  cloudflareScore: Number,
+  microsoftScore: Number,
+  industryAverage: Number,
+});
+
+const SeoDetailsSchema = new mongoose.Schema({
+  canonicalUrl: String,
+  metaRobots: String,
+  isIndexable: Boolean,
+  openGraph: mongoose.Schema.Types.Mixed,
+  twitterCard: mongoose.Schema.Types.Mixed
+});
+
 const ScanSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
@@ -76,8 +222,42 @@ const ScanSchema = new mongoose.Schema(
     apiKeyId: { type: String, default: null },
     isSuccess: { type: Boolean, default: true },
     failReason: { type: String, default: null },
+    
+    // EASM Extensions
+    ssl: SslDetailsSchema,
+    dns: DnsDetailsSchema,
+    infrastructure: InfraDetailsSchema,
+    techStack: [TechItemSchema],
+    cookies: [DetailedCookieSchema],
+    deepCsp: CspAnalyzerSchema,
+    httpProtocol: ProtocolDetailsSchema,
+    performance: PerfMetricsSchema,
+    robotsTxt: RobotsDetailsSchema,
+    sitemapXml: SitemapDetailsSchema,
+    sensitiveFiles: [SensitiveFileSchema],
+    securityTxt: SecurityTxtSchema,
+    emailSecurity: EmailSecuritySchema,
+    subdomains: [mongoose.Schema.Types.Mixed],
+    exposedServices: [mongoose.Schema.Types.Mixed],
+    loginSurfaces: [mongoose.Schema.Types.Mixed],
+    benchmarks: BenchmarkSchema,
+    seo: SeoDetailsSchema,
+    categoryScores: {
+      headers: Number,
+      ssl: Number,
+      dns: Number,
+      cookies: Number,
+      compliance: Number,
+      performance: Number,
+      exposure: Number,
+    }
   },
   { timestamps: true }
 );
+
+// Force rebuild of the model in development to apply schema changes instantly
+if (process.env.NODE_ENV === "development" && mongoose.models.Scan) {
+  delete mongoose.models.Scan;
+}
 
 export default mongoose.models.Scan || mongoose.model("Scan", ScanSchema);

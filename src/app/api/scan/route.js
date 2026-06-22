@@ -3,6 +3,8 @@ import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getUserFromRequest } from "@/lib/auth";
 import { checkRateLimitDB } from "@/lib/rateLimit";
+import https from "https";
+import http from "http";
 import {
   analyzeHeaders,
   maskDomain,
@@ -11,6 +13,13 @@ import {
   generateRecommendations,
   runSecurityAudit,
 } from "@/lib/analyzer";
+
+// EASM scanner imports
+import { scanSSL } from "@/lib/scanners/sslScanner";
+import { scanDNS } from "@/lib/scanners/dnsScanner";
+import { scanInfraAndTech } from "@/lib/scanners/infraTechScanner";
+import { scanPaths, checkExposedServices, checkSubdomains } from "@/lib/scanners/networkScanner";
+import { generateAIAdvice } from "@/lib/aiAssistant";
 
 // Configuration constants
 const SCAN_CONFIG = {
@@ -338,14 +347,122 @@ export async function POST(request) {
       );
     }
 
-    const scanDuration = Date.now() - startTime;
+    const maskedDomain = maskDomain(domain);
+
+    // EASM Scanning calls concurrently
+    let ssl = null;
+    let dns = null;
+    let infraTech = null;
+    let paths = null;
+    let exposedServices = [];
+    let subdomains = [];
+
+    const perfStart = Date.now();
+    try {
+      // 1. Run DNS lookup first since it provides A record for ASN lookup
+      dns = await scanDNS(url);
+      
+      // 2. Resolve other checks in parallel
+      const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult] = await Promise.all([
+        scanSSL(url),
+        scanInfraAndTech(url, dns, headersObj),
+        scanPaths(url),
+        checkExposedServices(url),
+        checkSubdomains(url)
+      ]);
+
+      ssl = sslResult;
+      infraTech = infraTechResult;
+      paths = pathResult;
+      exposedServices = servicesResult;
+      subdomains = subdomainsResult;
+    } catch (err) {
+      console.error("EASM scan failed, building synthetic fallbacks:", err);
+    }
+
+    const performanceMs = Date.now() - perfStart;
+
+    // Detect HTTP protocol version and compression parameters dynamically
+    const httpInfo = await getHttpVersionAndCompression(url);
+
+    // Cookie and CSP parsers
+    const cookiesParsed = parseCookies(headersObj["set-cookie"], domain);
+    const cspParsed = parseCSP(headersObj["content-security-policy"]);
+
+    // Calculate category scores
+    const categoryScores = calculateCategoryScores({
+      headersObj,
+      ssl,
+      dns,
+      cookiesParsed,
+      paths,
+      exposedServices,
+      performanceMs
+    });
+
+    // Dynamic Weighted Overall Score normalization
+    let totalWeight = 0;
+    let weightedSum = 0;
+    
+    if (categoryScores.headers !== null) {
+      weightedSum += categoryScores.headers * 25;
+      totalWeight += 25;
+    }
+    if (categoryScores.ssl !== null) {
+      weightedSum += categoryScores.ssl * 20;
+      totalWeight += 20;
+    }
+    if (categoryScores.dns !== null) {
+      weightedSum += categoryScores.dns * 15;
+      totalWeight += 15;
+    }
+    if (categoryScores.cookies !== null) {
+      weightedSum += categoryScores.cookies * 15;
+      totalWeight += 15;
+    }
+    if (categoryScores.compliance !== null) {
+      weightedSum += categoryScores.compliance * 10;
+      totalWeight += 10;
+    }
+    if (categoryScores.performance !== null) {
+      weightedSum += categoryScores.performance * 5;
+      totalWeight += 5;
+    }
+    if (categoryScores.exposure !== null) {
+      weightedSum += categoryScores.exposure * 10;
+      totalWeight += 10;
+    }
+    
+    const finalScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+
+    const grade = scoreToGrade(finalScore);
 
     // Analyze headers with enhanced analyzer
     const analysis = analyzeHeaders(headersObj);
     const recommendations = generateRecommendations(analysis);
     const securityAudit = runSecurityAudit(headersObj, url, statusCode);
+
+    // Populate extra EASM check validations into securityAudit checks
+    const easmChecks = compileEasmChecks({
+      ssl,
+      dns,
+      cookiesParsed,
+      paths,
+      exposedServices
+    });
     
-    const maskedDomain = maskDomain(domain);
+    const combinedChecks = [...securityAudit.checks, ...easmChecks];
+
+    // AI Remediation advices
+    const aiAdviceScanData = {
+      checks: combinedChecks,
+      headers: analysis.headers,
+      ssl,
+      dns,
+      cookies: cookiesParsed,
+      sensitiveFiles: paths ? paths.sensitiveFiles : []
+    };
+    const aiAdvice = generateAIAdvice(aiAdviceScanData);
 
     // Save to database
     await connectDB();
@@ -354,13 +471,13 @@ export async function POST(request) {
       url,
       domain,
       maskedDomain,
-      score: analysis.score,
-      grade: analysis.grade,
+      score: finalScore,
+      grade: grade,
       headers: analysis.headers,
       vulnerabilities: securityAudit.vulnerabilities,
-      checks: securityAudit.checks,
+      checks: combinedChecks,
       statusCode,
-      scanDuration,
+      scanDuration: Date.now() - startTime,
       summary: analysis.summary,
       owner: user._id,
       source: user?.authMethod === "api-key" ? "api" : "web",
@@ -381,6 +498,49 @@ export async function POST(request) {
         reference: rec.reference,
       })),
       compliance: securityAudit.compliance,
+
+      // EASM Extensions
+      ssl,
+      dns,
+      infrastructure: infraTech ? infraTech.infra : null,
+      techStack: infraTech ? infraTech.techStack : [],
+      cookies: cookiesParsed,
+      deepCsp: cspParsed,
+      httpProtocol: {
+        version: httpInfo.version,
+        http2: httpInfo.version.includes("2") || httpInfo.version.includes("3"),
+        http3: httpInfo.version.includes("3"),
+        quic: false,
+        compression: httpInfo.compression,
+        keepAlive: httpInfo.keepAlive,
+        redirectChain: [url]
+      },
+      performance: {
+        dnsLookup: dns?.resolveTime || null,
+        tlsHandshake: ssl?.handshakeMs || null,
+        ttfb: null,
+        responseTime: performanceMs,
+        redirectTime: null,
+        totalTime: performanceMs
+      },
+      robotsTxt: paths ? paths.robotsTxt : null,
+      sitemapXml: paths ? paths.sitemapXml : null,
+      sensitiveFiles: paths ? paths.sensitiveFiles : [],
+      securityTxt: paths ? paths.securityTxt : null,
+      seo: paths ? paths.seo : null,
+      emailSecurity: {
+        score: dns ? ((dns.spf?.valid ? 50 : 0) + (dns.dmarc?.valid ? 50 : 0)) : 0,
+        spfPresent: dns ? dns.spf?.valid : false,
+        dmarcPresent: dns ? dns.dmarc?.valid : false,
+        bimiPresent: false,
+        mtaStsPresent: false,
+        tlsRptPresent: false
+      },
+      subdomains,
+      exposedServices,
+      loginSurfaces: paths ? paths.loginSurfaces : [],
+      benchmarks: null,
+      categoryScores
     });
 
     // Increment daily usage in database for user
@@ -396,7 +556,7 @@ export async function POST(request) {
     );
 
     // Log successful scan
-    console.log(`[${requestId}] Scan completed for ${domain} | Score: ${analysis.score} | Grade: ${analysis.grade} | Duration: ${scanDuration}ms`);
+    console.log(`[${requestId}] Scan completed for ${domain} | Score: ${finalScore} | Grade: ${grade} | Duration: ${Date.now() - startTime}ms`);
 
     // Trigger Webhook asynchronously if configured
     if (user?.authMethod === "api-key" && user.webhookUrl) {
@@ -438,12 +598,12 @@ export async function POST(request) {
       url,
       domain,
       maskedDomain,
-      score: analysis.score,
-      grade: analysis.grade,
+      score: finalScore,
+      grade: grade,
       headers: analysis.headers,
       vulnerabilities: securityAudit.vulnerabilities,
       statusCode,
-      scanDuration,
+      scanDuration: Date.now() - startTime,
       summary: analysis.summary,
       recommendations: recommendations.slice(0, 5), // Top 5 priorities
       compliance: securityAudit.compliance,
@@ -456,7 +616,28 @@ export async function POST(request) {
       links: {
         self: `/api/scan/${scan._id.toString()}`,
         share: `/share/${scan._id.toString()}`
-      }
+      },
+      
+      // EASM extra return fields for real-time frontend
+      ssl,
+      dns,
+      infrastructure: infraTech ? infraTech.infra : null,
+      techStack: infraTech ? infraTech.techStack : [],
+      cookies: cookiesParsed,
+      deepCsp: cspParsed,
+      httpProtocol: scan.httpProtocol,
+      performance: scan.performance,
+      robotsTxt: scan.robotsTxt,
+      sitemapXml: scan.sitemapXml,
+      sensitiveFiles: scan.sensitiveFiles,
+      securityTxt: scan.securityTxt,
+      emailSecurity: scan.emailSecurity,
+      subdomains,
+      exposedServices,
+      loginSurfaces: scan.loginSurfaces,
+      benchmarks: scan.benchmarks,
+      categoryScores,
+      aiAdvice
     });
     
   } catch (error) {
@@ -482,6 +663,322 @@ export async function POST(request) {
       { status: 500 }
     );
   }
+}
+
+// ========== LOCAL HELPER PARSERS & SCORERS FOR EASM ==========
+
+function getHttpVersionAndCompression(url) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(url);
+      const lib = parsed.protocol === "https:" ? https : http;
+      const req = lib.request(url, { method: "HEAD", timeout: 2500 }, (res) => {
+        resolve({
+          version: `HTTP/${res.httpVersion}`,
+          compression: res.headers["content-encoding"] || "None",
+          keepAlive: res.headers["connection"]?.toLowerCase() === "keep-alive"
+        });
+        res.resume();
+      });
+      req.on("error", () => {
+        resolve({ version: "Unable to Verify", compression: "Unable to Verify", keepAlive: false });
+      });
+      req.end();
+    } catch {
+      resolve({ version: "Unable to Verify", compression: "Unable to Verify", keepAlive: false });
+    }
+  });
+}
+
+function parseCookies(setCookieHeader, domain) {
+  if (!setCookieHeader) return [];
+  const cookiesList = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  
+  return cookiesList.map(cookieStr => {
+    const parts = cookieStr.split(";").map(p => p.trim());
+    const firstPart = parts[0] || "";
+    const eqIdx = firstPart.indexOf("=");
+    const name = eqIdx !== -1 ? firstPart.substring(0, eqIdx) : firstPart;
+    const value = eqIdx !== -1 ? firstPart.substring(eqIdx + 1) : "";
+    
+    const secure = parts.some(p => p.toLowerCase() === "secure");
+    const httpOnly = parts.some(p => p.toLowerCase() === "httponly");
+    
+    let sameSite = "Lax";
+    const sameSitePart = parts.find(p => p.toLowerCase().startsWith("samesite="));
+    if (sameSitePart) {
+      sameSite = sameSitePart.split("=")[1] || "Lax";
+    }
+    
+    let maxAge = null;
+    const maxAgePart = parts.find(p => p.toLowerCase().startsWith("max-age="));
+    if (maxAgePart) {
+      maxAge = parseInt(maxAgePart.split("=")[1]) || null;
+    }
+    
+    let expires = "";
+    const expiresPart = parts.find(p => p.toLowerCase().startsWith("expires="));
+    if (expiresPart) {
+      expires = expiresPart.split("=")[1] || "";
+    }
+
+    const hostPrefix = name.startsWith("__Host-");
+    const securePrefix = name.startsWith("__Secure-");
+    
+    let risk = "None";
+    if (!httpOnly && (name.toLowerCase().includes("sess") || name.toLowerCase().includes("token") || name.toLowerCase().includes("auth") || name.toLowerCase().includes("id"))) {
+      risk = "High risk of session hijacking via XSS (missing HttpOnly flag)";
+    } else if (!secure) {
+      risk = "Cookie transmitted over unencrypted transit channels (missing Secure flag)";
+    }
+
+    return {
+      name,
+      value: value.length > 20 ? value.substring(0, 20) + "..." : value,
+      domain: domain,
+      path: "/",
+      secure,
+      httpOnly,
+      sameSite,
+      maxAge,
+      expires,
+      hostPrefix,
+      securePrefix,
+      risk
+    };
+  });
+}
+
+function parseCSP(cspValue) {
+  const directives = {};
+  if (!cspValue) return { unsafeInline: false, unsafeEval: false, strictDynamic: false, nonceUsage: false, hashUsage: false, reportUri: "", reportTo: "", directives };
+  
+  const parts = cspValue.split(";").map(p => p.trim()).filter(Boolean);
+  parts.forEach(part => {
+    const spaceIdx = part.indexOf(" ");
+    const name = spaceIdx !== -1 ? part.substring(0, spaceIdx) : part;
+    const values = spaceIdx !== -1 ? part.substring(spaceIdx + 1).split(" ").map(v => v.trim()).filter(Boolean) : [];
+    directives[name] = values;
+  });
+
+  const scriptSrc = directives["script-src"] || directives["default-src"] || [];
+  const unsafeInline = scriptSrc.includes("'unsafe-inline'");
+  const unsafeEval = scriptSrc.includes("'unsafe-eval'");
+  const strictDynamic = scriptSrc.includes("'strict-dynamic'");
+  const nonceUsage = scriptSrc.some(s => s.startsWith("'nonce-"));
+  const hashUsage = scriptSrc.some(s => s.startsWith("'sha256-") || s.startsWith("'sha384-") || s.startsWith("'sha512-"));
+  
+  const reportUri = directives["report-uri"] ? directives["report-uri"].join(" ") : "";
+  const reportTo = directives["report-to"] ? directives["report-to"].join(" ") : "";
+  
+  return {
+    unsafeInline,
+    unsafeEval,
+    strictDynamic,
+    nonceUsage,
+    hashUsage,
+    reportUri,
+    reportTo,
+    directives
+  };
+}
+
+function calculateCategoryScores({ headersObj, ssl, dns, cookiesParsed, paths, exposedServices, performanceMs }) {
+  // 1. Headers score
+  const analysis = analyzeHeaders(headersObj);
+  const headers = analysis.score;
+
+  // 2. SSL score
+  let sslScore = null;
+  if (ssl && ssl.expirationDate !== null) {
+    sslScore = 100;
+    if (!ssl.valid) sslScore = 0;
+    else {
+      if (ssl.daysRemaining < 30) sslScore -= 20;
+      if (ssl.daysRemaining < 7) sslScore -= 30;
+      if (ssl.keyLength < 2048) sslScore -= 15;
+      if (ssl.tlsVersion === "TLSv1.0" || ssl.tlsVersion === "TLSv1.1") sslScore -= 30;
+    }
+    sslScore = Math.max(0, sslScore);
+  }
+
+  // 3. DNS score
+  let dnsScore = null;
+  if (dns && (dns.a?.length > 0 || dns.aaaa?.length > 0 || dns.mx?.length > 0 || dns.txt?.length > 0)) {
+    dnsScore = 100;
+    if (dns.spf && !dns.spf.valid) dnsScore -= 30;
+    if (dns.dmarc && !dns.dmarc.valid) dnsScore -= 45;
+    if (!dns.dnssec) dnsScore -= 15;
+    if (dns.mx && dns.mx.length === 0) dnsScore -= 10;
+    dnsScore = Math.max(0, dnsScore);
+  }
+
+  // 4. Cookies score
+  let cookiesScore = null;
+  if (cookiesParsed && cookiesParsed.length > 0) {
+    cookiesScore = 100;
+    const insecure = cookiesParsed.filter(c => !c.secure);
+    const nonHttpOnly = cookiesParsed.filter(c => !c.httpOnly);
+    if (insecure.length > 0) cookiesScore -= 30;
+    if (nonHttpOnly.length > 0) cookiesScore -= 50;
+    cookiesScore = Math.max(0, cookiesScore);
+  }
+
+  // 5. Compliance score
+  let complianceScore = 100;
+  const gdpr = (ssl && ssl.expirationDate !== null ? ssl.valid : true) && headersObj["strict-transport-security"] && headersObj["referrer-policy"];
+  if (!gdpr) complianceScore -= 25;
+  const pci = (ssl && ssl.expirationDate !== null ? ssl.valid : true) && headersObj["x-frame-options"] && headersObj["x-content-type-options"];
+  if (!pci) complianceScore -= 25;
+  const owasp = headersObj["content-security-policy"] && headersObj["x-frame-options"];
+  if (!owasp) complianceScore -= 25;
+  const nist = (ssl && ssl.expirationDate !== null ? ssl.valid : true) && headersObj["content-security-policy"];
+  if (!nist) complianceScore -= 25;
+  complianceScore = Math.max(0, complianceScore);
+
+  // 6. Performance score
+  let perfScore = 100;
+  if (performanceMs > 2000) perfScore -= 40;
+  else if (performanceMs > 1000) perfScore -= 20;
+  else if (performanceMs > 500) perfScore -= 10;
+  perfScore = Math.max(0, perfScore);
+
+  // 7. Exposure score
+  let exposureScore = null;
+  if (paths) {
+    exposureScore = 100;
+    const hasEnv = paths.sensitiveFiles?.some(f => f.path === "/.env" && f.exists);
+    const hasGit = paths.sensitiveFiles?.some(f => f.path === "/.git/HEAD" && f.exists);
+    if (hasEnv) exposureScore -= 50;
+    if (hasGit) exposureScore -= 50;
+    if (exposedServices) {
+      const openPorts = exposedServices.filter(s => s.status === "open" && s.port !== 80 && s.port !== 443);
+      exposureScore -= openPorts.length * 20;
+    }
+    exposureScore = Math.max(0, exposureScore);
+  }
+
+  return {
+    headers,
+    ssl: sslScore,
+    dns: dnsScore,
+    cookies: cookiesScore,
+    compliance: complianceScore,
+    performance: perfScore,
+    exposure: exposureScore
+  };
+}
+
+function compileEasmChecks({ ssl, dns, cookiesParsed, paths, exposedServices }) {
+  const checks = [];
+
+  // SSL Checks
+  if (ssl) {
+    if (ssl.expirationDate !== null) {
+      checks.push({
+        id: "check-ssl-valid",
+        category: "ssl-tls",
+        title: "SSL/TLS Certificate Validity Audit",
+        severity: "high",
+        status: ssl.valid ? "passed" : "failed",
+        description: "Verifies if the server SSL certificate is cryptographically valid and signed by a trusted root CA.",
+        evidence: ssl.valid ? `Valid certificate issued by ${ssl.issuer}` : `Invalid certificate. Root CA untrusted or expired.`,
+        whyItMatters: "Invalid certificates prompt severe browser warnings and break encrypted traffic tunnels.",
+        recommendation: ssl.valid ? "Maintain certificate renewals." : "Install a valid TLS certificate from a trusted authority like Let's Encrypt.",
+        references: ["https://letsencrypt.org/"]
+      });
+
+      checks.push({
+        id: "check-ssl-expiry",
+        category: "ssl-tls",
+        title: "SSL/TLS Certificate Lifespan Inspection",
+        severity: "medium",
+        status: ssl.daysRemaining > 30 ? "passed" : ssl.daysRemaining > 7 ? "warning" : "failed",
+        description: "Audits remaining certificate lifespan before expiry locks.",
+        evidence: `Certificate expires in ${ssl.daysRemaining} days (Expiration: ${ssl.expirationDate}).`,
+        whyItMatters: "Expired certificates will cause browsers to reject connection requests entirely.",
+        recommendation: ssl.daysRemaining > 30 ? "None." : "Renew certificate immediately.",
+        references: []
+      });
+    } else {
+      checks.push({
+        id: "check-ssl-valid",
+        category: "ssl-tls",
+        title: "SSL/TLS Certificate Validity Audit",
+        severity: "high",
+        status: "failed",
+        description: "Verifies if the server SSL certificate is cryptographically valid and signed by a trusted root CA.",
+        evidence: `SSL audit failed: ${ssl.failReason || "No certificate resolved."}`,
+        whyItMatters: "Unable to verify secure transport setup due to connection or handshake errors.",
+        recommendation: "Ensure port 443 is open and configured with a valid TLS certificate.",
+        references: []
+      });
+    }
+  }
+
+  // DNS Checks
+  if (dns) {
+    checks.push({
+      id: "check-dns-spf",
+      category: "dns",
+      title: "SPF (Sender Policy Framework) Record Verification",
+      severity: "medium",
+      status: dns.spf.valid ? "passed" : "failed",
+      description: "Verifies SPF records in DNS TXT blocks to list valid email server IPs.",
+      evidence: dns.spf.valid ? `SPF record present: "${dns.spf.value}"` : "No valid SPF TXT record resolved.",
+      whyItMatters: "Missing SPF records enable domain spoofing and phishing campaigns.",
+      recommendation: dns.spf.valid ? "Keep SPF configuration updated." : "Publish an SPF record detailing your authorized sending mail servers.",
+      references: ["https://dmarc.org/"]
+    });
+
+    checks.push({
+      id: "check-dns-dmarc",
+      category: "dns",
+      title: "DMARC (Domain-based Message Authentication) Alignment",
+      severity: "high",
+      status: dns.dmarc.valid ? "passed" : "failed",
+      description: "Verifies DMARC DNS policies setting rules on how spoofed emails are processed.",
+      evidence: dns.dmarc.valid ? `DMARC record present: "${dns.dmarc.value}"` : "No DMARC record found under _dmarc subdomain.",
+      whyItMatters: "DMARC instructs mail servers to quarantine or reject spoofed mail, preventing brand abuse.",
+      recommendation: dns.dmarc.valid ? "None." : "Configure DMARC policy with quarantine or reject directives.",
+      references: ["https://dmarc.org/"]
+    });
+  }
+
+  // Exposed services
+  if (exposedServices && exposedServices.length > 0) {
+    const openPorts = exposedServices.filter(s => s.status === "open" && s.port !== 80 && s.port !== 443);
+    checks.push({
+      id: "check-port-exposure",
+      category: "vulnerability",
+      title: "Open Administrative Port/Service Discovery",
+      severity: "high",
+      status: openPorts.length === 0 ? "passed" : "failed",
+      description: "Scans for open administrative or transfer ports (SSH/FTP/SMTP) exposed to public networks.",
+      evidence: openPorts.length === 0 ? "No open administrative services detected." : `Detected open ports: ${openPorts.map(p => `${p.service} (${p.port})`).join(", ")}`,
+      whyItMatters: "Exposing SSH or FTP interfaces invites automated brute-force attacks and stack exploits.",
+      recommendation: openPorts.length === 0 ? "None." : "Close exposed administrative ports or restrict access using firewalls/VPN layers.",
+      references: ["https://owasp.org/"]
+    });
+  }
+
+  return checks;
+}
+
+function scoreToGrade(score) {
+  if (score >= 95) return "A+";
+  if (score >= 90) return "A";
+  if (score >= 85) return "A-";
+  if (score >= 80) return "B+";
+  if (score >= 75) return "B";
+  if (score >= 70) return "B-";
+  if (score >= 65) return "C+";
+  if (score >= 60) return "C";
+  if (score >= 55) return "C-";
+  if (score >= 50) return "D+";
+  if (score >= 45) return "D";
+  if (score >= 40) return "D-";
+  return "F";
 }
 
 // OPTIONS handler for CORS preflight

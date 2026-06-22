@@ -16,26 +16,23 @@ export default function RegisterForm() {
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState("register"); // "register" or "verify_otp"
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
 
     const cleanEmail = email.trim();
     if (!cleanEmail || !password || !confirmPassword) {
-      setError("Please fill out all credentials.");
+      toast.error("Please fill out all credentials.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      toast.error("Passwords do not match.");
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      toast.error("Password must be at least 6 characters.");
       return;
     }
 
@@ -57,7 +54,6 @@ export default function RegisterForm() {
       setStep("verify_otp");
       toast.success("Verification code sent to your email. Check your inbox.");
     } catch (err) {
-      setError(err.message);
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -68,11 +64,10 @@ export default function RegisterForm() {
     e.preventDefault();
     const cleanOtp = otp.trim();
     if (!cleanOtp) {
-      setError("Verification code is required.");
+      toast.error("Verification code is required.");
       return;
     }
 
-    setError(null);
     setLoading(true);
 
     try {
@@ -88,13 +83,11 @@ export default function RegisterForm() {
         throw new Error(data.error || "Verification failed");
       }
 
-      setSuccess(true);
       toast.success("Account verified successfully! Welcome to HeaderGuard.");
       
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err.message);
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -126,20 +119,6 @@ export default function RegisterForm() {
         </p>
       </div>
 
-      {error && (
-        <div className="flex gap-2.5 items-start p-3.5 bg-danger/5 border border-danger/20 text-danger text-xs rounded-lg mb-6 font-mono">
-          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <span className="leading-relaxed font-sans">{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div className="flex gap-2.5 items-start p-3.5 bg-success/5 border border-success/20 text-success text-xs rounded-lg mb-6 font-mono">
-          <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <span className="leading-relaxed font-sans">Account verified successfully. Spawning console session...</span>
-        </div>
-      )}
-
       {step === "register" ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -157,7 +136,7 @@ export default function RegisterForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
                 placeholder="e.g. mail@example.com"
-                disabled={loading || success}
+                disabled={loading}
               />
             </div>
           </div>
@@ -177,7 +156,7 @@ export default function RegisterForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
                 placeholder="Minimum 6 characters"
-                disabled={loading || success}
+                disabled={loading}
               />
             </div>
           </div>
@@ -197,7 +176,7 @@ export default function RegisterForm() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
                 placeholder="Confirm your password"
-                disabled={loading || success}
+                disabled={loading}
               />
             </div>
           </div>
@@ -205,7 +184,7 @@ export default function RegisterForm() {
           <Button
             type="submit"
             loading={loading}
-            disabled={loading || success || !email.trim() || !password || !confirmPassword}
+            disabled={loading || !email.trim() || !password || !confirmPassword}
             className="w-full mt-6"
           >
             Register Console Account
@@ -230,7 +209,7 @@ export default function RegisterForm() {
                 placeholder="Enter 6-digit verification code"
                 maxLength={6}
                 autoComplete="off"
-                disabled={loading || success}
+                disabled={loading}
               />
             </div>
             <p className="text-[10px] text-text-dim uppercase mt-3 leading-relaxed font-semibold">
@@ -241,7 +220,7 @@ export default function RegisterForm() {
           <Button
             type="submit"
             loading={loading}
-            disabled={loading || success || !otp.trim()}
+            disabled={loading || !otp.trim()}
             className="w-full mt-6"
           >
             Verify & Activate Session
