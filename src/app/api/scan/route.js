@@ -252,8 +252,30 @@ export async function POST(request) {
 
     const domain = extractDomain(url);
 
+    // Enforce Domain Ownership Verification
+    const cleanDomain = domain.toLowerCase();
+    const isLocalhost = cleanDomain === "localhost" || cleanDomain === "127.0.0.1" || cleanDomain.startsWith("192.168.");
+    const isAdmin = user && user.role === "admin";
+    const bypassVerification = process.env.BYPASS_VERIFICATION === "true";
+
+    if (!isLocalhost && !isAdmin && !bypassVerification) {
+      const AssetVerification = (await import("@/lib/models/AssetVerification")).default;
+      await connectDB();
+      const verification = await AssetVerification.findOne({ domain: cleanDomain, owner: user._id, verified: true });
+      if (!verification) {
+        return NextResponse.json(
+          {
+            error: `Domain "${domain}" is not verified. You must complete domain ownership verification before scanning.`,
+            code: "UNVERIFIED_DOMAIN",
+            domain: cleanDomain
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     // Security: Block private IPs and localhost
-    if (isPrivateIP(domain)) {
+    if (isPrivateIP(domain) && !isLocalhost) {
       await logFailedScan(user, url, domain, "Scanning private/local addresses is not allowed.", 400);
       return NextResponse.json(
         { 
@@ -384,6 +406,7 @@ export async function POST(request) {
 
     // Detect HTTP protocol version and compression parameters dynamically
     const httpInfo = await getHttpVersionAndCompression(url);
+    const privacyDetails = await parsePrivacyDetails(url);
 
     // Cookie and CSP parsers
     const cookiesParsed = parseCookies(headersObj["set-cookie"], domain);
@@ -529,13 +552,21 @@ export async function POST(request) {
       securityTxt: paths ? paths.securityTxt : null,
       seo: paths ? paths.seo : null,
       emailSecurity: {
-        score: dns ? ((dns.spf?.valid ? 50 : 0) + (dns.dmarc?.valid ? 50 : 0)) : 0,
-        spfPresent: dns ? dns.spf?.valid : false,
-        dmarcPresent: dns ? dns.dmarc?.valid : false,
-        bimiPresent: false,
-        mtaStsPresent: false,
-        tlsRptPresent: false
+        score: dns ? (
+          (dns.spf?.valid ? 20 : 0) +
+          (dns.dmarc?.valid ? 20 : 0) +
+          (dns.dkim?.found ? 20 : 0) +
+          (dns.mtaSts?.valid ? 20 : 0) +
+          (dns.tlsRpt?.valid ? 20 : 0)
+        ) : 0,
+        spfPresent: dns ? !!dns.spf?.valid : false,
+        dmarcPresent: dns ? !!dns.dmarc?.valid : false,
+        dkimPresent: dns ? !!dns.dkim?.found : false,
+        bimiPresent: dns ? !!dns.bimi?.valid : false,
+        mtaStsPresent: dns ? !!dns.mtaSts?.valid : false,
+        tlsRptPresent: dns ? !!dns.tlsRpt?.valid : false
       },
+      privacy: privacyDetails,
       subdomains,
       exposedServices,
       loginSurfaces: paths ? paths.loginSurfaces : [],
@@ -632,6 +663,7 @@ export async function POST(request) {
       sensitiveFiles: scan.sensitiveFiles,
       securityTxt: scan.securityTxt,
       emailSecurity: scan.emailSecurity,
+      privacy: scan.privacy,
       subdomains,
       exposedServices,
       loginSurfaces: scan.loginSurfaces,
@@ -663,6 +695,139 @@ export async function POST(request) {
       { status: 500 }
     );
   }
+}
+
+async function parsePrivacyDetails(url) {
+  const privacy = {
+    privacyPolicyUrl: "",
+    privacyPolicyPresent: false,
+    cookieBannerPresent: false,
+    thirdPartyScripts: [],
+    trackingPixels: [],
+    analyticsTools: [],
+    externalDomains: []
+  };
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { "User-Agent": "HeaderGuard-PrivacyScanner/2.0" },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.status === 200) {
+      const html = await res.text();
+      const lowerHtml = html.toLowerCase();
+      
+      // 1. Privacy policy detection
+      const privacyUrlMatch = html.match(/href=["']([^"']*(privacy|legal|gdpr|policy)[^"']*)["']/i);
+      if (privacyUrlMatch) {
+        let pUrl = privacyUrlMatch[1];
+        if (pUrl.startsWith("/")) {
+          try {
+            const parsed = new URL(url);
+            pUrl = `${parsed.origin}${pUrl}`;
+          } catch (e) {}
+        }
+        privacy.privacyPolicyUrl = pUrl;
+        privacy.privacyPolicyPresent = true;
+      } else {
+        if (lowerHtml.includes("privacy policy") || lowerHtml.includes("privacy statement") || lowerHtml.includes("privacy notice")) {
+          privacy.privacyPolicyPresent = true;
+          privacy.privacyPolicyUrl = `${url}/privacy`;
+        }
+      }
+
+      // 2. Cookie consent banner detection
+      const cookieKeywords = ["cookie-banner", "cookieconsent", "cookie-consent", "cookie-popup", "cookie_consent", "cookiebot", "onetrust", "cookie-notice", "cookie-overlay"];
+      const hasCookieIdOrClass = cookieKeywords.some(keyword => 
+        lowerHtml.includes(`id="${keyword}`) || 
+        lowerHtml.includes(`class="${keyword}`) ||
+        lowerHtml.includes(`id='${keyword}`) ||
+        lowerHtml.includes(`class='${keyword}`)
+      );
+      const hasConsentText = lowerHtml.includes("we use cookies") || 
+                             lowerHtml.includes("use of cookies") || 
+                             lowerHtml.includes("accept cookies") ||
+                             lowerHtml.includes("cookie settings") ||
+                             lowerHtml.includes("cookie policy");
+      privacy.cookieBannerPresent = hasCookieIdOrClass || hasConsentText;
+
+      // 3. Third-party scripts, tracking pixels, analytics
+      const scriptDomains = [];
+      const pixelDomains = [];
+      const analytics = [];
+      const externalDomainsSet = new Set();
+      
+      // Extract script src attributes
+      const scriptRegex = /<script\s+[^>]*src=["']([^"']+)["']/gi;
+      let match;
+      let mainDomain = "";
+      try {
+        const parsedUrl = new URL(url);
+        mainDomain = parsedUrl.hostname.replace("www.", "");
+      } catch (e) {}
+
+      while ((match = scriptRegex.exec(html)) !== null) {
+        const src = match[1];
+        try {
+          if (src.startsWith("//") || src.startsWith("http")) {
+            const tempUrl = new URL(src.startsWith("//") ? `https:${src}` : src);
+            const scriptDomain = tempUrl.hostname.replace("www.", "");
+            if (mainDomain && scriptDomain !== mainDomain && !scriptDomain.endsWith("." + mainDomain)) {
+              externalDomainsSet.add(tempUrl.hostname);
+              scriptDomains.push(src);
+              
+              if (src.includes("googletagmanager.com") || src.includes("google-analytics.com")) {
+                analytics.push("Google Analytics");
+              }
+              if (src.includes("facebook.net")) {
+                analytics.push("Facebook SDK");
+                pixelDomains.push("Facebook Pixel");
+              }
+              if (src.includes("hotjar.com")) {
+                analytics.push("Hotjar");
+              }
+              if (src.includes("mixpanel.com")) {
+                analytics.push("Mixpanel");
+              }
+              if (src.includes("hubspot")) {
+                analytics.push("HubSpot");
+              }
+              if (src.includes("tiktok.com")) {
+                pixelDomains.push("TikTok Pixel");
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Check img elements for tracking pixels
+      const imgRegex = /<img\s+[^>]*src=["']([^"']+)["']/gi;
+      while ((match = imgRegex.exec(html)) !== null) {
+        const src = match[1];
+        try {
+          if (src.includes("facebook.com/tr") || src.includes("ads-twitter.com") || src.includes("doubleclick.net") || src.includes("googleadservices.com")) {
+            const parsedSrc = new URL(src.startsWith("//") ? `https:${src}` : src);
+            pixelDomains.push("Tracking Pixel (" + parsedSrc.hostname + ")");
+            externalDomainsSet.add(parsedSrc.hostname);
+          }
+        } catch (e) {}
+      }
+
+      privacy.thirdPartyScripts = [...new Set(scriptDomains)].slice(0, 10);
+      privacy.trackingPixels = [...new Set(pixelDomains)];
+      privacy.analyticsTools = [...new Set(analytics)];
+      privacy.externalDomains = [...externalDomainsSet].slice(0, 10);
+    }
+  } catch (err) {
+    console.error("Privacy scanner helper error:", err.message);
+  }
+
+  return privacy;
 }
 
 // ========== LOCAL HELPER PARSERS & SCORERS FOR EASM ==========

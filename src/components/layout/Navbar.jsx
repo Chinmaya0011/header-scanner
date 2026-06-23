@@ -62,10 +62,12 @@ export default function Navbar() {
         { href: "/history", label: "History" },
         { href: "/dashboard", label: "Console" },
         { href: "/monitors", label: "Monitors" },
+        { href: "/guide", label: "Guide" },
       ]
     : [
         { href: "/home", label: "Home" },
         { href: "/scanner", label: "Scanner" },
+        { href: "/guide", label: "Guide" },
         { href: "/demo/user", label: "Demo User" },
         { href: "/demo/admin", label: "Demo Admin" },
       ];

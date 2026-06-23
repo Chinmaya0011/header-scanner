@@ -87,6 +87,36 @@ export async function scanDNS(url) {
     }
   } catch (e) {}
 
+  // Parse MTA-STS from _mta-sts.domain
+  result.mtaSts = { value: "", valid: false };
+  try {
+    const stsTxts = await dnsResolve(`_mta-sts.${domain}`, "TXT").catch(() => []);
+    const stsTxt = stsTxts.map(r => Array.isArray(r) ? r.join("") : r).find(t => t.toLowerCase().startsWith("v=sts1"));
+    if (stsTxt) {
+      result.mtaSts = { value: stsTxt, valid: true };
+    }
+  } catch (e) {}
+
+  // Parse TLS-RPT from _smtp._tls.domain
+  result.tlsRpt = { value: "", valid: false };
+  try {
+    const rptTxts = await dnsResolve(`_smtp._tls.${domain}`, "TXT").catch(() => []);
+    const rptTxt = rptTxts.map(r => Array.isArray(r) ? r.join("") : r).find(t => t.toLowerCase().startsWith("v=tlsrpt1"));
+    if (rptTxt) {
+      result.tlsRpt = { value: rptTxt, valid: true };
+    }
+  } catch (e) {}
+
+  // Parse BIMI from default._bimi.domain
+  result.bimi = { value: "", valid: false };
+  try {
+    const bimiTxts = await dnsResolve(`default._bimi.${domain}`, "TXT").catch(() => []);
+    const bimiTxt = bimiTxts.map(r => Array.isArray(r) ? r.join("") : r).find(t => t.toLowerCase().startsWith("v=bimi1"));
+    if (bimiTxt) {
+      result.bimi = { value: bimiTxt, valid: true };
+    }
+  } catch (e) {}
+
   // Check common DKIM selectors
   for (const selector of ["google", "default", "mail", "k1"]) {
     try {

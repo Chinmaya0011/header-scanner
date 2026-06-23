@@ -169,9 +169,20 @@ const EmailSecuritySchema = new mongoose.Schema({
   score: Number,
   spfPresent: Boolean,
   dmarcPresent: Boolean,
+  dkimPresent: Boolean,
   bimiPresent: Boolean,
   mtaStsPresent: Boolean,
   tlsRptPresent: Boolean,
+});
+
+const PrivacyDetailsSchema = new mongoose.Schema({
+  privacyPolicyUrl: String,
+  privacyPolicyPresent: Boolean,
+  cookieBannerPresent: Boolean,
+  thirdPartyScripts: [String],
+  trackingPixels: [String],
+  analyticsTools: [String],
+  externalDomains: [String],
 });
 
 const BenchmarkSchema = new mongoose.Schema({
@@ -242,6 +253,7 @@ const ScanSchema = new mongoose.Schema(
     loginSurfaces: [mongoose.Schema.Types.Mixed],
     benchmarks: BenchmarkSchema,
     seo: SeoDetailsSchema,
+    privacy: PrivacyDetailsSchema,
     categoryScores: {
       headers: Number,
       ssl: Number,

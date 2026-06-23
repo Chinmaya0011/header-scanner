@@ -16,6 +16,13 @@ export default function ScannerForm() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  
+  // Domain Verification States
+  const [verificationDomain, setVerificationDomain] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
+  const [verificationFileUrl, setVerificationFileUrl] = useState("");
+  const [showVerification, setShowVerification] = useState(false);
+  const [confirmingVerification, setConfirmingVerification] = useState(false);
 
   // Email report states
   const [currentUser, setCurrentUser] = useState(null);
@@ -78,6 +85,42 @@ print(res.json())`
     checkAuth();
   }, []);
 
+  // Read target URL from query parameters on mount and execute auto-scan if present
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlParam = searchParams.get("url");
+      if (urlParam) {
+        const cleanUrl = urlParam.trim();
+        setUrl(cleanUrl);
+        
+        const executeAutoScan = async () => {
+          setLoading(true);
+          setResult(null);
+          try {
+            const res = await fetch("/api/scan", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: cleanUrl }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+              setResult(data.data || data);
+              toast.success("Security posture scan completed successfully!");
+            } else {
+              toast.error(data.error || "Scan failed.");
+            }
+          } catch {
+            toast.error("Failed to run auto-scan due to network error.");
+          } finally {
+            setLoading(false);
+          }
+        };
+        executeAutoScan();
+      }
+    }
+  }, []);
+
   // Fetch recent scan history
   useEffect(() => {
     async function fetchHistory() {
@@ -126,12 +169,13 @@ print(res.json())`
   };
 
   const handleScan = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const cleanUrl = url.trim();
     if (!cleanUrl) return;
 
     setLoading(true);
     setResult(null);
+    setShowVerification(false);
 
     try {
       const res = await fetch("/api/scan", {
@@ -143,6 +187,12 @@ print(res.json())`
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 403 && data.code === "UNVERIFIED_DOMAIN") {
+          toast.warning("Domain ownership verification required.");
+          setVerificationDomain(data.domain);
+          await initiateVerification(data.domain);
+          return;
+        }
         toast.error(data.error || "Scan failed. Please verify the URL and try again.");
         return;
       }
@@ -152,6 +202,65 @@ print(res.json())`
     } catch {
       toast.error("Network connectivity error. Please verify your connection.");
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const initiateVerification = async (targetDomain) => {
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "initiate", domain: targetDomain })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setVerificationToken(data.token);
+        setVerificationFileUrl(data.fileLocation);
+        setShowVerification(true);
+      } else {
+        toast.error(data.error || "Failed to initiate domain verification.");
+      }
+    } catch {
+      toast.error("Failed to connect to verification API.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmVerification = async () => {
+    setConfirmingVerification(true);
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "confirm", domain: verificationDomain })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || "Domain verified successfully!");
+        setShowVerification(false);
+        // Automatically run scan on verified domain
+        setLoading(true);
+        const scanRes = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: verificationDomain }),
+        });
+        const scanData = await scanRes.json();
+        if (scanRes.ok) {
+          setResult(scanData.data || scanData);
+          toast.success("Security posture scan completed successfully!");
+        } else {
+          toast.error(scanData.error || "Scan failed.");
+        }
+      } else {
+        toast.error(data.error || "Verification failed. Ensure the file is accessible.");
+      }
+    } catch {
+      toast.error("Network error during domain verification.");
+    } finally {
+      setConfirmingVerification(false);
       setLoading(false);
     }
   };
@@ -181,8 +290,99 @@ print(res.json())`
   return (
     <div className="space-y-6 font-sans">
       
+      {/* DOMAIN VERIFICATION CARD */}
+      {showVerification && (
+        <div className="max-w-xl mx-auto w-full py-10 animate-fadeIn">
+          <Card className="p-6 border border-white/[0.08] bg-surface/30 backdrop-blur-md space-y-6">
+            <div className="space-y-2 text-center pb-4 border-b border-white/[0.04]">
+              <Shield className="h-10 w-10 text-accent mx-auto animate-pulse" />
+              <h2 className="text-xl font-bold uppercase tracking-wide font-mono">Domain Verification Required</h2>
+              <p className="text-xs text-text-dim">
+                Prove ownership of <span className="text-text font-bold font-mono">{verificationDomain}</span> before running security audits.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase text-accent tracking-widest font-mono">Verification Instructions</h3>
+              
+              <div className="space-y-3 font-mono text-xs leading-relaxed text-text-dim">
+                <div className="flex items-start gap-2 bg-bg/50 p-3 rounded-lg border border-white/[0.02]">
+                  <span className="h-5 w-5 bg-white/5 border border-white/10 rounded-full flex items-center justify-center font-bold text-[9px] shrink-0 text-accent mt-0.5">1</span>
+                  <div>
+                    <p className="font-bold text-text font-sans">Create Verification File</p>
+                    <p className="text-[10px] mt-0.5">Create a plain text file named:</p>
+                    <code className="text-accent-light text-[10px] block mt-1 bg-black/40 px-2 py-1 rounded">headerguard-verification.txt</code>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 bg-bg/50 p-3 rounded-lg border border-white/[0.02]">
+                  <span className="h-5 w-5 bg-white/5 border border-white/10 rounded-full flex items-center justify-center font-bold text-[9px] shrink-0 text-accent mt-0.5">2</span>
+                  <div className="w-full">
+                    <p className="font-bold text-text font-sans">Add Token Content</p>
+                    <p className="text-[10px] mt-0.5">Add the following token content exactly inside the file:</p>
+                    <div className="flex items-center justify-between gap-3 mt-1.5 bg-black/40 px-2.5 py-1 rounded w-full">
+                      <code className="text-accent-light text-[10px] select-all break-all">{verificationToken}</code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(verificationToken);
+                          toast.success("Token copied to clipboard!");
+                        }}
+                        className="text-[8px] font-bold text-accent hover:text-accent-light uppercase shrink-0"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 bg-bg/50 p-3 rounded-lg border border-white/[0.02]">
+                  <span className="h-5 w-5 bg-white/5 border border-white/10 rounded-full flex items-center justify-center font-bold text-[9px] shrink-0 text-accent mt-0.5">3</span>
+                  <div>
+                    <p className="font-bold text-text font-sans">Host the File</p>
+                    <p className="text-[10px] mt-0.5">Upload and host the file on your web server at the following exact URL path:</p>
+                    <a
+                      href={verificationFileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent hover:underline text-[9.5px] font-bold break-all block mt-1.5"
+                    >
+                      {verificationFileUrl}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-white/[0.04]">
+              <Button
+                type="button"
+                onClick={() => {
+                  setShowVerification(false);
+                  setVerificationDomain("");
+                  setVerificationToken("");
+                }}
+                variant="outline"
+                className="flex-1 font-bold uppercase tracking-wider text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmVerification}
+                disabled={confirmingVerification}
+                variant="primary"
+                className="flex-1 font-bold uppercase tracking-wider text-xs bg-accent text-bg hover:bg-accent-light"
+              >
+                {confirmingVerification ? "Confirming..." : "Confirm Verification"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* 1. IDLE STATE: No Scan Result Active */}
-      {!result && !loading && (
+      {!result && !loading && !showVerification && (
         <div className="space-y-8 animate-fadeIn">
           
           {/* Centered Hero Header */}
