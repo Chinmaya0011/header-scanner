@@ -49,12 +49,4 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-UserSchema.pre("save", function (next) {
-  if (this.role === "admin" && (this.dailyLimit === undefined || this.dailyLimit === 20)) {
-    this.dailyLimit = 27;
-  }
-  next();
-});
-
 export default mongoose.models.User || mongoose.model("User", UserSchema);
-
