@@ -2,12 +2,6 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "./models/User";
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error("Please define MONGODB_URI in your .env.local file");
-}
-
 let cached = global.mongoose;
 
 if (!cached) {
@@ -45,6 +39,11 @@ async function seedAdmin() {
 }
 
 async function connectDB() {
+  const MONGODB_URI = process.env.MONGODB_URI;
+  if (!MONGODB_URI) {
+    throw new Error("Please define MONGODB_URI in your environment variables");
+  }
+
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
