@@ -70,15 +70,19 @@ const nextConfig = {
 
 };
 
-const validateEnv = () => {
+const validateEnv = (phase) => {
   const required = ["MONGODB_URI"];
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    console.error(`❌ Missing required env variables: ${missing.join(", ")}`);
-    if (!isDev) throw new Error(`Missing required env vars: ${missing.join(", ")}`);
+    console.warn(`❌ Missing required env variables: ${missing.join(", ")}`);
+    const { PHASE_PRODUCTION_BUILD } = require("next/constants");
+    if (!isDev && phase !== PHASE_PRODUCTION_BUILD) {
+      throw new Error(`Missing required env vars: ${missing.join(", ")}`);
+    }
   }
 };
 
-validateEnv();
-
-module.exports = nextConfig;
+module.exports = (phase) => {
+  validateEnv(phase);
+  return nextConfig;
+};
