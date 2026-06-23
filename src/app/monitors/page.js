@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import { useToast } from "@/components/common/Toast";
@@ -35,7 +35,7 @@ export default function MonitorsPage() {
   const [newFrequency, setNewFrequency] = useState("daily");
   const [newAlertEmail, setNewAlertEmail] = useState("");
 
-  const loadPageData = async () => {
+  const loadPageData = useCallback(async () => {
     try {
       // 1. Verify Authentication
       const authRes = await fetch("/api/auth/me");
@@ -61,11 +61,11 @@ export default function MonitorsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router, toast]);
 
   useEffect(() => {
     loadPageData();
-  }, [router]);
+  }, [loadPageData]);
 
   const handleCreateMonitor = async (e) => {
     e.preventDefault();

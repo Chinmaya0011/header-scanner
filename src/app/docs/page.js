@@ -48,6 +48,79 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 
+// Categories & Sections definitions
+const docCategories = [
+  {
+    name: "Getting Started",
+    sections: [
+      { id: "project-overview", title: "Project Overview", icon: Compass },
+      { id: "platform-architecture", title: "Platform Architecture", icon: CpuIcon },
+      { id: "core-features", title: "Core Features", icon: Sliders }
+    ]
+  },
+  {
+    name: "Scanner Engine",
+    sections: [
+      { id: "scanner-engine-details", title: "Scanner Engine", icon: Activity },
+      { id: "supported-scan-types", title: "Supported Scan Types", icon: Layers },
+      { id: "scan-workflow", title: "Scan Workflow", icon: Clock },
+      { id: "security-checks", title: "Security Checks & Detection", icon: ShieldCheck },
+      { id: "attack-surface-analysis", title: "Attack Surface Analysis", icon: Terminal }
+    ]
+  },
+  {
+    name: "User Dashboard",
+    sections: [
+      { id: "dashboard-overview", title: "Dashboard Overview", icon: HardDrive },
+      { id: "scan-results-explanation", title: "Scan Results Explanation", icon: FileText },
+      { id: "severity-scoring", title: "Severity & Risk Scoring", icon: Flame }
+    ]
+  },
+  {
+    name: "Integrations & API",
+    sections: [
+      { id: "api-documentation", title: "API Documentation", icon: FileCode },
+      { id: "auth-authorization", title: "Authentication & Auth", icon: Lock },
+      { id: "roles-permissions", title: "User Roles & Permissions", icon: UserCheck },
+      { id: "developer-api-keys", title: "Developer API & Keys", icon: Key },
+      { id: "rate-limits", title: "Rate & Usage Limits", icon: Sliders },
+      { id: "verification-methods", title: "Verification Methods", icon: Shield }
+    ]
+  },
+  {
+    name: "Usage & History",
+    sections: [
+      { id: "scan-history", title: "Scan History", icon: History },
+      { id: "reports-export", title: "Reports & Export Options", icon: FileDown },
+      { id: "settings-configuration", title: "Settings & Configuration", icon: Settings },
+      { id: "organization-management", title: "Organization & Teams", icon: Users },
+      { id: "notifications-logs", title: "Notifications & Audit Logs", icon: Bell }
+    ]
+  },
+  {
+    name: "Support & FAQ",
+    sections: [
+      { id: "faq", title: "FAQ", icon: HelpCircle },
+      { id: "troubleshooting", title: "Troubleshooting", icon: Wrench }
+    ]
+  },
+  {
+    name: "Best Practices & Security",
+    sections: [
+      { id: "best-practices", title: "Best Practices", icon: Lightbulb },
+      { id: "security-privacy", title: "Security & Privacy", icon: ShieldCheck },
+      { id: "limitations", title: "Limitations", icon: AlertTriangle }
+    ]
+  },
+  {
+    name: "Roadmap & Changelog",
+    sections: [
+      { id: "changelog", title: "Changelog", icon: History },
+      { id: "future-roadmap", title: "Future Roadmap", icon: Compass }
+    ]
+  }
+];
+
 export default function DocumentationPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSection, setActiveSection] = useState("project-overview");
@@ -69,78 +142,6 @@ export default function DocumentationPage() {
 
   const contentRefs = useRef({});
 
-  // Categories & Sections definitions
-  const docCategories = [
-    {
-      name: "Getting Started",
-      sections: [
-        { id: "project-overview", title: "Project Overview", icon: Compass },
-        { id: "platform-architecture", title: "Platform Architecture", icon: CpuIcon },
-        { id: "core-features", title: "Core Features", icon: Sliders }
-      ]
-    },
-    {
-      name: "Scanner Engine",
-      sections: [
-        { id: "scanner-engine-details", title: "Scanner Engine", icon: Activity },
-        { id: "supported-scan-types", title: "Supported Scan Types", icon: Layers },
-        { id: "scan-workflow", title: "Scan Workflow", icon: Clock },
-        { id: "security-checks", title: "Security Checks & Detection", icon: ShieldCheck },
-        { id: "attack-surface-analysis", title: "Attack Surface Analysis", icon: Terminal }
-      ]
-    },
-    {
-      name: "User Dashboard",
-      sections: [
-        { id: "dashboard-overview", title: "Dashboard Overview", icon: HardDrive },
-        { id: "scan-results-explanation", title: "Scan Results Explanation", icon: FileText },
-        { id: "severity-scoring", title: "Severity & Risk Scoring", icon: Flame }
-      ]
-    },
-    {
-      name: "Integrations & API",
-      sections: [
-        { id: "api-documentation", title: "API Documentation", icon: FileCode },
-        { id: "auth-authorization", title: "Authentication & Auth", icon: Lock },
-        { id: "roles-permissions", title: "User Roles & Permissions", icon: UserCheck },
-        { id: "developer-api-keys", title: "Developer API & Keys", icon: Key },
-        { id: "rate-limits", title: "Rate & Usage Limits", icon: Sliders },
-        { id: "verification-methods", title: "Verification Methods", icon: Shield }
-      ]
-    },
-    {
-      name: "Usage & History",
-      sections: [
-        { id: "scan-history", title: "Scan History", icon: History },
-        { id: "reports-export", title: "Reports & Export Options", icon: FileDown },
-        { id: "settings-configuration", title: "Settings & Configuration", icon: Settings },
-        { id: "organization-management", title: "Organization & Teams", icon: Users },
-        { id: "notifications-logs", title: "Notifications & Audit Logs", icon: Bell }
-      ]
-    },
-    {
-      name: "Support & FAQ",
-      sections: [
-        { id: "faq", title: "FAQ", icon: HelpCircle },
-        { id: "troubleshooting", title: "Troubleshooting", icon: Wrench }
-      ]
-    },
-    {
-      name: "Best Practices & Security",
-      sections: [
-        { id: "best-practices", title: "Best Practices", icon: Lightbulb },
-        { id: "security-privacy", title: "Security & Privacy", icon: ShieldCheck },
-        { id: "limitations", title: "Limitations", icon: AlertTriangle }
-      ]
-    },
-    {
-      name: "Roadmap & Changelog",
-      sections: [
-        { id: "changelog", title: "Changelog", icon: History },
-        { id: "future-roadmap", title: "Future Roadmap", icon: Compass }
-      ]
-    }
-  ];
 
   // Flat array of all sections for easier filtering and active tracking
   const allSections = useMemo(() => {

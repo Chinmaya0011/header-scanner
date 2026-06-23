@@ -1,9 +1,0 @@
-# Fake API Keys for Testing Only
-
-AWS_SECRET_ACCESS_KEY=FAKEwJalrXUtnFEMI/K7MDENG/bPxRfiCYFAKEKEY
-OPENAI_API_KEY=sk-test-1234567890abcdefghijklmnopqrstuvwxyz
-GITHUB_TOKEN=ghp_FAKE1234567890abcdefghijklmnopqrstuvwxyz
-JWT_SECRET=super-secret-test-key-123456789
-DATABASE_PASSWORD=fake_db_password_2026
-STRIPE_SECRET_KEY=sk_test_FAKEabcdefghijklmnopqrstuvwxyz
-AZURE_CLIENT_SECRET=fake-azure-client-secret-12345

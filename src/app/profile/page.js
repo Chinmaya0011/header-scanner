@@ -71,7 +71,7 @@ export default function ProfilePage() {
     }
 
     loadProfileData();
-  }, [router]);
+  }, [router, toast]);
 
   const handleDeleteAccount = async (e) => {
     e.preventDefault();
