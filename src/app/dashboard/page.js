@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/layout/Navbar";
 import { useToast } from "@/components/common/Toast";
@@ -33,7 +33,7 @@ export default function DashboardPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   // Fetch all dashboard data
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       // 1. Fetch user status
       const authRes = await fetch("/api/auth/me");
@@ -80,11 +80,11 @@ export default function DashboardPage() {
       console.error("Dashboard load error:", err);
       setLoading(false);
     }
-  };
+  }, [currentPage, searchDomain, router]);
 
   useEffect(() => {
     fetchData();
-  }, [currentPage, searchDomain]);
+  }, [fetchData]);
 
   const handleDeleteScan = async (scanId) => {
     try {
