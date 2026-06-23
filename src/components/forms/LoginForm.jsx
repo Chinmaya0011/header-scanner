@@ -31,10 +31,14 @@ export default function LoginForm() {
         body: JSON.stringify({ email: cleanEmail, password }),
       });
 
-      const data = await res.json();
+      let data = {};
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Login failed");
+        throw new Error(data.error || `Login failed (HTTP ${res.status})`);
       }
 
       toast.success("Access granted. Redirecting to dashboard...");

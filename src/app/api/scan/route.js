@@ -167,9 +167,11 @@ export async function POST(request) {
 
   // Parse request body safely (clone request to read it)
   let rawUrl = "";
+  let section = "all";
   try {
     const bodyCopy = await request.clone().json();
     rawUrl = bodyCopy.url;
+    section = bodyCopy.section || "all";
   } catch (err) {
     // Handled below
   }
@@ -186,7 +188,9 @@ export async function POST(request) {
     currentUsage = 0;
   }
 
-  const limit = user.dailyLimit !== undefined ? user.dailyLimit : 20;
+  const limit = user.role === "admin" 
+    ? (user.dailyLimit === 20 || user.dailyLimit === undefined ? 27 : user.dailyLimit)
+    : (user.dailyLimit !== undefined ? user.dailyLimit : 20);
 
   if (currentUsage >= limit) {
     const reqUrl = rawUrl || "unknown";
@@ -337,6 +341,13 @@ export async function POST(request) {
 
     console.log(`[${requestId}] Starting scan for: ${domain}`);
 
+    // Fetch previous scan to use as fallback if running selective scan
+    let prevScan = null;
+    if (section && section !== "all") {
+      await connectDB();
+      prevScan = await Scan.findOne({ domain: cleanDomain, owner: user._id, isSuccess: true }).sort({ createdAt: -1 });
+    }
+
     // Fetch headers
     let headersObj, statusCode, methodUsed;
     try {
@@ -371,33 +382,58 @@ export async function POST(request) {
 
     const maskedDomain = maskDomain(domain);
 
-    // EASM Scanning calls concurrently
-    let ssl = null;
-    let dns = null;
-    let infraTech = null;
-    let paths = null;
-    let exposedServices = [];
-    let subdomains = [];
+    // EASM Scanning calls concurrently or selectively
+    let ssl = prevScan ? prevScan.ssl : null;
+    let dns = prevScan ? prevScan.dns : null;
+    let infraTech = prevScan ? { infra: prevScan.infrastructure, techStack: prevScan.techStack } : null;
+    let paths = prevScan ? { 
+      seo: prevScan.seo, 
+      robotsTxt: prevScan.robotsTxt, 
+      sitemapXml: prevScan.sitemapXml, 
+      securityTxt: prevScan.securityTxt,
+      sensitiveFiles: prevScan.sensitiveFiles,
+      loginSurfaces: prevScan.loginSurfaces
+    } : null;
+    let exposedServices = prevScan ? prevScan.exposedServices : [];
+    let subdomains = prevScan ? prevScan.subdomains : [];
 
     const perfStart = Date.now();
     try {
-      // 1. Run DNS lookup first since it provides A record for ASN lookup
-      dns = await scanDNS(url);
-      
-      // 2. Resolve other checks in parallel
-      const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult] = await Promise.all([
-        scanSSL(url),
-        scanInfraAndTech(url, dns, headersObj),
-        scanPaths(url),
-        checkExposedServices(url),
-        checkSubdomains(url)
-      ]);
+      if (section === "all" || !prevScan) {
+        // Run all checks in parallel
+        dns = await scanDNS(url);
+        const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult] = await Promise.all([
+          scanSSL(url),
+          scanInfraAndTech(url, dns, headersObj),
+          scanPaths(url),
+          checkExposedServices(url),
+          checkSubdomains(url)
+        ]);
 
-      ssl = sslResult;
-      infraTech = infraTechResult;
-      paths = pathResult;
-      exposedServices = servicesResult;
-      subdomains = subdomainsResult;
+        ssl = sslResult;
+        infraTech = infraTechResult;
+        paths = pathResult;
+        exposedServices = servicesResult;
+        subdomains = subdomainsResult;
+      } else {
+        // Selective scan runs
+        if (section === "dns") {
+          dns = await scanDNS(url);
+        } else if (section === "ssl") {
+          ssl = await scanSSL(url);
+        } else if (section === "seo") {
+          paths = await scanPaths(url);
+        } else if (section === "ports") {
+          exposedServices = await checkExposedServices(url);
+        } else if (section === "subdomains") {
+          subdomains = await checkSubdomains(url);
+        }
+        
+        // Always run infraTech if it wasn't cloned or if we scanned DNS
+        if (!infraTech || section === "dns") {
+          infraTech = await scanInfraAndTech(url, dns, headersObj);
+        }
+      }
     } catch (err) {
       console.error("EASM scan failed, building synthetic fallbacks:", err);
     }
@@ -550,7 +586,19 @@ export async function POST(request) {
       sitemapXml: paths ? paths.sitemapXml : null,
       sensitiveFiles: paths ? paths.sensitiveFiles : [],
       securityTxt: paths ? paths.securityTxt : null,
-      seo: paths ? paths.seo : null,
+      seo: (paths && paths.seo) ? paths.seo : {
+        canonicalUrl: "",
+        metaRobots: "",
+        isIndexable: true,
+        title: "",
+        description: "",
+        h1Count: 0,
+        h2Count: 0,
+        imageCount: 0,
+        imageAltCount: 0,
+        openGraph: { title: "", description: "", image: "", type: "", url: "" },
+        twitterCard: { card: "", title: "", description: "", image: "", site: "" }
+      },
       emailSecurity: {
         score: dns ? (
           (dns.spf?.valid ? 20 : 0) +

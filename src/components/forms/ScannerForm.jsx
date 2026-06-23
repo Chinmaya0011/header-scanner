@@ -9,6 +9,7 @@ import TerminalConsole from "@/components/ui/TerminalConsole";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import Loading from "@/components/common/Loading";
 
 export default function ScannerForm() {
   const toast = useToast();
@@ -715,18 +716,7 @@ print(res.json())`
               <div className="h-full w-1/3 bg-accent/80 scan-line" />
             </div>
             
-            <div className="relative w-16 h-16 mt-2 flex items-center justify-center">
-              {/* Pulsing radar lines */}
-              <div className="absolute inset-0 rounded-full border border-accent/20 animate-ping" />
-              <div className="absolute inset-2 rounded-full border-2 border-white/[0.02] border-t-accent animate-spin" />
-              <div className="absolute inset-4 rounded-full border border-white/[0.02] border-b-accent animate-[spin_1.5s_linear_infinite_reverse]" />
-              <Shield className="absolute text-accent h-5 w-5 animate-pulse" />
-            </div>
-            
-            <div className="text-center space-y-1.5 font-sans">
-              <p className="text-text font-black text-xs uppercase tracking-widest font-mono">EASM AUDIT PIPELINE ACTIVE</p>
-              <p className="text-text-dim text-[9.5px] uppercase tracking-wider font-bold">Querying SSL, DNS records, cookie signatures, and port exposure...</p>
-            </div>
+            <Loading message="EASM AUDIT PIPELINE ACTIVE" />
           </Card>
         </div>
       )}

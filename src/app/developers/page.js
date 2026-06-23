@@ -968,7 +968,7 @@ export default function DevelopersPage() {
                     </p>
                     <ul className="list-disc list-inside space-y-2 text-xs text-text-dim">
                       <li><strong className="text-text">Sliding Rate Limit:</strong> Max <strong className="text-text">10 requests per minute</strong> per API key.</li>
-                      <li><strong className="text-text">Daily Quota Limit:</strong> Max <strong className="text-text">20 requests per day</strong> by default (adjustable by admin).</li>
+                      <li><strong className="text-text">Daily Quota Limit:</strong> Max <strong className="text-text">20 requests per day</strong> for standard users, or <strong className="text-text">27 requests per day</strong> for admin users (adjustable by admin).</li>
                     </ul>
                   </div>
 

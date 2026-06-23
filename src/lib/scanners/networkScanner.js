@@ -2,6 +2,8 @@ import net from "net";
 import dns from "dns";
 import fs from "fs";
 import path from "path";
+import https from "https";
+import http from "http";
 
 const { resolve: dnsResolve } = dns.promises;
 
@@ -92,6 +94,19 @@ function loadAttackSurfaceData() {
     console.error("Failed to load attackSurface.json:", error);
     return null;
   }
+}
+
+function loadWebimgPatterns() {
+  try {
+    const filePath = path.join(process.cwd(), "src", "data", "webimg.json");
+    if (fs.existsSync(filePath)) {
+      const fileContent = fs.readFileSync(filePath, "utf8");
+      return JSON.parse(fileContent).patterns || [];
+    }
+  } catch (error) {
+    console.error("Failed to load webimg.json:", error);
+  }
+  return [];
 }
 
 async function limitConcurrency(tasks, limit) {
@@ -247,21 +262,142 @@ export async function scanPaths(baseUrl) {
       canonicalUrl: "",
       metaRobots: "",
       isIndexable: true,
+      title: "",
+      description: "",
+      h1Count: 0,
+      h2Count: 0,
+      imageCount: 0,
+      imageAltCount: 0,
+      favicon: "",
       openGraph: { title: "", description: "", image: "", type: "", url: "" },
-      twitterCard: { card: "", title: "", description: "", image: "", site: "" }
+      twitterCard: { card: "", title: "", description: "", image: "", site: "" },
+      detectedImages: []
     }
   };
 
   // Crawl Main page HTML and resolve SEO Metadata
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(url, { method: "GET", signal: controller.signal });
-    clearTimeout(timeoutId);
+    let html = null;
+    let fetchedSuccessful = false;
+    const userAgents = [
+      "HeaderGuard-Scanner/2.0 (+https://github.com/headerguard)",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    ];
 
-    if (res.status === 200) {
-      const html = await res.text();
+    // Attempt to fetch HTML with User-Agent rotating
+    for (const ua of userAgents) {
+      if (fetchedSuccessful) break;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(url, {
+          method: "GET",
+          signal: controller.signal,
+          redirect: "follow",
+          headers: {
+            "User-Agent": ua,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Connection": "keep-alive"
+          }
+        });
+        clearTimeout(timeoutId);
+
+        if (res.status === 200) {
+          html = await res.text();
+          fetchedSuccessful = true;
+          break;
+        }
+      } catch (e) {
+        console.warn(`Fetch failed with UA: ${ua}. Error: ${e.message}`);
+      }
+    }
+
+    // Fallback to https.get/http.get with rejectUnauthorized: false
+    if (!fetchedSuccessful) {
+      try {
+        html = await new Promise((resolve, reject) => {
+          const parsedUrl = new URL(url);
+          const transport = parsedUrl.protocol === "https:" ? https : http;
+          
+          const req = transport.get(url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            },
+            timeout: 8000,
+            rejectUnauthorized: false
+          }, (res) => {
+            if (res.statusCode !== 200) {
+              reject(new Error(`Status code: ${res.statusCode}`));
+              return;
+            }
+            let data = "";
+            res.on("data", chunk => data += chunk);
+            res.on("end", () => resolve(data));
+          });
+          
+          req.on("error", err => reject(err));
+          req.on("timeout", () => {
+            req.destroy();
+            reject(new Error("Timeout"));
+          });
+        });
+        fetchedSuccessful = true;
+      } catch (e) {
+        console.warn(`Fallback http/https get failed for ${url}: ${e.message}`);
+      }
+    }
+
+    if (fetchedSuccessful && html) {
       
+      // Parse Page Title
+      const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
+      results.seo.title = titleMatch ? titleMatch[1].trim() : "";
+
+      // Parse Meta Description
+      const descMatch = html.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']+)["'][^>]*>/i) || 
+                        html.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']description["'][^>]*>/i);
+      results.seo.description = descMatch ? descMatch[1].trim() : "";
+
+      // Parse Headings count
+      const h1Match = html.match(/<h1\b[^>]*>/gi) || [];
+      const h2Match = html.match(/<h2\b[^>]*>/gi) || [];
+      results.seo.h1Count = h1Match.length;
+      results.seo.h2Count = h2Match.length;
+
+      // Parse Image alt checks
+      const images = html.match(/<img\b[^>]*>/gi) || [];
+      let altCount = 0;
+      images.forEach(img => {
+        if (img.match(/\balt\s*=/i)) {
+          altCount++;
+        }
+      });
+      results.seo.imageCount = images.length;
+      results.seo.imageAltCount = altCount;
+
+      // Parse Favicon Link
+      const faviconMatch = html.match(/<link\s+[^>]*rel=["'](?:shortcut\s+)?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) ||
+                           html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut\s+)?icon["'][^>]*>/i);
+      let faviconUrl = faviconMatch ? faviconMatch[1].trim() : "";
+      
+      // If relative URL, make it absolute
+      if (faviconUrl && !faviconUrl.startsWith("http")) {
+        if (faviconUrl.startsWith("//")) {
+          faviconUrl = `https:${faviconUrl}`;
+        } else if (faviconUrl.startsWith("/")) {
+          faviconUrl = `${url}${faviconUrl}`;
+        } else {
+          faviconUrl = `${url}/${faviconUrl}`;
+        }
+      } else if (!faviconUrl) {
+        // Fallback to default domain favicon location
+        faviconUrl = `${url}/favicon.ico`;
+      }
+      results.seo.favicon = faviconUrl;
+
       // Parse Canonical URL
       const canonicalMatch = html.match(/<link\s+[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["'][^>]*>/i) || 
                              html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["']canonical["'][^>]*>/i);
@@ -273,7 +409,7 @@ export async function scanPaths(baseUrl) {
       results.seo.metaRobots = robotsMatch ? robotsMatch[1] : "";
       
       // Compute Indexable
-      const isNoIndex = results.seo.metaRobots.toLowerCase().includes("noindex");
+      const isNoIndex = robotsMatch && robotsMatch[1].toLowerCase().includes("noindex");
       results.seo.isIndexable = !isNoIndex;
 
       // Parse OpenGraph tags
@@ -301,6 +437,98 @@ export async function scanPaths(baseUrl) {
       results.seo.twitterCard.description = parseTwitterVal("description");
       results.seo.twitterCard.image = parseTwitterVal("image");
       results.seo.twitterCard.site = parseTwitterVal("site");
+
+      // Crawl and extract brand assets / matching images
+      const detectedImages = [];
+      const imagePatterns = loadWebimgPatterns();
+      
+      const imgRegex = /<img\s+([^>]+)>/gi;
+      let imgMatch;
+      const seenSrcs = new Set();
+
+      while ((imgMatch = imgRegex.exec(html)) !== null) {
+        const attrs = imgMatch[1];
+        const srcAttr = attrs.match(/src=["']([^"']+)["']/i);
+        const altAttr = attrs.match(/alt=["']([^"']+)["']/i);
+        const classAttr = attrs.match(/class=["']([^"']+)["']/i);
+        const idAttr = attrs.match(/id=["']([^"']+)["']/i);
+
+        if (srcAttr) {
+          let src = srcAttr[1].trim();
+          const alt = altAttr ? altAttr[1].trim() : "";
+          const cls = classAttr ? classAttr[1].trim() : "";
+          const id = idAttr ? idAttr[1].trim() : "";
+
+          // Resolve absolute URL
+          if (src && !src.startsWith("http")) {
+            if (src.startsWith("//")) {
+              src = `https:${src}`;
+            } else if (src.startsWith("/")) {
+              src = `${url}${src}`;
+            } else {
+              src = `${url}/${src}`;
+            }
+          }
+
+          if (src && !seenSrcs.has(src)) {
+            // Check if matches any pattern in webimg.json
+            const isMatch = imagePatterns.some(pattern => {
+              const p = pattern.toLowerCase();
+              return (
+                src.toLowerCase().includes(p) ||
+                alt.toLowerCase().includes(p) ||
+                cls.toLowerCase().includes(p) ||
+                id.toLowerCase().includes(p)
+              );
+            });
+
+            if (isMatch) {
+              seenSrcs.add(src);
+              detectedImages.push({
+                src,
+                alt: alt || "Discovered brand asset",
+                type: src.toLowerCase().endsWith(".svg") ? "svg" : 
+                      src.toLowerCase().endsWith(".png") ? "png" : 
+                      src.toLowerCase().endsWith(".ico") ? "ico" : "image"
+              });
+            }
+          }
+        }
+      }
+
+      // Also add favicon as a brand asset if found
+      if (faviconUrl && !seenSrcs.has(faviconUrl)) {
+        seenSrcs.add(faviconUrl);
+        detectedImages.push({
+          src: faviconUrl,
+          alt: "Favicon Brand Icon",
+          type: "ico"
+        });
+      }
+
+      // Also add OpenGraph image if found
+      const ogImage = parseOgVal("image");
+      if (ogImage && !seenSrcs.has(ogImage)) {
+        seenSrcs.add(ogImage);
+        detectedImages.push({
+          src: ogImage,
+          alt: parseOgVal("title") || "OpenGraph Social Image",
+          type: "og-image"
+        });
+      }
+
+      // Also add Twitter image if found
+      const twitterImage = parseTwitterVal("image");
+      if (twitterImage && !seenSrcs.has(twitterImage)) {
+        seenSrcs.add(twitterImage);
+        detectedImages.push({
+          src: twitterImage,
+          alt: parseTwitterVal("title") || "Twitter Card Asset",
+          type: "twitter-image"
+        });
+      }
+
+      results.seo.detectedImages = detectedImages;
     }
   } catch (e) {
     console.error("SEO crawl error:", e);

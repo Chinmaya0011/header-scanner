@@ -115,7 +115,9 @@ export async function GET(request) {
         },
         dailyQuota: {
           usage: user.dailyUsage || 0,
-          limit: user.dailyLimit !== undefined ? user.dailyLimit : 20,
+          limit: user.role === "admin" 
+            ? (user.dailyLimit === 20 || user.dailyLimit === undefined ? 27 : user.dailyLimit)
+            : (user.dailyLimit !== undefined ? user.dailyLimit : 20),
           apiAccessEnabled: user.apiAccessEnabled !== false
         },
         metrics: {

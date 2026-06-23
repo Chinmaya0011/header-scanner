@@ -198,7 +198,15 @@ const SeoDetailsSchema = new mongoose.Schema({
   metaRobots: String,
   isIndexable: Boolean,
   openGraph: mongoose.Schema.Types.Mixed,
-  twitterCard: mongoose.Schema.Types.Mixed
+  twitterCard: mongoose.Schema.Types.Mixed,
+  title: String,
+  description: String,
+  h1Count: Number,
+  h2Count: Number,
+  imageCount: Number,
+  imageAltCount: Number,
+  favicon: String,
+  detectedImages: mongoose.Schema.Types.Mixed
 });
 
 const ScanSchema = new mongoose.Schema(

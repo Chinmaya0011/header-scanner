@@ -514,7 +514,7 @@ export default function AdminDashboard({
             <div className="flex-1 overflow-y-auto mt-3 -mx-1 px-1">
               <div className="space-y-3.5">
                 {usersList.map((u) => {
-                  const currentLimit = editingLimits[u._id] !== undefined ? editingLimits[u._id] : (u.dailyLimit !== undefined ? u.dailyLimit : 20);
+                  const currentLimit = editingLimits[u._id] !== undefined ? editingLimits[u._id] : (u.dailyLimit !== undefined ? u.dailyLimit : (u.role === "admin" ? 27 : 20));
                   const isUserUpdating = updatingUserId === u._id;
                   
                   return (

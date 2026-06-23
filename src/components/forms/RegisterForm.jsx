@@ -45,10 +45,14 @@ export default function RegisterForm() {
         body: JSON.stringify({ email: cleanEmail, password }),
       });
 
-      const data = await res.json();
+      let data = {};
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Registration failed");
+        throw new Error(data.error || `Registration failed (HTTP ${res.status})`);
       }
 
       setStep("verify_otp");
@@ -77,10 +81,14 @@ export default function RegisterForm() {
         body: JSON.stringify({ email: email.trim(), otp: cleanOtp }),
       });
 
-      const data = await res.json();
+      let data = {};
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || "Verification failed");
+        throw new Error(data.error || `Verification failed (HTTP ${res.status})`);
       }
 
       toast.success("Account verified successfully! Welcome to HeaderGuard.");

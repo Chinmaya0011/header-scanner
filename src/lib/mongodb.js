@@ -32,9 +32,13 @@ async function seedAdmin() {
         email: adminEmail,
         password: hashedPassword,
         role: "admin",
+        dailyLimit: 27,
       });
       console.log("Admin user seeded successfully.");
     }
+
+    // Update any existing admin users who have the old default limit of 20 to the new 27 limit
+    await User.updateMany({ role: "admin", dailyLimit: 20 }, { $set: { dailyLimit: 27 } });
   } catch (error) {
     console.error("Failed to seed admin:", error);
   }

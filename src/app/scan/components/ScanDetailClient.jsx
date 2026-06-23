@@ -71,14 +71,14 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
       try {
         const response = await fetch(`/api/scan/${id}`);
         const data = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(data.error || `HTTP ${response.status}`);
         }
         if (!data.success || !data.data) {
           throw new Error(data.error || "No scan data found");
         }
-        
+
         setScan(data.data);
       } catch (err) {
         console.error("Scan fetch error:", err);
@@ -102,13 +102,13 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
         format: "a4"
       });
 
-      const primaryColor = "#0f172a"; 
-      const accentColor = "#6366f1"; 
-      const successColor = "#22c55e"; 
-      const warningColor = "#eab308"; 
-      const dangerColor = "#ef4444"; 
-      const textColor = "#334155"; 
-      const textLightColor = "#64748b"; 
+      const primaryColor = "#0f172a";
+      const accentColor = "#6366f1";
+      const successColor = "#22c55e";
+      const warningColor = "#eab308";
+      const dangerColor = "#ef4444";
+      const textColor = "#334155";
+      const textLightColor = "#64748b";
 
       // Header Banner
       doc.setFillColor(primaryColor);
@@ -146,7 +146,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
       doc.setFontSize(11);
       doc.setTextColor(textLightColor);
       doc.text(`Security Grade:`, 20, 78);
-      
+
       let gColor = dangerColor;
       if (scan.grade.startsWith("A")) gColor = successColor;
       else if (scan.grade.startsWith("B")) gColor = accentColor;
@@ -160,7 +160,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
       doc.setFontSize(11);
       doc.setTextColor(textLightColor);
       doc.text(`Security Score:`, 110, 78);
-      
+
       doc.setTextColor(accentColor);
       doc.setFontSize(16);
       doc.text(`${scan.score}/100`, 145, 78);
@@ -172,7 +172,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
       doc.text("Detailed Response Headers Evaluation", 15, 105);
 
       let yOffset = 115;
-      
+
       scan.headers.forEach((header) => {
         if (yOffset > 265) {
           doc.addPage();
@@ -212,7 +212,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(textColor);
-        
+
         const splitDesc = doc.splitTextToSize(header.description || "", 180);
         doc.text(splitDesc, 15, yOffset);
         yOffset += splitDesc.length * 4 + 2;
@@ -220,7 +220,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
         if (header.status !== "present" && header.recommendation) {
           const recText = doc.splitTextToSize(header.recommendation, 140);
           const blockHeight = Math.max(10, recText.length * 4 + 4);
-          
+
           if (yOffset + blockHeight > 275) {
             doc.addPage();
             yOffset = 25;
@@ -229,17 +229,17 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
           doc.setFillColor("#fffbeb");
           doc.setDrawColor("#fef3c7");
           doc.roundedRect(15, yOffset - 2, 180, blockHeight, 1.5, 1.5, "FD");
-          
+
           doc.setFont("helvetica", "bold");
           doc.setFontSize(7.5);
-          doc.setTextColor("#b45309"); 
+          doc.setTextColor("#b45309");
           doc.text("REMEDIATION:", 18, yOffset + 2);
-          
+
           doc.setFont("helvetica", "normal");
           doc.setFontSize(7.5);
           doc.setTextColor("#78350f");
           doc.text(recText, 45, yOffset + 2);
-          
+
           yOffset += blockHeight + 6;
         } else {
           yOffset += 4;
@@ -331,7 +331,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
     <div className="min-h-screen bg-bg font-sans text-text">
       <Navbar />
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 space-y-4">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 space-y-4">
         {/* Sleek Breadcrumb / Back Navigation */}
         <div className="flex items-center gap-2 text-xs text-text-dim">
           <Link href="/history" className="hover:text-accent font-semibold transition-colors flex items-center gap-1.5 font-mono uppercase">

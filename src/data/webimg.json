@@ -1,0 +1,17 @@
+{
+  "patterns": [
+    "logo",
+    "brand",
+    "icon",
+    "favicon",
+    "avatar",
+    "banner",
+    "mark",
+    "badge",
+    "header-logo",
+    "footer-logo",
+    "logo-dark",
+    "logo-light",
+    "brand-asset"
+  ]
+}

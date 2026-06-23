@@ -67,6 +67,7 @@ export async function POST(request) {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       role,
+      dailyLimit: role === "admin" ? 27 : 20,
       isVerified: false,
       otp,
       otpExpires,
