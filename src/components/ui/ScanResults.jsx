@@ -66,13 +66,18 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  CartesianGrid
+  CartesianGrid,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  Legend
 } from "recharts";
 
 export default function ScanResults({ result }) {
   const toast = useToast();
   const [mounted, setMounted] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("company-surface");
   const [localResult, setLocalResult] = useState(result);
   const [isRescanning, setIsRescanning] = useState(false);
   const [historyData, setHistoryData] = useState([]);
@@ -100,7 +105,10 @@ export default function ScanResults({ result }) {
   // Search & Filter controls
   const [globalSearch, setGlobalSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("severity");
+  const [activeSection, setActiveSection] = useState("overview-section");
+  const [isAllExpanded, setIsAllExpanded] = useState(false);
 
   // Tab controls & expanded cards
   const [headersSearch, setHeadersSearch] = useState("");
@@ -134,6 +142,63 @@ export default function ScanResults({ result }) {
     }
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleScroll = () => {
+      const sections = [
+        "overview-section",
+        "visualizations-section",
+        "findings-section",
+        "headers-section",
+        "network-section",
+        "email-section",
+        "github-section",
+        "privacy-section",
+        "remediation-section",
+        "raw-section"
+      ];
+      const scrollPosition = window.scrollY + 220;
+      for (const sectionId of sections) {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          if (scrollPosition >= top && scrollPosition < top + height) {
+            setActiveSection(sectionId);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      window.scrollTo({
+        top: el.offsetTop - 120,
+        behavior: "smooth"
+      });
+      setActiveSection(id);
+    }
+  };
+
+  const toggleAllFindings = (expand) => {
+    if (expand) {
+      const keys = {};
+      filteredFindings.forEach((f, idx) => {
+        keys[idx] = true;
+      });
+      setExpandedFindings(keys);
+      setIsAllExpanded(true);
+    } else {
+      setExpandedFindings({});
+      setIsAllExpanded(false);
+    }
+  };
 
   // Update localResult when result prop changes
   useEffect(() => {
@@ -228,10 +293,6 @@ export default function ScanResults({ result }) {
 
   const posture = getSecurityPosture();
 
-  const passedCount = activeChecks.filter(c => c.status === "passed").length;
-  const warningCount = activeChecks.filter(c => c.status === "warning" || c.status === "info").length;
-  const failedCount = activeChecks.filter(c => c.status === "failed").length;
-
   const computedScores = useMemo(() => {
     return {
       headers: categoryScores?.headers ?? score ?? 0,
@@ -243,10 +304,175 @@ export default function ScanResults({ result }) {
     };
   }, [categoryScores, score, ssl, dns, cookies, compliance, exposedServices, sensitiveFiles, subdomains]);
 
+  const unifiedFindings = useMemo(() => {
+    const list = [];
+    
+    // Add header checks
+    if (activeChecks && Array.isArray(activeChecks)) {
+      activeChecks.forEach(c => {
+        list.push({
+          title: c.title || c.name || "HTTP Security Header Check",
+          status: c.status || "failed",
+          severity: c.severity || "medium",
+          category: "Security Headers",
+          description: c.description || "Evaluates security headers configuration.",
+          evidence: c.evidence || "No evidence recorded.",
+          recommendation: c.recommendation || null,
+          impact: c.impact || "Lack of headers exposes pages to framing, injection or hijack vectors."
+        });
+      });
+    }
+
+    // SSL Checks
+    if (ssl && ssl.expirationDate !== null) {
+      list.push({
+        title: "SSL/TLS Certificate Trusted Status",
+        status: ssl.valid ? "passed" : "failed",
+        severity: ssl.valid ? "info" : "critical",
+        category: "SSL/TLS Health",
+        description: "Checks if the domain's certificate is signed by a globally trusted Certificate Authority.",
+        evidence: `CA Issuer: ${ssl.issuer || "Unknown"}. Valid: ${ssl.valid ? "Yes" : "No"}`,
+        recommendation: ssl.valid ? null : "Install a trusted SSL certificate immediately.",
+        impact: ssl.valid ? "Secures connection trust." : "Connections expose warning pages and invite intercepts."
+      });
+
+      if (ssl.daysRemaining !== null) {
+        const isExpiring = ssl.daysRemaining < 30;
+        list.push({
+          title: "SSL/TLS Certificate Validity Window",
+          status: isExpiring ? "failed" : "passed",
+          severity: isExpiring ? "high" : "info",
+          category: "SSL/TLS Health",
+          description: "Tracks certificate validity duration to ensure continuity.",
+          evidence: `${ssl.daysRemaining} days remaining before expiration.`,
+          recommendation: isExpiring ? "Renew the SSL/TLS certificate immediately." : null,
+          impact: isExpiring ? "Service downtime when certificate expires." : "Sufficient active validity."
+        });
+      }
+    }
+
+    // DNS Checks
+    if (dns) {
+      const dnssecValid = dns.dnssec;
+      list.push({
+        title: "DNSSEC Zone Authentication Protection",
+        status: dnssecValid ? "passed" : "warning",
+        severity: dnssecValid ? "info" : "low",
+        category: "DNS Security",
+        description: "Protects zones from spoofing and cache poisoning by cryptographically validating DNS queries.",
+        evidence: dnssecValid ? "DNSSEC keys configured." : "DNSSEC is disabled.",
+        recommendation: dnssecValid ? null : "Enable DNSSEC key signing at your registrar.",
+        impact: dnssecValid ? "Authenticated zone resolution." : "Risk of DNS cache poisoning redirects."
+      });
+    }
+
+    // Email Security
+    if (emailSecurity) {
+      list.push({
+        title: "SPF Authentication Policy",
+        status: emailSecurity.spfPresent ? "passed" : "failed",
+        severity: emailSecurity.spfPresent ? "info" : "high",
+        category: "Email Integrity",
+        description: "SPF defines mail relay servers permitted to send domain's emails.",
+        evidence: emailSecurity.spfPresent ? "SPF TXT record resolved." : "SPF TXT record missing.",
+        recommendation: emailSecurity.spfPresent ? null : "Publish a standard SPF record.",
+        impact: emailSecurity.spfPresent ? "Prevents unauthenticated relay." : "Spoofing templates invite spam."
+      });
+
+      list.push({
+        title: "DMARC Spoofing Quarantine Policy",
+        status: emailSecurity.dmarcPresent ? "passed" : "failed",
+        severity: emailSecurity.dmarcPresent ? "info" : "high",
+        category: "Email Integrity",
+        description: "DMARC controls recipient actions when SPF/DKIM validations fail.",
+        evidence: emailSecurity.dmarcPresent ? "DMARC TXT record resolved." : "DMARC TXT record missing.",
+        recommendation: emailSecurity.dmarcPresent ? null : "Configure a DMARC policy with quarantine/reject mode.",
+        impact: emailSecurity.dmarcPresent ? "Enforces validation rules." : "Allows spoofed mail relays directly to user inboxes."
+      });
+
+      list.push({
+        title: "MTA-STS Strict Mail Handshake",
+        status: emailSecurity.mtaStsPresent ? "passed" : "warning",
+        severity: emailSecurity.mtaStsPresent ? "info" : "medium",
+        category: "Email Integrity",
+        description: "Enforces TLS encryption on inbound mail server relays.",
+        evidence: emailSecurity.mtaStsPresent ? "MTA-STS policy configured." : "MTA-STS check omitted.",
+        recommendation: emailSecurity.mtaStsPresent ? null : "Enable MTA-STS DNS key and policies.",
+        impact: emailSecurity.mtaStsPresent ? "Encrypted SMTP traffic." : "SMTP fallback allows plaintext sniffing."
+      });
+    }
+
+    // Privacy Checks
+    if (privacy) {
+      list.push({
+        title: "Linked Privacy Policy Document",
+        status: privacy.privacyPolicyPresent ? "passed" : "warning",
+        severity: privacy.privacyPolicyPresent ? "info" : "medium",
+        category: "Compliance & Privacy",
+        description: "Verifies if the website links to transparent legal terms.",
+        evidence: privacy.privacyPolicyPresent ? `URL: ${privacy.privacyPolicyUrl}` : "Privacy policy links absent.",
+        recommendation: privacy.privacyPolicyPresent ? null : "Link a standard compliance Privacy Policy in page footers.",
+        impact: privacy.privacyPolicyPresent ? "Legal compliance active." : "GDPR/CCPA penalty audit risk."
+      });
+
+      list.push({
+        title: "Cookie Consent Alert System",
+        status: privacy.cookieBannerPresent ? "passed" : "warning",
+        severity: privacy.cookieBannerPresent ? "info" : "low",
+        category: "Compliance & Privacy",
+        description: "Ensures standard cookie notification prompts exist.",
+        evidence: privacy.cookieBannerPresent ? "Consent alert verified." : "Consent alert not discovered.",
+        recommendation: privacy.cookieBannerPresent ? null : "Integrate a modern cookie consent banner.",
+        impact: privacy.cookieBannerPresent ? "Interactive consent resolved." : "Inability to document compliance consent."
+      });
+    }
+
+    // Exposed Gateways (Ports)
+    if (exposedServices && exposedServices.length > 0) {
+      exposedServices.forEach(srv => {
+        const isOpen = srv.status === "open";
+        list.push({
+          title: `Administrative Interface Port Exposure (Port ${srv.port})`,
+          status: isOpen ? "failed" : "passed",
+          severity: isOpen ? (srv.port === 80 ? "medium" : "high") : "info",
+          category: "Attack Surface",
+          description: `Checks for open TCP ports that invite brute-force and port mapping scanning.`,
+          evidence: `Port: ${srv.port} | Service: ${srv.service} | Status: ${srv.status}`,
+          recommendation: isOpen ? `Apply firewall whitelisting constraints to block public ports exposure.` : null,
+          impact: isOpen ? "Daemon vulnerabilities search vectors exposed." : "Port securely filtered."
+        });
+      });
+    }
+
+    // Sensitive Directory configurations
+    if (sensitiveFiles && sensitiveFiles.length > 0) {
+      sensitiveFiles.forEach(file => {
+        if (file.exists) {
+          list.push({
+            title: `Exposed Administrative Path: ${file.path}`,
+            status: "failed",
+            severity: "critical",
+            category: "Attack Surface",
+            description: "Detects exposed administrative console or backup folders.",
+            evidence: `Path resolved with status HTTP ${file.status || 200}`,
+            recommendation: `Add access rules to deny public requests to this directory.`,
+            impact: "Severe credentials leaks or server takeover vectors."
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [activeChecks, ssl, dns, emailSecurity, privacy, exposedServices, sensitiveFiles]);
+
+  const passedCount = useMemo(() => unifiedFindings.filter(f => f.status === "passed").length, [unifiedFindings]);
+  const warningCount = useMemo(() => unifiedFindings.filter(f => f.status === "warning" || (f.status === "info" && f.severity !== "info")).length, [unifiedFindings]);
+  const failedCount = useMemo(() => unifiedFindings.filter(f => f.status === "failed").length, [unifiedFindings]);
+
   // Group findings by severity
   const severityCounts = useMemo(() => {
     const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-    activeChecks.forEach(c => {
+    unifiedFindings.forEach(c => {
       if (c.status !== "passed") {
         const sev = (c.severity || "info").toLowerCase();
         if (sev in counts) counts[sev]++;
@@ -257,11 +483,11 @@ export default function ScanResults({ result }) {
       }
     });
     return counts;
-  }, [activeChecks]);
+  }, [unifiedFindings]);
 
   const groupedFindings = useMemo(() => {
     const groups = { critical: [], high: [], medium: [], low: [], info: [] };
-    activeChecks.forEach(c => {
+    unifiedFindings.forEach(c => {
       if (c.status === "passed") {
         groups.info.push(c);
         return;
@@ -272,17 +498,17 @@ export default function ScanResults({ result }) {
       else groups.low.push(c);
     });
     return groups;
-  }, [activeChecks]);
+  }, [unifiedFindings]);
 
   // Filter & Search checks
   const filteredFindings = useMemo(() => {
-    let list = activeChecks;
+    let list = unifiedFindings;
 
     // Search filter
     if (globalSearch.trim() !== "") {
       const q = globalSearch.toLowerCase();
       list = list.filter(c => 
-        (c.title || c.name || "").toLowerCase().includes(q) ||
+        (c.title || "").toLowerCase().includes(q) ||
         (c.description || "").toLowerCase().includes(q) ||
         (c.recommendation || "").toLowerCase().includes(q) ||
         (c.evidence || "").toLowerCase().includes(q)
@@ -300,6 +526,11 @@ export default function ScanResults({ result }) {
       });
     }
 
+    // Category filter
+    if (categoryFilter !== "all") {
+      list = list.filter(c => c.category?.toLowerCase() === categoryFilter.toLowerCase());
+    }
+
     // Sort order
     const sorted = [...list];
     if (sortOrder === "severity") {
@@ -310,13 +541,21 @@ export default function ScanResults({ result }) {
         return bWeight - aWeight;
       });
     } else if (sortOrder === "alphabetical") {
-      sorted.sort((a, b) => (a.title || a.name || "").localeCompare(b.title || b.name || ""));
+      sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
     } else if (sortOrder === "category") {
       sorted.sort((a, b) => (a.category || "").localeCompare(b.category || ""));
     }
 
     return sorted;
-  }, [activeChecks, globalSearch, severityFilter, sortOrder]);
+  }, [unifiedFindings, globalSearch, severityFilter, categoryFilter, sortOrder]);
+
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set();
+    unifiedFindings.forEach(f => {
+      if (f.category) cats.add(f.category);
+    });
+    return Array.from(cats);
+  }, [unifiedFindings]);
 
   // Secrets mapping
   const secretsList = useMemo(() => {
@@ -362,85 +601,6 @@ export default function ScanResults({ result }) {
     });
   }, [activeChecks, headers, ssl, dns, cookies, sensitiveFiles]);
 
-  // Dynamic Timeline events resolver - strictly based on present telemetry metrics
-  const scanTimeline = useMemo(() => {
-    if (!localResult) return [];
-    const events = [];
-    const start = localResult.createdAt || localResult.metadata?.timestamp || new Date().toISOString();
-    let baseTime = new Date(start).getTime();
-
-    events.push({
-      title: "Security scan requested",
-      timestamp: new Date(baseTime).toLocaleTimeString(),
-      desc: `Audit request initialized for target domain ${domain}`,
-      status: "completed",
-      icon: Shield
-    });
-
-    if (dns && performance?.dnsLookup !== null) {
-      baseTime += performance.dnsLookup || 35;
-      events.push({
-        title: "DNS zones lookup resolved",
-        timestamp: new Date(baseTime).toLocaleTimeString(),
-        desc: `Resolved ${dns.a?.length || 0} IPv4 address zones & ${dns.mx?.length || 0} mail exchanger endpoints in ${performance.dnsLookup}ms`,
-        status: "completed",
-        icon: Globe
-      });
-    }
-
-    if (ssl && performance?.tlsHandshake !== null) {
-      baseTime += performance.tlsHandshake || 95;
-      events.push({
-        title: "SSL/TLS connection handshake completed",
-        timestamp: new Date(baseTime).toLocaleTimeString(),
-        desc: `Negotiated ${ssl.tlsVersion || "TLSv1.3"} cipher session using key length ${ssl.keyLength || 2048} bits in ${performance.tlsHandshake}ms`,
-        status: ssl.valid ? "completed" : "warning",
-        icon: Key
-      });
-    }
-
-    if (headers && headers.length > 0 && performance?.responseTime !== null) {
-      baseTime += performance.responseTime || 140;
-      events.push({
-        title: "HTTP response headers parsed",
-        timestamp: new Date(baseTime).toLocaleTimeString(),
-        desc: `Successfully received response headers. Audited ${headers.length} header attributes in ${performance.responseTime}ms`,
-        status: "completed",
-        icon: FileCode
-      });
-    }
-
-    if (exposedServices && exposedServices.length > 0) {
-      events.push({
-        title: "External port validation completed",
-        timestamp: new Date(baseTime + 40).toLocaleTimeString(),
-        desc: `Audited common gateway interfaces. Discovered ${exposedServices.filter(s => s.status === "open").length} open service TCP ports`,
-        status: exposedServices.filter(s => s.status === "open").length > 0 ? "danger" : "completed",
-        icon: Radio
-      });
-    }
-
-    if (sensitiveFiles && sensitiveFiles.length > 0) {
-      events.push({
-        title: "Directory configuration scan resolved",
-        timestamp: new Date(baseTime + 70).toLocaleTimeString(),
-        desc: `Checked credential paths, sitemaps, and robots.txt. Flagged ${sensitiveFiles.filter(f => f.exists).length} exposed directories`,
-        status: sensitiveFiles.filter(f => f.exists).length > 0 ? "danger" : "completed",
-        icon: FileText
-      });
-    }
-
-    events.push({
-      title: "Posture assessment compiled",
-      timestamp: new Date(baseTime + 110).toLocaleTimeString(),
-      desc: `Scoring normalizations completed. Final rating compiled as Grade ${grade} (${score}/100)`,
-      status: score >= 80 ? "completed" : score >= 60 ? "warning" : "danger",
-      icon: Activity
-    });
-
-    return events;
-  }, [localResult, dns, ssl, headers, exposedServices, sensitiveFiles, performance, domain, grade, score]);
-
   // Actions handlers
   const handleRescan = async () => {
     if (!domain) return;
@@ -458,7 +618,6 @@ export default function ScanResults({ result }) {
       }
       setLocalResult(data.data || data);
       toast.success("Security posture scan completed successfully!");
-      setActiveCategory("overview");
     } catch (e) {
       toast.error(e.message || "Failed to complete rescan.");
     } finally {
@@ -483,7 +642,6 @@ export default function ScanResults({ result }) {
       }
       setLocalResult(data.data || data);
       toast.success(`Subdomain scan resolved successfully for ${subdomainName}`);
-      setActiveCategory("overview");
     } catch (e) {
       toast.error(e.message || "Failed to complete scan on subdomain.");
     } finally {
@@ -789,31 +947,19 @@ export default function ScanResults({ result }) {
     }));
   };
 
-  // Recharts Chart Colors & Harmonies
-  const auditStatusData = [
-    { name: "Passed Checklists", value: passedCount, color: "#10b981" },
-    { name: "Hardening Warnings", value: warningCount, color: "#f59e0b" },
-    { name: "Critical Failures", value: failedCount, color: "#ef4444" }
+  // Sidebar Tab Configuration
+  const tabItems = [
+    { id: "overview-section", label: "Executive Summary", icon: Layout },
+    { id: "visualizations-section", label: "Visual Analytics", icon: BarChart3 },
+    { id: "findings-section", label: "Vulnerabilities List", icon: ShieldAlert, count: failedCount + warningCount },
+    { id: "headers-section", label: "Security Headers", icon: ShieldCheck },
+    { id: "network-section", label: "Network (SSL & DNS)", icon: Globe },
+    { id: "email-section", label: "Email Audits", icon: Mail },
+    { id: "github-section", label: "GitHub Exposure", icon: Code },
+    { id: "privacy-section", label: "Website Privacy", icon: Cookie },
+    { id: "remediation-section", label: "AI Recommendations", icon: BookOpen },
+    { id: "raw-section", label: "Raw Response", icon: Terminal }
   ];
-
-  const severityBarData = [
-    { name: "Critical", value: severityCounts.critical, fill: "#ef4444" },
-    { name: "High", value: severityCounts.high, fill: "#f97316" },
-    { name: "Medium", value: severityCounts.medium, fill: "#f59e0b" },
-    { name: "Low", value: severityCounts.low, fill: "#3b82f6" },
-    { name: "Info", value: severityCounts.info, fill: "#06b6d4" }
-  ];
-
-  // Dynamic Tabs resolution strictly hiding tabs where backend metrics are missing/empty
-  const tabItems = useMemo(() => {
-    return [
-      { id: "company-surface", label: "Company Surface", icon: Layout },
-      { id: "domain-scanner", label: "Domain Scanner", icon: ShieldCheck },
-      { id: "email-security", label: "Email Security", icon: Mail },
-      { id: "github-exposure", label: "GitHub Exposure", icon: Code },
-      { id: "website-privacy", label: "Website Privacy", icon: Cookie }
-    ];
-  }, []);
 
   if (isRescanning) {
     return (
@@ -864,7 +1010,7 @@ export default function ScanResults({ result }) {
             {statusCode !== undefined && (
               <div className="flex items-center gap-1.5">
                 <Radio className="h-3.5 w-3.5 text-accent-light" />
-                <span>Status: <span className="text-text font-bold">HTTP {statusCode}</span></span>
+                <span>Status: <span className="text-text font-bold font-mono">HTTP {statusCode}</span></span>
               </div>
             )}
             {scanDuration !== undefined && (
@@ -872,7 +1018,7 @@ export default function ScanResults({ result }) {
                 <div className="h-3 w-px bg-white/10 hidden sm:block" />
                 <div className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-accent-light" />
-                  <span>Duration: <span className="text-text font-bold">{scanDuration}ms</span></span>
+                  <span>Duration: <span className="text-text font-bold font-mono">{scanDuration}ms</span></span>
                 </div>
               </>
             )}
@@ -881,7 +1027,7 @@ export default function ScanResults({ result }) {
                 <div className="h-3 w-px bg-white/10 hidden sm:block" />
                 <div className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5 text-accent-light" />
-                  <span>Audited: <span className="text-text font-bold">{new Date(metadata.timestamp).toLocaleTimeString()}</span></span>
+                  <span>Audited: <span className="text-text font-bold font-mono">{new Date(metadata.timestamp).toLocaleTimeString()}</span></span>
                 </div>
               </>
             )}
@@ -906,7 +1052,7 @@ export default function ScanResults({ result }) {
                 Email PDF
               </Button>
             )}
-            <Button onClick={() => setActiveCategory("raw-data")} variant="outline" size="sm" icon={Code} className="hover:border-amber-500/40 hover:text-amber-400 font-bold py-1 text-[10px]">
+            <Button onClick={() => scrollToSection("raw-section")} variant="outline" size="sm" icon={Code} className="hover:border-amber-500/40 hover:text-amber-400 font-bold py-1 text-[10px]">
               Raw Response
             </Button>
           </div>
@@ -917,10 +1063,10 @@ export default function ScanResults({ result }) {
           <div className="text-center space-y-0.5">
             <p className="text-[8px] font-bold text-text-dim uppercase tracking-wider font-mono">Posture Grade</p>
             <div className={`text-2xl font-black px-3 py-1.5 rounded-lg border font-mono ${
-              grade.startsWith("A") ? "text-success bg-success/5 border-success/20" :
-              grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20" :
-              grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20" :
-              "text-danger bg-danger/5 border-danger/20"
+              grade.startsWith("A") ? "text-success bg-success/5 border-success/20 grade-a" :
+              grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20 grade-b" :
+              grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20 grade-c" :
+              "text-danger bg-danger/5 border-danger/20 grade-f"
             }`}>
               {grade}
             </div>
@@ -962,14 +1108,14 @@ export default function ScanResults({ result }) {
         {/* Navigation Sidebar */}
         <aside className="w-full lg:w-[260px] lg:sticky lg:top-36 flex-shrink-0 z-20">
           <div className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-y-auto no-scrollbar pb-2 lg:pb-0 border-b lg:border-b-0 border-white/[0.04] lg:space-y-1 bg-surface/30 p-2 lg:p-3 rounded-2xl border border-white/[0.04]">
-            <p className="hidden lg:block text-[9px] font-black text-text-muted uppercase tracking-widest px-2 mb-2 font-mono font-sans">Dashboard Navigation</p>
+            <p className="hidden lg:block text-[9px] font-black text-text-muted uppercase tracking-widest px-2 mb-2 font-mono font-sans text-left">Security Sections</p>
             {tabItems.map(item => {
               const Icon = item.icon;
-              const isActive = activeCategory === item.id;
+              const isActive = activeSection === item.id;
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveCategory(item.id)}
+                  onClick={() => scrollToSection(item.id)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[11px] font-semibold tracking-wider transition-all duration-200 border whitespace-nowrap lg:w-full text-left ${
                     isActive 
                       ? "bg-accent/10 text-accent border-accent/20 shadow-[0_0_12px_rgba(99,102,241,0.1)]" 
@@ -990,50 +1136,91 @@ export default function ScanResults({ result }) {
         </aside>
 
         {/* Content Pane */}
-        <main className="flex-grow w-full min-w-0 space-y-6">
+        <main className="flex-grow w-full min-w-0 space-y-12">
 
-          {/* ==================== 1. COMPANY SURFACE TAB (OVERVIEW) ==================== */}
-          {activeCategory === "company-surface" && (
-            <div className="space-y-6 animate-fadeInUp text-left">
-              {/* Executive Score & Severity Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="p-5 bg-surface/30 flex flex-col justify-between min-h-[140px]">
-                  <p className="text-[10px] font-black text-text-dim uppercase tracking-wider font-mono">Posture Assessment</p>
-                  <div className="flex items-baseline gap-2 mt-4">
-                    <span className="text-4xl font-black font-mono text-accent">{score}</span>
+          {/* ==================== 1. EXECUTIVE SUMMARY TAB (OVERVIEW) ==================== */}
+          <div id="overview-section" className="space-y-6 pt-4 scroll-mt-28">
+            <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Executive Summary</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* Target Host Domain Card */}
+              <Card className="p-6 bg-surface/30 border border-white/[0.04] backdrop-blur-md flex flex-col justify-between min-h-[140px] shadow-lg hover:border-white/10 transition-all duration-300">
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider font-mono">Target Host Domain</span>
+                  <h3 className="text-xl font-bold font-mono tracking-tight text-accent mt-2 truncate flex items-center gap-2">
+                    {domain}
+                    <button
+                      onClick={() => handleCopy(domain)}
+                      className="p-1 rounded hover:bg-white/5 text-text-dim hover:text-text transition-colors"
+                      title="Copy Domain Address"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </h3>
+                </div>
+                <div className="flex gap-2 items-center mt-3 pt-3 border-t border-white/[0.03]">
+                  <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                  <span className="text-[10px] text-text-muted font-mono">Status: HTTP {statusCode || 200}</span>
+                </div>
+              </Card>
+
+              {/* Overall Security Score Card */}
+              <Card className="p-6 bg-surface/30 border border-white/[0.04] backdrop-blur-md flex items-center justify-between min-h-[140px] shadow-lg hover:border-white/10 transition-all duration-300">
+                <div className="space-y-2 text-left">
+                  <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider font-mono">Overall Security Score</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black font-mono text-accent">{score}</span>
                     <span className="text-text-muted text-xs font-mono">/ 100</span>
                   </div>
-                  <Badge variant={posture.badge} className="w-max mt-2 text-[8px] uppercase tracking-wider py-0.5 px-2 font-black">
+                  <Badge variant={posture.badge} className="text-[8px] uppercase tracking-wider font-black py-0.5 px-2">
                     {posture.text}
                   </Badge>
-                </Card>
+                </div>
+                <div className="relative flex items-center justify-center h-20 w-20 flex-shrink-0">
+                  <svg className="absolute inset-0 transform -rotate-90 w-full h-full">
+                    <circle cx="40" cy="40" r="34" className="stroke-white/[0.03] fill-none" strokeWidth="5.5" />
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="34"
+                      className={`fill-none ${
+                        score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
+                      }`}
+                      strokeWidth="5.5"
+                      strokeDasharray={`${2 * Math.PI * 34}`}
+                      strokeDashoffset={`${2 * Math.PI * 34 * (1 - score / 100)}`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="text-[11px] font-black font-mono text-text">{score}</span>
+                </div>
+              </Card>
 
-                <Card className="p-5 bg-surface/30 flex flex-col justify-between min-h-[140px]">
-                  <p className="text-[10px] font-black text-text-dim uppercase tracking-wider font-mono">Compliance Score</p>
-                  <div className="flex items-baseline gap-2 mt-4">
-                    <span className="text-4xl font-black font-mono text-purple-400">{computedScores.compliance}%</span>
-                  </div>
-                  <span className="text-[9px] text-text-muted font-bold font-mono">OWASP, GDPR, PCI-DSS, NIST</span>
-                </Card>
-
-                <Card className="p-5 bg-surface/30 flex flex-col justify-between min-h-[140px]">
-                  <p className="text-[10px] font-black text-text-dim uppercase tracking-wider font-mono">Risk Grade</p>
-                  <div className="mt-4">
-                    <span className={`text-4xl font-black px-3 py-1 rounded-lg border font-mono ${
-                      grade.startsWith("A") ? "text-success bg-success/5 border-success/20" :
-                      grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20" :
-                      grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20" :
-                      "text-danger bg-danger/5 border-danger/20"
+              {/* Security Grade Card */}
+              <Card className="p-6 bg-surface/30 border border-white/[0.04] backdrop-blur-md flex flex-col justify-between min-h-[140px] shadow-lg hover:border-white/10 transition-all duration-300">
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider font-mono">Security Assessment Grade</span>
+                  <div className="flex items-center gap-4 mt-2">
+                    <div className={`text-4xl font-black px-4 py-1.5 rounded-xl border font-mono ${
+                      grade.startsWith("A") ? "text-success bg-success/5 border-success/20 grade-a" :
+                      grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20 grade-b" :
+                      grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20 grade-c" :
+                      "text-danger bg-danger/5 border-danger/20 grade-f"
                     }`}>
                       {grade}
-                    </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-text-muted font-bold font-mono uppercase block">Standard Rating</span>
+                      <span className="text-[9px] text-text-dim block">Based on security headers and protocol hardening</span>
+                    </div>
                   </div>
-                  <span className="text-[9px] text-text-muted font-bold font-mono mt-2 block">Standard Assessment Grade</span>
-                </Card>
+                </div>
+              </Card>
 
-                <Card className="p-5 bg-surface/30 space-y-2">
-                  <p className="text-[10px] font-black text-text-dim uppercase tracking-wider font-mono">Findings Summary</p>
-                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono pt-2">
+              {/* Vulnerabilities & Risks Card */}
+              <Card className="p-6 bg-surface/30 border border-white/[0.04] backdrop-blur-md flex flex-col justify-between min-h-[140px] shadow-lg hover:border-white/10 transition-all duration-300">
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider font-mono">Findings Summary</span>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono pt-3">
                     <div className="flex justify-between items-center bg-danger/5 border border-danger/10 px-2 py-1 rounded">
                       <span className="text-danger font-bold">Critical</span>
                       <span className="font-bold text-text">{severityCounts.critical}</span>
@@ -1051,806 +1238,110 @@ export default function ScanResults({ result }) {
                       <span className="font-bold text-text">{severityCounts.low}</span>
                     </div>
                   </div>
-                </Card>
-              </div>
+                </div>
+              </Card>
 
-              {/* Graphical Visualizations */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <Card className="p-4 flex flex-col justify-between bg-surface/30">
-                  <div>
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2 border-b border-white/[0.05] pb-2">
-                      <Activity className="h-4 w-4 text-accent" /> Audit Distribution
-                    </h3>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 mt-4">
-                    <div className="space-y-1 text-[9.5px] font-semibold font-mono flex-1">
-                      {auditStatusData.map((d, i) => (
-                        <div key={i} className="flex justify-between items-center p-1.5 rounded bg-bg/50 border border-white/[0.02]">
-                          <span className="flex items-center gap-1.5" style={{ color: d.color }}>
-                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
-                            {d.name.split(" ")[0]}
-                          </span>
-                          <span className="font-bold text-text">{d.value}</span>
-                        </div>
-                      ))}
+              {/* Total Audits Card */}
+              <Card className="p-6 bg-surface/30 border border-white/[0.04] backdrop-blur-md flex flex-col justify-between min-h-[140px] shadow-lg hover:border-white/10 transition-all duration-300">
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider font-mono">Passed vs Failed Checks</span>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex justify-between text-[10px] font-mono">
+                      <span className="text-success font-bold font-sans">Passed: {passedCount}</span>
+                      <span className="text-danger font-bold font-sans font-mono">Failed: {failedCount + warningCount}</span>
                     </div>
-                    {mounted && (
-                      <div className="h-20 w-20 flex-shrink-0 relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={auditStatusData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={20}
-                              outerRadius={28}
-                              paddingAngle={3}
-                              dataKey="value"
-                            >
-                              {auditStatusData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-
-                <Card className="p-4 flex flex-col justify-between bg-surface/30">
-                  <div>
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2 border-b border-white/[0.05] pb-2">
-                      <BarChart3 className="h-4 w-4 text-accent" /> Vulnerabilities Breakdown
-                    </h3>
-                  </div>
-                  <div className="h-24 w-full mt-4">
-                    {mounted && (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={severityBarData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                          <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
-                          <YAxis stroke="#64748b" fontSize={8} tickLine={false} allowDecimals={false} />
-                          <Tooltip 
-                            contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "9px" }}
-                            itemStyle={{ color: "#f8fafc" }}
-                          />
-                          <Bar dataKey="value" fill="#6366f1" radius={[2, 2, 0, 0]}>
-                            {severityBarData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </Card>
-                
-                <Card className="p-4 flex flex-col justify-between bg-surface/30">
-                  <div>
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2 border-b border-white/[0.05] pb-2">
-                      <History className="h-4 w-4 text-accent" /> History Trend
-                    </h3>
-                  </div>
-                  <div className="h-24 w-full mt-4 flex items-center justify-center">
-                    {mounted && historyData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={historyData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                          <XAxis dataKey="date" stroke="#64748b" fontSize={8} tickLine={false} />
-                          <YAxis stroke="#64748b" fontSize={8} tickLine={false} domain={[0, 100]} />
-                          <Tooltip
-                            contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "9px" }}
-                            itemStyle={{ color: "#f8fafc" }}
-                          />
-                          <Line type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={2} dot={{ fill: "#6366f1", r: 2.5 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="text-center py-4 text-text-muted text-[10px] font-mono">
-                        No successive scans recorded.
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </div>
-
-              {/* Infrastructure Overview */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {infrastructure && (
-                  <Card className="p-4 bg-surface/30 space-y-3">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                      <Server className="h-4 w-4 text-accent" /> Edge Infrastructure Map
-                    </h3>
-                    <div className="space-y-2 font-mono text-[11px]">
-                      <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2 rounded-lg">
-                        <span className="text-text-dim text-[10px]">Cloud Proxy / CDN</span>
-                        <span className="font-bold text-text">{infrastructure.cdn || "Not Detected"}</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2 rounded-lg">
-                        <span className="text-text-dim text-[10px]">Web App Firewall (WAF)</span>
-                        <span className="font-bold text-text">{infrastructure.waf || "Not Detected"}</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2 rounded-lg">
-                        <span className="text-text-dim text-[10px]">Reverse Proxy Signature</span>
-                        <span className="font-bold text-text truncate max-w-[180px]">{infrastructure.reverseProxy || "Not Detected"}</span>
-                      </div>
-                      {dns?.a?.[0] && (
-                        <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2 rounded-lg">
-                          <span className="text-text-dim text-[10px]">Resolved A Record IP</span>
-                          <button
-                            onClick={() => setSelectedIp(dns.a[0])}
-                            className="font-bold text-accent hover:underline text-[10.5px]"
-                          >
-                            {dns.a[0]}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                )}
-
-                {/* Open services & ports */}
-                {exposedServices && exposedServices.length > 0 && (
-                  <Card className="p-4 bg-surface/30 space-y-3">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                      <Radio className="h-4 w-4 text-accent" /> Exposed Service Gateways
-                    </h3>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {exposedServices.map((srv, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setSelectedPort(srv)}
-                          className="flex items-center gap-2 bg-bg/50 hover:bg-bg border border-white/[0.04] px-3 py-1.5 rounded-lg text-[10.5px] font-mono transition-all text-left"
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full bg-danger animate-pulse" />
-                          <span className="font-bold text-text">{srv.port} ({srv.service})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-              </div>
-
-              {/* Subdomains & Tech stack mapping lists */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {subdomains && subdomains.length > 0 && (
-                  <Card className="p-4 bg-surface/30 space-y-3">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-accent" /> Active Subdomains ({subdomains.length})
-                    </h3>
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {subdomains.map((sub, idx) => {
-                        const subName = sub.subdomain || sub;
-                        return (
-                          <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg text-[11px] font-mono">
-                            <button
-                              onClick={() => handleScanSubdomain(subName)}
-                              className="font-bold text-accent hover:text-accent-light underline truncate max-w-[200px]"
-                            >
-                              {subName}
-                            </button>
-                            {sub.ip && (
-                              <button onClick={() => setSelectedIp(sub.ip)} className="text-[10px] text-text-dim font-bold hover:underline">{sub.ip}</button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                )}
-
-                {techStack && techStack.length > 0 && (
-                  <Card className="p-4 bg-surface/30 space-y-3">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                      <Cpu className="h-4 w-4 text-accent" /> Observed Software Stack ({techStack.length})
-                    </h3>
-                    <div className="grid grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                      {techStack.map((tech, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setSelectedTech(tech)}
-                          className="bg-bg/40 border border-white/[0.03] hover:border-white/[0.08] p-2.5 rounded-lg text-left font-mono space-y-0.5"
-                        >
-                          <span className="text-[8px] text-text-muted block uppercase">{tech.category}</span>
-                          <span className="font-bold text-text block truncate text-[11px]">{tech.name}</span>
-                          {tech.version && <span className="text-[9px] text-accent block">v{tech.version}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 2. DOMAIN SCANNER TAB ==================== */}
-          {activeCategory === "domain-scanner" && (
-            <div className="space-y-6 animate-fadeInUp text-left">
-              {/* response headers list */}
-              {headers && headers.length > 0 && (
-                <Card className="p-4 space-y-4 bg-surface/30">
-                  <div className="flex flex-col sm:flex-row justify-between gap-4 border-b border-white/[0.04] pb-4">
-                    <div>
-                      <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono">HTTP Response Security Headers</h3>
-                      <p className="text-[10px] text-text-dim mt-0.5">Verification checks matching deployed transport/XSS safety headers.</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-dim" />
-                        <input
-                          type="text"
-                          value={headersSearch}
-                          onChange={(e) => setHeadersSearch(e.target.value)}
-                          placeholder="Search headers..."
-                          className="pl-8 pr-3 py-1.5 bg-bg border border-white/[0.05] focus:border-accent/40 rounded-lg text-[10px] font-semibold text-text placeholder:text-text-muted outline-none w-40 sm:w-48 transition-all"
-                        />
-                      </div>
-                      <div className="flex bg-bg border border-white/[0.05] p-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider">
-                        {["all", "passed", "warning", "failed"].map(f => (
-                          <button
-                            key={f}
-                            onClick={() => setHeadersFilter(f)}
-                            className={`px-2 py-0.5 rounded transition-colors ${
-                              headersFilter === f ? "bg-accent text-bg" : "text-text-dim hover:text-text"
-                            }`}
-                          >
-                            {f}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="h-2 bg-bg rounded-full overflow-hidden flex">
+                      <div className="bg-success h-full" style={{ width: `${passedCount + failedCount + warningCount > 0 ? (passedCount / (passedCount + failedCount + warningCount)) * 100 : 0}%` }} />
+                      <div className="bg-danger h-full" style={{ width: `${passedCount + failedCount + warningCount > 0 ? ((failedCount + warningCount) / (passedCount + failedCount + warningCount)) * 100 : 0}%` }} />
                     </div>
                   </div>
+                </div>
+              </Card>
 
-                  <div className="divide-y divide-white/[0.02]">
-                    {headers
-                      .filter(h => {
-                        const matchesSearch = h.name.toLowerCase().includes(headersSearch.toLowerCase()) || 
-                                              (h.value && h.value.toLowerCase().includes(headersSearch.toLowerCase()));
-                        if (headersFilter === "all") return matchesSearch;
-                        if (headersFilter === "passed") return matchesSearch && h.status === "present";
-                        if (headersFilter === "warning") return matchesSearch && h.status === "weak";
-                        if (headersFilter === "failed") return matchesSearch && h.status === "missing";
-                        return matchesSearch;
-                      })
-                      .map((h, idx) => {
-                        const isExpanded = expandedHeaders.includes(h.name);
-                        const statusVariant = h.status === "present" ? "success" : h.status === "weak" ? "warning" : "danger";
-                        return (
-                          <div key={idx} className="py-3 hover:bg-white/[0.01] transition-all rounded-lg px-2">
-                            <div className="flex items-center justify-between gap-4 cursor-pointer" onClick={() => toggleHeaderExpand(h.name)}>
-                              <div className="flex items-center gap-2 min-w-0">
-                                <code className="text-xs font-bold text-accent pr-2 border-r border-white/5 font-mono truncate max-w-[200px] sm:max-w-md">{h.name}</code>
-                                <Badge variant={statusVariant} className="text-[7px] py-0.5">
-                                  {h.status === "present" ? "Passed" : h.status === "weak" ? "Warning" : "Failed"}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-[9px] text-text-dim font-bold uppercase tracking-wider font-mono">
-                                  Severity: <span className={h.severity === "high" || h.severity === "critical" ? "text-danger" : h.severity === "medium" ? "text-warning" : "text-success"}>{h.severity}</span>
-                                </span>
-                                {isExpanded ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
-                              </div>
-                            </div>
-
-                            {isExpanded && (
-                              <div className="mt-3 pt-3 border-t border-white/[0.02] space-y-3 text-xs leading-relaxed animate-fadeIn">
-                                <div>
-                                  <div className="flex justify-between items-center mb-1">
-                                    <p className="text-[8.5px] font-black text-text-dim uppercase tracking-wider font-mono">Observed Value</p>
-                                    {h.value && (
-                                      <button onClick={() => handleCopy(h.value)} className="text-[8px] font-bold text-accent hover:text-accent-light uppercase tracking-wider">
-                                        Copy Value
-                                      </button>
-                                    )}
-                                  </div>
-                                  <div className="bg-bg border border-white/[0.04] p-2.5 rounded-lg font-mono text-[10.5px] text-accent-light break-all select-text">
-                                    {h.value || "MISSING (Header is not set by target server)"}
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <div>
-                                    <p className="text-[8.5px] font-black text-text-dim uppercase tracking-wider font-mono mb-1">Associated Threat Context</p>
-                                    <p className="text-text-dim text-[11px] leading-relaxed">{h.description || "No threat details documented."}</p>
-                                  </div>
-                                  {h.recommendation && (
-                                    <div className="p-3 bg-indigo-500/[0.02] border border-indigo-500/10 rounded-xl">
-                                      <p className="text-[8.5px] font-black text-accent uppercase tracking-wider font-mono mb-0.5">Remediation Action Required</p>
-                                      <p className="text-text-dim text-[11px] leading-relaxed">{h.recommendation}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                </Card>
-              )}
-
-              {/* SSL/TLS Parameters Summary */}
-              {ssl && ssl.expirationDate !== null && (
-                <Card className="p-4 bg-surface/30 space-y-4">
-                  <div className="flex justify-between items-center border-b border-white/[0.05] pb-3">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                      <Key className="h-4 w-4 text-accent" /> SSL/TLS Certificate Details
-                    </h3>
-                    <button onClick={() => setSslDetailOpen(true)} className="text-[9px] font-bold text-accent hover:underline uppercase tracking-wider font-mono">
-                      Inspect Certificate
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-                    <div className="bg-bg/40 p-3 rounded-lg">
-                      <span className="text-[8px] text-text-muted block uppercase">Issuer</span>
-                      <span className="font-bold text-text truncate block mt-0.5">{ssl.issuer || "Unknown"}</span>
+              {/* Response latency & duration */}
+              <Card className="p-6 bg-surface/30 border border-white/[0.04] backdrop-blur-md flex flex-col justify-between min-h-[140px] shadow-lg hover:border-white/10 transition-all duration-300">
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider font-mono">Network Scan Telemetry</span>
+                  <div className="flex items-center justify-between gap-2 mt-3">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-text-muted block">Duration Latency</span>
+                      <span className="text-xl font-bold font-mono text-accent">{scanDuration || 0} ms</span>
                     </div>
-                    <div className="bg-bg/40 p-3 rounded-lg">
-                      <span className="text-[8px] text-text-muted block uppercase">Key Type / Length</span>
-                      <span className="font-bold text-text block mt-0.5">{ssl.keyType || "RSA"} ({ssl.keyLength || "2048"} bits)</span>
+                    <div className="h-8 w-px bg-white/10" />
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-text-muted block">Resolved IP</span>
+                      <button onClick={() => setSelectedIp(dns?.a?.[0])} className="text-xs font-bold font-mono text-accent hover:underline">
+                        {dns?.a?.[0] || "N/A"}
+                      </button>
                     </div>
-                    <div className="bg-bg/40 p-3 rounded-lg">
-                      <span className="text-[8px] text-text-muted block uppercase">Handshake Time</span>
-                      <span className="font-bold text-accent block mt-0.5">{ssl.handshakeMs ? `${ssl.handshakeMs} ms` : "N/A"}</span>
-                    </div>
-                    <div className="bg-bg/40 p-3 rounded-lg">
-                      <span className="text-[8px] text-text-muted block uppercase">Remaining Days</span>
-                      <span className={`font-bold block mt-0.5 ${ssl.daysRemaining < 30 ? "text-danger" : "text-success"}`}>
-                        {ssl.daysRemaining ?? "N/A"} Days
-                      </span>
-                    </div>
-                  </div>
-                </Card>
-              )}
-
-              {/* DNS records explorer */}
-              {dns && (
-                <Card className="p-4 bg-surface/30 space-y-4">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-3 font-mono flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-accent" /> DNS Records Explorer
-                  </h3>
-                  <div className="space-y-3 font-mono text-xs">
-                    {dns.a && dns.a.length > 0 && (
-                      <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                        <span className="text-[9px] font-black text-text-dim block uppercase mb-1">A Records</span>
-                        <div className="flex flex-wrap gap-2">
-                          {dns.a.map((ip, idx) => (
-                            <span key={idx} className="bg-surface border border-white/[0.04] px-2 py-0.5 rounded text-[10px] text-accent-light font-bold select-all">{ip}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {dns.aaaa && dns.aaaa.length > 0 && (
-                      <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                        <span className="text-[9px] font-black text-text-dim block uppercase mb-1">AAAA Records</span>
-                        <div className="flex flex-wrap gap-2">
-                          {dns.aaaa.map((ip, idx) => (
-                            <span key={idx} className="bg-surface border border-white/[0.04] px-2 py-0.5 rounded text-[10px] text-accent-light font-bold select-all">{ip}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {dns.mx && dns.mx.length > 0 && (
-                      <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                        <span className="text-[9px] font-black text-text-dim block uppercase mb-1.5">MX Records</span>
-                        <div className="space-y-1">
-                          {dns.mx.map((m, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-[10px] bg-surface/50 p-1.5 rounded">
-                              <span className="text-text select-all">{m}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {dns.txt && dns.txt.length > 0 && (
-                      <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                        <span className="text-[9px] font-black text-text-dim block uppercase mb-1.5">TXT Records</span>
-                        <div className="space-y-1">
-                          {dns.txt.map((t, idx) => (
-                            <div key={idx} className="bg-surface/50 p-1.5 rounded text-[10px] text-text-dim select-all break-all">{t}</div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              )}
-
-              {/* robots.txt, sitemaps, security.txt */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono text-xs">
-                {robotsTxt && (
-                  <Card className="p-4 bg-surface/30 space-y-2 flex flex-col justify-between min-h-[140px]">
-                    <span className="text-[9px] text-text-muted uppercase font-bold">robots.txt</span>
-                    <span className="font-bold text-text text-[11px]">{robotsTxt.exists ? "Resolved" : "Not Detected"}</span>
-                    {robotsTxt.exists && (
-                      <div className="text-[10px] text-text-dim space-y-0.5">
-                        <p>Disallowed Paths: {robotsTxt.exposedPathsCount ?? 0}</p>
-                        <p className={robotsTxt.sensitiveExposed ? "text-danger font-bold animate-pulse" : "text-success"}>
-                          {robotsTxt.sensitiveExposed ? "⚠️ Sensitive Directories Listed" : "✓ No Sensitive Paths Listed"}
-                        </p>
-                      </div>
-                    )}
-                  </Card>
-                )}
-
-                {sitemapXml && (
-                  <Card className="p-4 bg-surface/30 space-y-2 flex flex-col justify-between min-h-[140px]">
-                    <span className="text-[9px] text-text-muted uppercase font-bold">sitemap.xml</span>
-                    <span className="font-bold text-text text-[11px]">{sitemapXml.exists ? `${sitemapXml.urlCount ?? 0} URLs Indexed` : "Not Detected"}</span>
-                    {sitemapXml.exists && sitemapXml.lastModified && (
-                      <span className="text-[10px] text-text-dim">Modified: {new Date(sitemapXml.lastModified).toLocaleDateString()}</span>
-                    )}
-                  </Card>
-                )}
-
-                {securityTxt && (
-                  <Card className="p-4 bg-surface/30 space-y-2 flex flex-col justify-between min-h-[140px]">
-                    <span className="text-[9px] text-text-muted uppercase font-bold">security.txt</span>
-                    <span className="font-bold text-text text-[11px]">{securityTxt.exists ? "Resolved" : "Not Detected"}</span>
-                    {securityTxt.exists && (
-                      <div className="text-[10px] text-text-dim space-y-0.5">
-                        {securityTxt.contact && <p className="truncate">Contact: {securityTxt.contact}</p>}
-                        {securityTxt.expires && <p className="truncate">Expires: {securityTxt.expires}</p>}
-                      </div>
-                    )}
-                  </Card>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 3. EMAIL SECURITY TAB ==================== */}
-          {activeCategory === "email-security" && (
-            <div className="space-y-6 animate-fadeInUp text-left font-sans">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <Card className="p-5 bg-surface/30 flex flex-col justify-between min-h-[160px]">
-                  <div>
-                    <h4 className="text-[10px] font-black text-text-dim uppercase tracking-wider font-mono">Email Security Rating</h4>
-                    <p className="text-[9px] text-text-muted uppercase mt-0.5">DNS Security Parameters</p>
-                  </div>
-                  <div className="mt-4 flex items-baseline gap-2">
-                    <span className="text-4xl font-black font-mono text-accent">{emailSecurity?.score || 0}%</span>
-                  </div>
-                  <Badge variant={emailSecurity?.score >= 80 ? "success" : emailSecurity?.score >= 50 ? "warning" : "danger"} className="text-[8px] w-max font-black py-0.5 px-2">
-                    {emailSecurity?.score >= 80 ? "Optimal Protection" : emailSecurity?.score >= 50 ? "Moderate Policy" : "Spoofing Risk"}
-                  </Badge>
-                </Card>
-
-                <Card className="p-5 bg-surface/30 md:col-span-2 space-y-3.5">
-                  <h4 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-accent" /> Security Protocol Status
-                  </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 font-mono text-[10.5px]">
-                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-text-dim text-[10px]">SPF</span>
-                      <Badge variant={emailSecurity?.spfPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                        {emailSecurity?.spfPresent ? "PASSED" : "MISSING"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-text-dim text-[10px]">DMARC</span>
-                      <Badge variant={emailSecurity?.dmarcPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                        {emailSecurity?.dmarcPresent ? "PASSED" : "MISSING"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-text-dim text-[10px]">DKIM</span>
-                      <Badge variant={emailSecurity?.dkimPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                        {emailSecurity?.dkimPresent ? "PASSED" : "MISSING"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-text-dim text-[10px]">MTA-STS</span>
-                      <Badge variant={emailSecurity?.mtaStsPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                        {emailSecurity?.mtaStsPresent ? "PASSED" : "MISSING"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-text-dim text-[10px]">TLS-RPT</span>
-                      <Badge variant={emailSecurity?.tlsRptPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                        {emailSecurity?.tlsRptPresent ? "PASSED" : "MISSING"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-text-dim text-[10px]">BIMI</span>
-                      <Badge variant={emailSecurity?.bimiPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                        {emailSecurity?.bimiPresent ? "PASSED" : "MISSING"}
-                      </Badge>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              {/* Detailed Email Authentication Check findings adapter */}
-              <Card className="p-4 space-y-4 bg-surface/30 font-mono text-xs">
-                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-3 font-sans">
-                  Email Authentication Findings Checklist
-                </h3>
-                <div className="space-y-3 leading-relaxed">
-                  {/* SPF Audit Card */}
-                  <div className="border border-white/[0.03] rounded-xl bg-bg/40 p-4 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-bold text-text text-[11px]">Sender Policy Framework (SPF) Validation</h4>
-                      <Badge variant={emailSecurity?.spfPresent ? "success" : "danger"} className="text-[7px]">
-                        {emailSecurity?.spfPresent ? "PASSED" : "FAILED"}
-                      </Badge>
-                    </div>
-                    <p className="text-text-dim font-sans text-[11.5px]">
-                      {emailSecurity?.spfPresent 
-                        ? `A valid SPF record was resolved at your root DNS TXT records. Content: "${dns?.spf?.value || "v=spf1 ..."}".`
-                        : "No valid SPF TXT record was resolved at the root domain. Spoofers can send phishing emails pretending to come from your domain."}
-                    </p>
-                    {!emailSecurity?.spfPresent && (
-                      <div className="p-2.5 bg-danger/5 border border-danger/10 rounded-lg text-[10.5px]">
-                        <p className="text-danger font-bold font-sans">Remediation Action Required:</p>
-                        <p className="text-text-dim font-sans mt-0.5">Publish a DNS TXT record at the root domain detailing your authorized sending mail servers. For example: `v=spf1 include:_spf.google.com ~all`.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* DMARC Audit Card */}
-                  <div className="border border-white/[0.03] rounded-xl bg-bg/40 p-4 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-bold text-text text-[11px]">DMARC Authentication Alignment Policy</h4>
-                      <Badge variant={emailSecurity?.dmarcPresent ? "success" : "danger"} className="text-[7px]">
-                        {emailSecurity?.dmarcPresent ? "PASSED" : "FAILED"}
-                      </Badge>
-                    </div>
-                    <p className="text-text-dim font-sans text-[11.5px]">
-                      {emailSecurity?.dmarcPresent 
-                        ? `DMARC alignment is configured. Resolved DMARC TXT record: "${dns?.dmarc?.value || "v=dmarc1 ..."}"`
-                        : "Missing DMARC policy record. Mail clients cannot verify if emails that fail SPF/DKIM validation should be quarantined, rejected, or accepted."}
-                    </p>
-                    {!emailSecurity?.dmarcPresent && (
-                      <div className="p-2.5 bg-danger/5 border border-danger/10 rounded-lg text-[10.5px]">
-                        <p className="text-danger font-bold font-sans">Remediation Action Required:</p>
-                        <p className="text-text-dim font-sans mt-0.5">Configure a DMARC policy. Publish a TXT record under the subdomain `_dmarc.${domain}` with value `v=DMARC1; p=quarantine;` (quarantine) or `v=DMARC1; p=reject;` (strong reject).</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* MTA-STS Card */}
-                  <div className="border border-white/[0.03] rounded-xl bg-bg/40 p-4 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-bold text-text text-[11px]">MTA Strict Transport Security (MTA-STS)</h4>
-                      <Badge variant={emailSecurity?.mtaStsPresent ? "success" : "danger"} className="text-[7px]">
-                        {emailSecurity?.mtaStsPresent ? "PASSED" : "FAILED"}
-                      </Badge>
-                    </div>
-                    <p className="text-text-dim font-sans text-[11.5px]">
-                      {emailSecurity?.mtaStsPresent 
-                        ? `MTA-STS resolved successfully: "${dns?.mtaSts?.value || "v=sts1; ..."}"`
-                        : "MTA-STS is not enabled on this domain. SMTP servers cannot enforce secure TLS connections when relaying mail, exposing emails to Man-in-the-Middle sniffer tools."}
-                    </p>
                   </div>
                 </div>
               </Card>
             </div>
-          )}
 
-          {/* ==================== 4. GITHUB EXPOSURE Scanner TAB ==================== */}
-          {activeCategory === "github-exposure" && (
-            <div className="space-y-6 animate-fadeInUp text-left font-sans">
-              <Card className="p-5 bg-surface/30 space-y-4">
-                <div>
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono">Public GitHub Exposure Audit</h3>
-                  <p className="text-[10px] text-text-dim mt-0.5">Perform a public repository check to detect exposed API keys, environment files, and configuration issues.</p>
-                </div>
-
-                <form onSubmit={handleGithubScan} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={githubOrgInput}
-                    onChange={(e) => setGithubOrgInput(e.target.value)}
-                    placeholder="Enter GitHub Username or Org Name (e.g. google)"
-                    className="flex-grow px-3 py-2 bg-bg border border-white/[0.06] focus:border-accent/40 rounded-lg text-xs text-text outline-none transition-all font-mono"
-                  />
-                  <Button
-                    type="submit"
-                    disabled={githubScanLoading || !githubOrgInput.trim()}
-                    variant="primary"
-                    size="sm"
-                    className="bg-accent text-bg hover:bg-accent-light font-bold"
-                  >
-                    {githubScanLoading ? "Auditing..." : "Audit Profile"}
-                  </Button>
-                </form>
-              </Card>
-
-              {githubScanLoading && (
-                <div className="text-center py-10 space-y-3 font-mono">
-                  <div className="h-8 w-8 rounded-full border-2 border-white/5 border-t-accent animate-spin mx-auto" />
-                  <p className="text-text-dim text-[10.5px] uppercase">Retrieving and parsing public repositories...</p>
-                </div>
+            {/* CDN / WAF Edge Map and tech Stack Summary lists */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {infrastructure && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 text-left">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <Server className="h-4 w-4 text-accent" /> Edge Infrastructure Map
+                  </h3>
+                  <div className="space-y-2 font-mono text-[11px]">
+                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                      <span className="text-text-dim text-[10px]">Cloud Proxy / CDN</span>
+                      <span className="font-bold text-text">{infrastructure.cdn || "Not Detected"}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                      <span className="text-text-dim text-[10px]">Web App Firewall (WAF)</span>
+                      <span className="font-bold text-text">{infrastructure.waf || "Not Detected"}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                      <span className="text-text-dim text-[10px]">Hosting ISP Signature</span>
+                      <span className="font-bold text-text truncate max-w-[180px]">{infrastructure.isp || "Not Detected"}</span>
+                    </div>
+                  </div>
+                </Card>
               )}
 
-              {/* GitHub scan results display */}
-              {githubScanResult && (
-                <div className="space-y-6 animate-fadeIn">
-                  {/* Account overview card */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Card className="p-4 bg-surface/30 font-mono text-xs">
-                      <span className="text-[8px] text-text-muted block uppercase">Owner Username</span>
-                      <span className="font-bold text-text block mt-1 select-all">{githubScanResult.username}</span>
-                    </Card>
-                    <Card className="p-4 bg-surface/30 font-mono text-xs">
-                      <span className="text-[8px] text-text-muted block uppercase">Account Type</span>
-                      <span className="font-bold text-text block mt-1 uppercase">{githubScanResult.type}</span>
-                    </Card>
-                    <Card className="p-4 bg-surface/30 font-mono text-xs">
-                      <span className="text-[8px] text-text-muted block uppercase">Public Repositories</span>
-                      <span className="font-bold text-accent block mt-1">{githubScanResult.publicReposCount} Checked</span>
-                    </Card>
+              {techStack && techStack.length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 text-left">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-accent" /> Observed Stack ({techStack.length})
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                    {techStack.map((tech, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedTech(tech)}
+                        className="bg-bg/40 border border-white/[0.03] hover:border-white/[0.08] p-2 rounded-lg text-left font-mono space-y-0.5"
+                      >
+                        <span className="text-[8px] text-text-muted block uppercase">{tech.category}</span>
+                        <span className="font-bold text-text block truncate text-[11px]">{tech.name}</span>
+                      </button>
+                    ))}
                   </div>
-
-                  {/* Findings */}
-                  <Card className="p-4 bg-surface/30 space-y-4">
-                    <h4 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                      <AlertOctagon className="h-4 w-4 text-accent" /> Exposure Checklist &amp; Findings
-                    </h4>
-
-                    {githubScanResult.findings.length === 0 ? (
-                      <div className="text-center py-6 text-success font-bold font-mono text-xs space-y-2">
-                        <CheckCircle2 className="h-10 w-10 text-success mx-auto" />
-                        <p>POSTURE SECURE: NO CRITICAL GITHUB EXPOSURES DISCOVERED</p>
-                        <p className="text-text-dim text-[9.5px] font-sans font-normal">We analyzed public repositories and found no environment variables, exposed credentials, or config leaks.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4 font-mono text-xs">
-                        {githubScanResult.findings.map((finding, idx) => {
-                          const fKey = `github-finding-${idx}`;
-                          const isOpen = expandedFindings[fKey];
-                          const badgeVariant = finding.severity === "critical" || finding.severity === "high" ? "danger" : finding.severity === "medium" ? "warning" : "info";
-                          
-                          return (
-                            <div key={idx} className="border border-white/[0.03] rounded-xl bg-bg/40 overflow-hidden text-left">
-                              <div
-                                onClick={() => toggleFindingExpand(fKey)}
-                                className="flex justify-between items-center p-3 cursor-pointer hover:bg-white/[0.02] gap-4"
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <span className={`h-1.5 w-1.5 rounded-full ${finding.severity === "critical" || finding.severity === "high" ? "bg-danger" : "bg-warning"}`} />
-                                  <span className="font-bold text-text text-[11px] truncate">{finding.title}</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <Badge variant={badgeVariant} className="text-[7px] py-0.5 uppercase">{finding.severity}</Badge>
-                                  {isOpen ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
-                                </div>
-                              </div>
-
-                              {isOpen && (
-                                <div className="p-4 border-t border-white/[0.02] space-y-3.5 leading-relaxed text-xs">
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                      <span className="text-[8px] font-bold text-text-dim uppercase tracking-wider block">Description</span>
-                                      <p className="text-text-dim font-sans">{finding.description}</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                      <span className="text-[8px] font-bold text-warning uppercase tracking-wider block">Security Risk Impact</span>
-                                      <p className="text-text-dim font-sans">{finding.businessImpact}</p>
-                                    </div>
-                                  </div>
-                                  
-                                  {finding.evidence && (
-                                    <div className="space-y-1">
-                                      <span className="text-[8px] font-black text-accent-light uppercase tracking-wider block">Audited Evidence</span>
-                                      <pre className="bg-bg border border-white/[0.04] p-3 rounded-lg text-[10px] text-accent-light break-all select-text whitespace-pre-wrap">{finding.evidence}</pre>
-                                    </div>
-                                  )}
-
-                                  {finding.remediation && (
-                                    <div className="p-3 bg-indigo-500/[0.02] border border-indigo-500/10 rounded-xl space-y-1">
-                                      <span className="text-[8.5px] font-black text-accent uppercase tracking-wider block">Remediation Action Required</span>
-                                      <p className="text-text-dim font-sans">{finding.remediation}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </Card>
-                </div>
+                </Card>
               )}
             </div>
-          )}
 
-          {/* ==================== 5. WEBSITE PRIVACY & COMPLIANCE TAB ==================== */}
-          {activeCategory === "website-privacy" && (
-            <div className="space-y-6 animate-fadeInUp text-left font-sans">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
-                {/* Privacy Policy */}
-                <Card className="p-4 bg-surface/30 flex flex-col justify-between min-h-[140px]">
-                  <div>
-                    <span className="text-[8px] text-text-muted uppercase font-bold">Privacy Policy Link</span>
-                    <span className="font-bold text-text text-[11px] block mt-1">
-                      {privacy?.privacyPolicyPresent ? "Detected" : "Not Found"}
-                    </span>
-                  </div>
-                  {privacy?.privacyPolicyPresent && privacy?.privacyPolicyUrl && (
-                    <a
-                      href={privacy.privacyPolicyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline truncate text-[9.5px] font-bold block select-all mt-2"
-                    >
-                      {privacy.privacyPolicyUrl}
-                    </a>
-                  )}
-                  <Badge variant={privacy?.privacyPolicyPresent ? "success" : "danger"} className="text-[7.5px] py-0.5 w-max">
-                    {privacy?.privacyPolicyPresent ? "COMPLIANT" : "RISK DETECTED"}
-                  </Badge>
-                </Card>
-
-                {/* Cookie Consent banner */}
-                <Card className="p-4 bg-surface/30 flex flex-col justify-between min-h-[140px]">
-                  <div>
-                    <span className="text-[8px] text-text-muted uppercase font-bold">Cookie Consent Banner</span>
-                    <span className="font-bold text-text text-[11px] block mt-1">
-                      {privacy?.cookieBannerPresent ? "Detected" : "Not Detected"}
-                    </span>
-                  </div>
-                  <p className="text-[9.5px] text-text-dim font-sans font-semibold">
-                    Checks standard banner IDs/consent text structures.
-                  </p>
-                  <Badge variant={privacy?.cookieBannerPresent ? "success" : "warning"} className="text-[7.5px] py-0.5 w-max mt-2">
-                    {privacy?.cookieBannerPresent ? "ACTIVE CONSENT" : "POLICY ADVISORY"}
-                  </Badge>
-                </Card>
-
-                {/* Tracking Pixels */}
-                <Card className="p-4 bg-surface/30 flex flex-col justify-between min-h-[140px]">
-                  <div>
-                    <span className="text-[8px] text-text-muted uppercase font-bold">Tracking Pixels</span>
-                    <span className="font-bold text-text text-[11px] block mt-1">
-                      {privacy?.trackingPixels && privacy.trackingPixels.length > 0 ? `${privacy.trackingPixels.length} Detected` : "None Detected"}
-                    </span>
-                  </div>
-                  {privacy?.trackingPixels && privacy.trackingPixels.length > 0 && (
-                    <span className="text-[9.5px] text-danger font-bold leading-normal truncate">
-                      {privacy.trackingPixels.join(", ")}
-                    </span>
-                  )}
-                  <Badge variant={privacy?.trackingPixels && privacy.trackingPixels.length > 0 ? "warning" : "success"} className="text-[7.5px] py-0.5 w-max">
-                    {privacy?.trackingPixels && privacy.trackingPixels.length > 0 ? "TRACKERS EXPOSED" : "NO SNIFFERS"}
-                  </Badge>
-                </Card>
-              </div>
-
-              {/* Cookies flags detailed audit list */}
-              {cookies && cookies.length > 0 && (
-                <Card className="p-4 bg-surface/30 space-y-4">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-3 font-mono flex items-center gap-2">
-                    <Cookie className="h-4 w-4 text-accent" /> Cookies Flag Security Audit ({cookies.length})
+            {/* Subdomains & Ports */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {subdomains && subdomains.length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 text-left">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-accent" /> Active Subdomains ({subdomains.length})
                   </h3>
-                  <div className="space-y-3 font-mono text-[10.5px]">
-                    {cookies.map((cookie, index) => {
-                      const isSecureFlagMissing = !cookie.secure;
-                      const isHttpOnlyMissing = !cookie.httpOnly;
-                      
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {subdomains.map((sub, idx) => {
+                      const subName = sub.subdomain || sub;
                       return (
-                        <div key={index} className="bg-bg/40 border border-white/[0.02] p-3.5 rounded-xl space-y-2.5 leading-relaxed text-left">
-                          <div className="flex justify-between items-start gap-4">
-                            <div>
-                              <span className="text-accent font-bold select-all block text-xs">{cookie.name}</span>
-                              <span className="text-[9.5px] text-text-muted">Domain: {cookie.domain || domain} | Path: {cookie.path || "/"}</span>
-                            </div>
-                            <div className="flex gap-1.5 shrink-0">
-                              <Badge variant={cookie.httpOnly ? "success" : "danger"} className="text-[7px] py-0.5">HttpOnly</Badge>
-                              <Badge variant={cookie.secure ? "success" : "danger"} className="text-[7px] py-0.5">Secure</Badge>
-                            </div>
-                          </div>
-
-                          {(isSecureFlagMissing || isHttpOnlyMissing) && (
-                            <div className="bg-danger/5 border border-danger/10 rounded-lg p-2 text-[10px]">
-                              <p className="text-danger font-bold font-sans">Cookie Flags Vulnerability Risk:</p>
-                              <p className="text-text-dim font-sans mt-0.5">
-                                {isHttpOnlyMissing && "Missing HttpOnly flag: Cookie can be extracted programmatically via XSS scripts. "}
-                                {isSecureFlagMissing && "Missing Secure flag: Cookie is transmitted over plaintext transport channels, inviting sniffing intercepts."}
-                              </p>
-                            </div>
-                          )}
+                        <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg text-[11px] font-mono">
+                          <button
+                            onClick={() => handleScanSubdomain(subName)}
+                            className="font-bold text-accent hover:text-accent-light underline truncate max-w-[200px]"
+                          >
+                            {subName}
+                          </button>
                         </div>
                       );
                     })}
@@ -1858,43 +1349,1309 @@ export default function ScanResults({ result }) {
                 </Card>
               )}
 
-              {/* Analytics tools and third-party scripts */}
-              {privacy && (privacy.thirdPartyScripts?.length > 0 || privacy.analyticsTools?.length > 0) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {privacy.analyticsTools?.length > 0 && (
-                    <Card className="p-4 bg-surface/30 space-y-3">
-                      <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono">
-                        Analytics Platforms Detected
-                      </h3>
-                      <div className="space-y-2 font-mono text-xs">
-                        {privacy.analyticsTools.map((tool, idx) => (
-                          <div key={idx} className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg flex justify-between items-center">
-                            <span className="font-bold text-text">{tool}</span>
-                            <Badge variant="info" className="text-[7.5px]">ACTIVE</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  )}
-
-                  {privacy.externalDomains?.length > 0 && (
-                    <Card className="p-4 bg-surface/30 space-y-3">
-                      <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono">
-                        External Domain Links Loaded
-                      </h3>
-                      <div className="space-y-2 font-mono text-[10px] max-h-56 overflow-y-auto pr-1">
-                        {privacy.externalDomains.map((extDomain, idx) => (
-                          <div key={idx} className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg select-all">
-                            {extDomain}
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  )}
-                </div>
+              {exposedServices && exposedServices.length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 text-left">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <Radio className="h-4 w-4 text-accent" /> Exposed Service Gateways
+                  </h3>
+                  <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto">
+                    {exposedServices.map((srv, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedPort(srv)}
+                        className="flex items-center gap-2 bg-bg/50 hover:bg-bg border border-white/[0.04] px-3 py-1.5 rounded-lg text-[10.5px] font-mono transition-all text-left"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-danger animate-pulse" />
+                        <span className="font-bold text-text">{srv.port} ({srv.service})</span>
+                      </button>
+                    ))}
+                  </div>
+                </Card>
               )}
             </div>
-          )}
+
+            {/* Exposed Paths & Identity Portals */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 text-left">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <FileText className="h-4.5 w-4.5 text-accent" /> Exposed Paths Discovery ({sensitiveFiles.filter(f => f.exists).length})
+                  </h3>
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {sensitiveFiles.filter(f => f.exists).map((file, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg text-[11px] font-mono">
+                        <span className="font-bold text-accent-light truncate max-w-[220px] select-all">{file.path}</span>
+                        <Badge variant="danger" className="text-[7.5px] py-0.5 shrink-0">EXPOSED</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {loginSurfaces && loginSurfaces.length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 text-left">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <Lock className="h-4.5 w-4.5 text-accent" /> Web Identity Access Portals ({loginSurfaces.length})
+                  </h3>
+                  <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                    {loginSurfaces.map((login, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg text-[11px] font-mono">
+                        <span className="font-bold text-accent-light truncate max-w-[220px] select-all">{login.path}</span>
+                        <Badge variant="warning" className="text-[7.5px] py-0.5 shrink-0">ACCESSIBLE</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+
+          {/* ==================== 2. VISUAL CHARTS DECK ==================== */}
+          <div id="visualizations-section" className="space-y-6 pt-4 scroll-mt-28">
+            <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Visual Analytics</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* 1. Risk Distribution (Passed vs Warning vs Failed counts) */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] text-left">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-accent" /> Security Risk Distribution
+                </h3>
+                <div className="h-48 w-full mt-4 flex items-center justify-between gap-4">
+                  <div className="space-y-1.5 text-[10px] font-semibold font-mono flex-1">
+                    {[
+                      { name: "Passed Verification", value: passedCount, color: "#10b981" },
+                      { name: "Warning / Hardening", value: warningCount, color: "#f59e0b" },
+                      { name: "Vulnerabilities Found", value: failedCount, color: "#ef4444" }
+                    ].map((d, i) => (
+                      <div key={i} className="flex justify-between items-center p-2 rounded bg-bg/50 border border-white/[0.02]">
+                        <span className="flex items-center gap-1.5" style={{ color: d.color }}>
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
+                          {d.name}
+                        </span>
+                        <span className="font-bold text-text">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {mounted && (
+                    <div className="h-32 w-32 flex-shrink-0 relative">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: "Passed", value: passedCount, color: "#10b981" },
+                              { name: "Warning", value: warningCount, color: "#f59e0b" },
+                              { name: "Failed", value: failedCount, color: "#ef4444" }
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={28}
+                            outerRadius={40}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {[
+                              { name: "Passed", value: passedCount, color: "#10b981" },
+                              { name: "Warning", value: warningCount, color: "#f59e0b" },
+                              { name: "Failed", value: failedCount, color: "#ef4444" }
+                            ].map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
+                        <span className="text-sm font-black text-text">{passedCount + warningCount + failedCount}</span>
+                        <span className="text-[7.5px] text-text-dim uppercase tracking-wider">Total</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {/* 2. Findings by Severity (Bar Chart) */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] text-left">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-accent" /> Vulnerabilities by Severity
+                </h3>
+                <div className="h-48 w-full mt-4">
+                  {mounted && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[
+                        { name: "Critical", value: severityCounts.critical, fill: "#ef4444" },
+                        { name: "High", value: severityCounts.high, fill: "#f97316" },
+                        { name: "Medium", value: severityCounts.medium, fill: "#f59e0b" },
+                        { name: "Low", value: severityCounts.low, fill: "#3b82f6" },
+                        { name: "Info/Pass", value: severityCounts.info, fill: "#10b981" }
+                      ]} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={8} tickLine={false} allowDecimals={false} />
+                        <Tooltip 
+                          contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "10px" }}
+                          itemStyle={{ color: "#f8fafc" }}
+                        />
+                        <Bar dataKey="value" fill="#6366f1" radius={[3, 3, 0, 0]}>
+                          {[
+                            { fill: "#ef4444" },
+                            { fill: "#f97316" },
+                            { fill: "#f59e0b" },
+                            { fill: "#3b82f6" },
+                            { fill: "#10b981" }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </Card>
+
+              {/* 3. Scan Categories Status (Radar Chart) */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] text-left">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-accent" /> Scan Categories Status
+                </h3>
+                <div className="h-48 w-full mt-4 flex items-center justify-center">
+                  {mounted && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart cx="50%" cy="50%" outerRadius="75%" data={[
+                        { subject: "Headers", score: computedScores.headers },
+                        { subject: "SSL/TLS", score: computedScores.ssl },
+                        { subject: "DNS", score: computedScores.dns },
+                        { subject: "Cookies", score: computedScores.cookies },
+                        { subject: "Exposure", score: computedScores.attackSurface },
+                        { subject: "Compliance", score: computedScores.compliance }
+                      ]}>
+                        <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                        <PolarAngleAxis dataKey="subject" stroke="#94a3b8" fontSize={8} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#64748b" fontSize={7} />
+                        <Radar name="Category Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </Card>
+
+              {/* 4. Security Headers Status */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] text-left">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-accent" /> Security Headers Status
+                </h3>
+                <div className="h-48 w-full mt-4 flex items-center justify-center">
+                  {mounted && headers && headers.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Passed (Present)", value: headers.filter(h => h.status === "present").length, color: "#10b981" },
+                            { name: "Warning (Weak)", value: headers.filter(h => h.status === "weak").length, color: "#f59e0b" },
+                            { name: "Failed (Missing)", value: headers.filter(h => h.status === "missing").length, color: "#ef4444" }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={45}
+                          dataKey="value"
+                          label={({ name, value }) => value > 0 ? `${name.split(" ")[0]}: ${value}` : ""}
+                          labelLine={false}
+                        >
+                          {[
+                            { color: "#10b981" },
+                            { color: "#f59e0b" },
+                            { color: "#ef4444" }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", fontSize: "10px" }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-10 text-text-dim text-[11px] italic font-mono">
+                      No security headers details resolved.
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {/* 5. Attack Surface Overview */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] text-left">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-accent" /> Attack Surface Overview
+                </h3>
+                <div className="h-48 w-full mt-4">
+                  {mounted && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[
+                        { name: "Subdomains", count: subdomains?.length || 0, fill: "#3b82f6" },
+                        { name: "Open Ports", count: exposedServices?.filter(s => s.status === "open").length || 0, fill: "#ef4444" },
+                        { name: "Exposed Files", count: sensitiveFiles?.filter(f => f.exists).length || 0, fill: "#f59e0b" },
+                        { name: "Login Portals", count: loginSurfaces?.length || 0, fill: "#818cf8" }
+                      ]} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={8} tickLine={false} allowDecimals={false} />
+                        <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", fontSize: "10px" }} />
+                        <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                          {[
+                            { fill: "#3b82f6" },
+                            { fill: "#ef4444" },
+                            { fill: "#f59e0b" },
+                            { fill: "#818cf8" }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </Card>
+
+              {/* 6. DNS Records Summary */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] text-left">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Fingerprint className="h-4 w-4 text-accent" /> DNS Records Summary
+                </h3>
+                <div className="h-48 w-full mt-4">
+                  {mounted && dns ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[
+                        { name: "A", count: dns.a?.length || 0, fill: "#10b981" },
+                        { name: "AAAA", count: dns.aaaa?.length || 0, fill: "#3b82f6" },
+                        { name: "MX", count: dns.mx?.length || 0, fill: "#818cf8" },
+                        { name: "TXT", count: dns.txt?.length || 0, fill: "#a855f7" }
+                      ]} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={8} tickLine={false} allowDecimals={false} />
+                        <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", fontSize: "10px" }} />
+                        <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                          {[
+                            { fill: "#10b981" },
+                            { fill: "#3b82f6" },
+                            { fill: "#818cf8" },
+                            { fill: "#a855f7" }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-16 text-text-dim text-[11px] italic font-mono">
+                      No DNS Record Telemetry Available
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {/* 7. Score History Trend (Timeline) */}
+              {historyData && historyData.length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] md:col-span-2 text-left">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                    <History className="h-4 w-4 text-accent" /> Security Score Timeline History
+                  </h3>
+                  <div className="h-48 w-full mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={historyData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
+                        <XAxis dataKey="date" stroke="#64748b" fontSize={8} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={8} tickLine={false} domain={[0, 100]} />
+                        <Tooltip
+                          contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", fontSize: "10px" }}
+                          itemStyle={{ color: "#f8fafc" }}
+                        />
+                        <Line type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: "#6366f1", r: 3 }} activeDot={{ r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+              )}
+
+            </div>
+          </div>
+
+          {/* ==================== 3. VULNERABILITY FINDINGS LIST ==================== */}
+          <div id="findings-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/[0.05] pb-4">
+              <div className="text-left">
+                <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Vulnerabilities Checklist</h2>
+                <p className="text-[10px] text-text-dim mt-0.5">Comprehensive audit checklist across headers, SSL, DNS, email configurations, and attack surface exposed nodes.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => toggleAllFindings(true)}
+                  variant="outline"
+                  size="sm"
+                  className="text-[9px] uppercase font-mono py-1 px-2.5 font-bold"
+                >
+                  Expand All
+                </Button>
+                <Button
+                  onClick={() => toggleAllFindings(false)}
+                  variant="outline"
+                  size="sm"
+                  className="text-[9px] uppercase font-mono py-1 px-2.5 font-bold"
+                >
+                  Collapse All
+                </Button>
+              </div>
+            </div>
+
+            {/* Filter Tool Deck */}
+            <div className="bg-surface/20 border border-white/[0.03] p-4 rounded-xl flex flex-col sm:flex-row gap-4 items-center justify-between">
+              
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-dim" />
+                <input
+                  type="text"
+                  value={globalSearch}
+                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  placeholder="Search vulnerabilities..."
+                  className="w-full pl-8 pr-3 py-2 bg-bg/60 border border-white/[0.05] focus:border-accent/40 rounded-lg text-xs font-mono text-text placeholder:text-text-muted outline-none transition-all"
+                />
+              </div>
+
+              {/* Filters dropdown grid */}
+              <div className="flex flex-wrap gap-2.5 w-full sm:w-auto items-center justify-end font-sans text-xs">
+                
+                {/* Severity Filter */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-text-dim text-[10px] font-mono">Severity:</span>
+                  <select
+                    value={severityFilter}
+                    onChange={(e) => setSeverityFilter(e.target.value)}
+                    className="px-2.5 py-1.5 bg-bg/60 border border-white/[0.05] rounded-lg outline-none focus:border-accent/40 text-xs font-semibold text-text"
+                  >
+                    <option value="all">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                    <option value="info">Passed / Info</option>
+                  </select>
+                </div>
+
+                {/* Category Filter */}
+                {uniqueCategories.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-text-dim text-[10px] font-mono">Category:</span>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="px-2.5 py-1.5 bg-bg/60 border border-white/[0.05] rounded-lg outline-none focus:border-accent/40 text-xs font-semibold text-text"
+                    >
+                      <option value="all">All Categories</option>
+                      {uniqueCategories.map((cat, idx) => (
+                        <option key={idx} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Sorting */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-text-dim text-[10px] font-mono">Sort:</span>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    className="px-2.5 py-1.5 bg-bg/60 border border-white/[0.05] rounded-lg outline-none focus:border-accent/40 text-xs font-semibold text-text"
+                  >
+                    <option value="severity">Severity Rank</option>
+                    <option value="alphabetical">Alphabetical</option>
+                    <option value="category">Category Group</option>
+                  </select>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Findings Accordion cards */}
+            <div className="space-y-3">
+              {filteredFindings.length === 0 ? (
+                <div className="text-center py-10 bg-surface/10 border border-white/[0.02] rounded-2xl italic font-mono text-xs text-text-dim">
+                  No vulnerabilities match the chosen search queries or filters.
+                </div>
+              ) : (
+                filteredFindings.map((check, index) => {
+                  const isOpen = expandedFindings[index];
+                  const borderSeverityClass = 
+                    check.status === "passed" ? "border-l-success/40" :
+                    check.severity === "critical" ? "border-l-danger" :
+                    check.severity === "high" ? "border-l-orange-500" :
+                    check.severity === "medium" ? "border-l-warning" : "border-l-blue-400";
+                  
+                  return (
+                    <Card key={index} className={`p-0 border border-white/[0.03] border-l-4 ${borderSeverityClass} overflow-hidden bg-surface/30 shadow-md transition-all duration-300 hover:border-white/10`}>
+                      
+                      {/* Accordion header */}
+                      <div 
+                        onClick={() => toggleFindingExpand(index)}
+                        className="flex justify-between items-center p-4 cursor-pointer hover:bg-white/[0.01] transition-all gap-4"
+                      >
+                        <div className="space-y-0.5 min-w-0 flex-grow text-left">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`h-1.5 w-1.5 rounded-full ${
+                              check.status === "passed" ? "bg-success" : check.severity === "critical" || check.severity === "high" ? "bg-danger" : "bg-warning"
+                            }`} />
+                            <h4 className="text-xs font-black text-text font-mono truncate">{check.title}</h4>
+                            <Badge variant={check.status === "passed" ? "success" : check.severity === "critical" || check.severity === "high" ? "danger" : "warning"} className="text-[7px] py-0.5 px-1 font-black font-mono">
+                              {check.status === "passed" ? "Passed" : check.severity.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <span className="text-[9px] text-text-muted font-bold font-mono uppercase tracking-wider block pt-0.5">
+                            Category: {check.category || "General Scanner"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          {check.evidence && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCopy(check.evidence); }}
+                              className="text-[8px] font-bold text-accent hover:text-accent-light uppercase tracking-wider font-mono"
+                            >
+                              Copy Evidence
+                            </button>
+                          )}
+                          {isOpen ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
+                        </div>
+                      </div>
+
+                      {/* Expandable Panel */}
+                      {isOpen && (
+                        <div className="p-5 border-t border-white/[0.03] space-y-4 text-xs leading-relaxed animate-fadeIn text-left font-sans">
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div className="space-y-1">
+                              <span className="text-[8.5px] font-black text-text-dim uppercase tracking-wider font-mono block">Threat Description</span>
+                              <p className="text-text-dim text-[11px] leading-relaxed">{check.description}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-[8.5px] font-black text-warning uppercase tracking-wider font-mono block">Business &amp; Technical Impact</span>
+                              <p className="text-text-dim text-[11px] leading-relaxed">
+                                {check.impact || "Exposes configurations, ports, or relay networks to unauthorized access, interception, or service outage vulnerabilities."}
+                              </p>
+                            </div>
+                          </div>
+
+                          {check.evidence && (
+                            <div className="space-y-1">
+                              <span className="text-[8.5px] font-black text-accent-light uppercase tracking-wider font-mono block">Audited Scan Evidence</span>
+                              <pre className="bg-bg/85 border border-white/[0.04] p-3 rounded-lg font-mono text-[10.5px] text-accent-light break-all leading-normal select-text whitespace-pre-wrap font-mono">
+                                {check.evidence}
+                              </pre>
+                            </div>
+                          )}
+
+                          {check.recommendation && (
+                            <div className="p-3.5 bg-indigo-500/[0.02] border border-indigo-500/10 rounded-xl space-y-1">
+                              <span className="text-[8.5px] font-black text-accent uppercase tracking-wider font-mono block">Recommended Fix Actions</span>
+                              <p className="text-text-muted text-[11px] leading-relaxed font-medium">{check.recommendation}</p>
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* ==================== 4. SECURITY HEADERS DETAIL ==================== */}
+          <div id="headers-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="border-b border-white/[0.05] pb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Response Security Headers</h2>
+              <p className="text-[10px] text-text-dim mt-0.5 font-sans text-left">Technical breakdown of observed safety configurations.</p>
+            </div>
+            
+            {headers && headers.length > 0 && (
+              <Card className="p-4 space-y-4 bg-surface/30 border border-white/[0.04]">
+                <div className="flex flex-col sm:flex-row justify-between gap-4 border-b border-white/[0.04] pb-4">
+                  <div className="text-left">
+                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono">HTTP Response Header Directives</h3>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-dim" />
+                      <input
+                        type="text"
+                        value={headersSearch}
+                        onChange={(e) => setHeadersSearch(e.target.value)}
+                        placeholder="Search headers..."
+                        className="pl-8 pr-3 py-1.5 bg-bg border border-white/[0.05] focus:border-accent/40 rounded-lg text-[10px] font-semibold text-text placeholder:text-text-muted outline-none w-40 sm:w-48 transition-all"
+                      />
+                    </div>
+                    <div className="flex bg-bg border border-white/[0.05] p-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider font-mono">
+                      {["all", "passed", "warning", "failed"].map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setHeadersFilter(f)}
+                          className={`px-2 py-0.5 rounded transition-colors ${
+                            headersFilter === f ? "bg-accent text-bg" : "text-text-dim hover:text-text"
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-white/[0.02]">
+                  {headers
+                    .filter(h => {
+                      const matchesSearch = h.name.toLowerCase().includes(headersSearch.toLowerCase()) || 
+                                            (h.value && h.value.toLowerCase().includes(headersSearch.toLowerCase()));
+                      if (headersFilter === "all") return matchesSearch;
+                      if (headersFilter === "passed") return matchesSearch && h.status === "present";
+                      if (headersFilter === "warning") return matchesSearch && h.status === "weak";
+                      if (headersFilter === "failed") return matchesSearch && h.status === "missing";
+                      return matchesSearch;
+                    })
+                    .map((h, idx) => {
+                      const isExpanded = expandedHeaders.includes(h.name);
+                      const statusVariant = h.status === "present" ? "success" : h.status === "weak" ? "warning" : "danger";
+                      return (
+                        <div key={idx} className="py-3 hover:bg-white/[0.01] transition-all rounded-lg px-2 text-left">
+                          <div className="flex items-center justify-between gap-4 cursor-pointer" onClick={() => toggleHeaderExpand(h.name)}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <code className="text-xs font-bold text-accent pr-2 border-r border-white/5 font-mono truncate max-w-[200px] sm:max-w-md">{h.name}</code>
+                              <Badge variant={statusVariant} className="text-[7px] py-0.5">
+                                {h.status === "present" ? "Passed" : h.status === "weak" ? "Warning" : "Failed"}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[9px] text-text-dim font-bold uppercase tracking-wider font-mono">
+                                Severity: <span className={h.severity === "high" || h.severity === "critical" ? "text-danger" : h.severity === "medium" ? "text-warning" : "text-success"}>{h.severity}</span>
+                              </span>
+                              {isExpanded ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="mt-3 pt-3 border-t border-white/[0.02] space-y-3 text-xs leading-relaxed animate-fadeIn">
+                              <div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <p className="text-[8.5px] font-black text-text-dim uppercase tracking-wider font-mono">Observed Value</p>
+                                  {h.value && (
+                                    <button onClick={() => handleCopy(h.value)} className="text-[8px] font-bold text-accent hover:text-accent-light uppercase tracking-wider">
+                                      Copy Value
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="bg-bg border border-white/[0.04] p-2.5 rounded-lg font-mono text-[10.5px] text-accent-light break-all select-text font-mono">
+                                  {h.value || "MISSING (Header is not set by target server)"}
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                  <p className="text-[8.5px] font-black text-text-dim uppercase tracking-wider font-mono mb-1">Associated Threat Context</p>
+                                  <p className="text-text-dim text-[11px] leading-relaxed">{h.description || "No threat details documented."}</p>
+                                </div>
+                                {h.recommendation && (
+                                  <div className="p-3 bg-indigo-500/[0.02] border border-indigo-500/10 rounded-xl">
+                                    <p className="text-[8.5px] font-black text-accent uppercase tracking-wider font-mono mb-0.5">Remediation Action Required</p>
+                                    <p className="text-text-dim text-[11px] leading-relaxed">{h.recommendation}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* ==================== 5. NETWORK & SSL/TLS ==================== */}
+          <div id="network-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="border-b border-white/[0.05] pb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Network (SSL/TLS &amp; DNS)</h2>
+              <p className="text-[10px] text-text-dim mt-0.5 font-sans text-left">Certificate encryption strengths and published DNS records zones verification.</p>
+            </div>
+
+            {/* SSL/TLS Parameters Summary */}
+            {ssl && ssl.expirationDate !== null && (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
+                <div className="flex justify-between items-center border-b border-white/[0.05] pb-3">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                    <Key className="h-4 w-4 text-accent" /> SSL/TLS Certificate Details
+                  </h3>
+                  <button onClick={() => setSslDetailOpen(true)} className="text-[9px] font-bold text-accent hover:underline uppercase tracking-wider font-mono">
+                    Inspect Certificate
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono text-left">
+                  <div className="bg-bg/40 p-3 rounded-lg">
+                    <span className="text-[8px] text-text-muted block uppercase">Issuer</span>
+                    <span className="font-bold text-text truncate block mt-0.5">{ssl.issuer || "Unknown"}</span>
+                  </div>
+                  <div className="bg-bg/40 p-3 rounded-lg">
+                    <span className="text-[8px] text-text-muted block uppercase">Key Type / Length</span>
+                    <span className="font-bold text-text block mt-0.5">{ssl.keyType || "RSA"} ({ssl.keyLength || "2048"} bits)</span>
+                  </div>
+                  <div className="bg-bg/40 p-3 rounded-lg">
+                    <span className="text-[8px] text-text-muted block uppercase">Handshake Time</span>
+                    <span className="font-bold text-accent block mt-0.5">{ssl.handshakeMs ? `${ssl.handshakeMs} ms` : "N/A"}</span>
+                  </div>
+                  <div className="bg-bg/40 p-3 rounded-lg">
+                    <span className="text-[8px] text-text-muted block uppercase">Remaining Days</span>
+                    <span className={`font-bold block mt-0.5 ${ssl.daysRemaining < 30 ? "text-danger" : "text-success"}`}>
+                      {ssl.daysRemaining ?? "N/A"} Days
+                    </span>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* DNS records explorer */}
+            {dns && (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-3 font-mono flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-accent" /> DNS Records Explorer
+                </h3>
+                <div className="space-y-3 font-mono text-xs text-left font-mono">
+                  {dns.a && dns.a.length > 0 && (
+                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
+                      <span className="text-[9px] font-black text-text-dim block uppercase mb-1">A Records</span>
+                      <div className="flex flex-wrap gap-2">
+                        {dns.a.map((ip, idx) => (
+                          <span key={idx} className="bg-surface border border-white/[0.04] px-2 py-0.5 rounded text-[10px] text-accent-light font-bold select-all">{ip}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {dns.aaaa && dns.aaaa.length > 0 && (
+                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
+                      <span className="text-[9px] font-black text-text-dim block uppercase mb-1">AAAA Records</span>
+                      <div className="flex flex-wrap gap-2">
+                        {dns.aaaa.map((ip, idx) => (
+                          <span key={idx} className="bg-surface border border-white/[0.04] px-2 py-0.5 rounded text-[10px] text-accent-light font-bold select-all">{ip}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {dns.mx && dns.mx.length > 0 && (
+                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
+                      <span className="text-[9px] font-black text-text-dim block uppercase mb-1.5">MX Records</span>
+                      <div className="space-y-1 font-mono">
+                        {dns.mx.map((m, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-[10px] bg-surface/50 p-1.5 rounded">
+                            <span className="text-text select-all">{m}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {dns.txt && dns.txt.length > 0 && (
+                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
+                      <span className="text-[9px] font-black text-text-dim block uppercase mb-1.5">TXT Records</span>
+                      <div className="space-y-1 font-mono">
+                        {dns.txt.map((t, idx) => (
+                          <div key={idx} className="bg-surface/50 p-1.5 rounded text-[10px] text-text-dim select-all break-all">{t}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* robots.txt, sitemaps, security.txt */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono text-xs text-left">
+              {robotsTxt && (
+                <Card className="p-4 bg-surface/30 border border-white/[0.04] space-y-2 flex flex-col justify-between min-h-[140px]">
+                  <span className="text-[9px] text-text-muted uppercase font-bold">robots.txt</span>
+                  <span className="font-bold text-text text-[11px]">{robotsTxt.exists ? "Resolved" : "Not Detected"}</span>
+                  {robotsTxt.exists && (
+                    <div className="text-[10px] text-text-dim space-y-0.5">
+                      <p>Disallowed Paths: {robotsTxt.exposedPathsCount ?? 0}</p>
+                      <p className={robotsTxt.sensitiveExposed ? "text-danger font-bold animate-pulse" : "text-success"}>
+                        {robotsTxt.sensitiveExposed ? "⚠️ Sensitive Directories Listed" : "✓ No Sensitive Paths Listed"}
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              )}
+
+              {sitemapXml && (
+                <Card className="p-4 bg-surface/30 border border-white/[0.04] space-y-2 flex flex-col justify-between min-h-[140px]">
+                  <span className="text-[9px] text-text-muted uppercase font-bold">sitemap.xml</span>
+                  <span className="font-bold text-text text-[11px]">{sitemapXml.exists ? `${sitemapXml.urlCount ?? 0} URLs Indexed` : "Not Detected"}</span>
+                  {sitemapXml.exists && sitemapXml.lastModified && (
+                    <span className="text-[10px] text-text-dim">Modified: {new Date(sitemapXml.lastModified).toLocaleDateString()}</span>
+                  )}
+                </Card>
+              )}
+
+              {securityTxt && (
+                <Card className="p-4 bg-surface/30 border border-white/[0.04] space-y-2 flex flex-col justify-between min-h-[140px]">
+                  <span className="text-[9px] text-text-muted uppercase font-bold">security.txt</span>
+                  <span className="font-bold text-text text-[11px]">{securityTxt.exists ? "Resolved" : "Not Detected"}</span>
+                  {securityTxt.exists && (
+                    <div className="text-[10px] text-text-dim space-y-0.5">
+                      {securityTxt.contact && <p className="truncate font-mono">Contact: {securityTxt.contact}</p>}
+                      {securityTxt.expires && <p className="truncate font-mono">Expires: {securityTxt.expires}</p>}
+                    </div>
+                  )}
+                </Card>
+              )}
+            </div>
+          </div>
+
+          {/* ==================== 6. EMAIL SECURITY ==================== */}
+          <div id="email-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="border-b border-white/[0.05] pb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Email Domain Authentication</h2>
+              <p className="text-[10px] text-text-dim mt-0.5 font-sans text-left">Audit company email anti-spoofing and protocol transport records.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-left">
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[160px]">
+                <div>
+                  <h4 className="text-[10px] font-black text-text-dim uppercase tracking-wider font-mono">Email Security Rating</h4>
+                  <p className="text-[9px] text-text-muted uppercase mt-0.5">DNS Security Parameters</p>
+                </div>
+                <div className="mt-4 flex items-baseline gap-2">
+                  <span className="text-4xl font-black font-mono text-accent">{emailSecurity?.score || 0}%</span>
+                </div>
+                <Badge variant={emailSecurity?.score >= 80 ? "success" : emailSecurity?.score >= 50 ? "warning" : "danger"} className="text-[8px] w-max font-black py-0.5 px-2">
+                  {emailSecurity?.score >= 80 ? "Optimal Protection" : emailSecurity?.score >= 50 ? "Moderate Policy" : "Spoofing Risk"}
+                </Badge>
+              </Card>
+
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] md:col-span-2 space-y-3.5 text-left">
+                <h4 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-accent" /> Security Protocol Status
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 font-mono text-[10.5px]">
+                  <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                    <span className="text-text-dim text-[10px]">SPF</span>
+                    <Badge variant={emailSecurity?.spfPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
+                      {emailSecurity?.spfPresent ? "PASSED" : "MISSING"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                    <span className="text-text-dim text-[10px]">DKIM</span>
+                    <Badge variant={emailSecurity?.dkimPresent ? "success" : "warning"} className="text-[7.5px] py-0.5">
+                      {emailSecurity?.dkimPresent ? "RESOLVED" : "NO SELECTOR"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                    <span className="text-text-dim text-[10px]">DMARC</span>
+                    <Badge variant={emailSecurity?.dmarcPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
+                      {emailSecurity?.dmarcPresent ? "PASSED" : "MISSING"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                    <span className="text-text-dim text-[10px]">MTA-STS</span>
+                    <Badge variant={emailSecurity?.mtaStsPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
+                      {emailSecurity?.mtaStsPresent ? "ACTIVE" : "MISSING"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                    <span className="text-text-dim text-[10px]">TLS-RPT</span>
+                    <Badge variant={emailSecurity?.tlsRptPresent ? "success" : "warning"} className="text-[7.5px] py-0.5">
+                      {emailSecurity?.tlsRptPresent ? "ACTIVE" : "MISSING"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
+                    <span className="text-text-dim text-[10px]">BIMI</span>
+                    <Badge variant={emailSecurity?.bimiPresent ? "success" : "warning"} className="text-[7.5px] py-0.5">
+                      {emailSecurity?.bimiPresent ? "ACTIVE" : "MISSING"}
+                    </Badge>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Detailed Email Authentication Check findings adapter */}
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] text-left">
+              <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-3 font-mono flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-accent" /> Email Authentication Details
+              </h3>
+              <div className="space-y-4 pt-2">
+                
+                {/* SPF Detail */}
+                <div className="border-b border-white/[0.02] pb-4 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-text text-[11px]">Sender Policy Framework (SPF)</h4>
+                    <Badge variant={emailSecurity?.spfPresent ? "success" : "danger"} className="text-[7px]">
+                      {emailSecurity?.spfPresent ? "PASSED" : "FAILED"}
+                    </Badge>
+                  </div>
+                  <p className="text-text-dim font-sans text-[11.5px]">
+                    {emailSecurity?.spfPresent 
+                      ? `SPF record verified: "${dns?.spf?.value || "v=spf1 include:..."}"` 
+                      : "Missing SPF record. Spammers can send spoofed emails originating from your domain address."}
+                  </p>
+                  {!emailSecurity?.spfPresent && (
+                    <div className="p-2.5 bg-danger/5 border border-danger/10 rounded-lg text-[10.5px]">
+                      <p className="text-danger font-bold font-sans">Remediation Action Required:</p>
+                      <p className="text-text-dim font-sans mt-0.5">Publish a valid SPF record as a TXT record at the root domain whitelisting the authorized IP ranges of your email service provider.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* DMARC Detail */}
+                <div className="border-b border-white/[0.02] pb-4 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-text text-[11px]">Domain-based Message Authentication (DMARC)</h4>
+                    <Badge variant={emailSecurity?.dmarcPresent ? "success" : "danger"} className="text-[7px]">
+                      {emailSecurity?.dmarcPresent ? "PASSED" : "FAILED"}
+                    </Badge>
+                  </div>
+                  <p className="text-text-dim font-sans text-[11.5px]">
+                    {emailSecurity?.dmarcPresent 
+                      ? `DMARC record verified: "${dns?.dmarc?.value || "v=DMARC1; p=..."}"`
+                      : "Missing DMARC policy record. Mail clients cannot verify if emails that fail SPF/DKIM validation should be quarantined, rejected, or accepted."}
+                  </p>
+                  {!emailSecurity?.dmarcPresent && (
+                    <div className="p-2.5 bg-danger/5 border border-danger/10 rounded-lg text-[10.5px]">
+                      <p className="text-danger font-bold font-sans">Remediation Action Required:</p>
+                      <p className="text-text-dim font-sans mt-0.5">Configure a DMARC policy. Publish a TXT record under the subdomain `_dmarc.${domain}` with value `v=DMARC1; p=quarantine;` (quarantine) or `v=DMARC1; p=reject;` (strong reject).</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* MTA-STS Card */}
+                <div className="border border-white/[0.03] rounded-xl bg-bg/40 p-4 space-y-2 font-sans">
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-text text-[11px]">MTA Strict Transport Security (MTA-STS)</h4>
+                    <Badge variant={emailSecurity?.mtaStsPresent ? "success" : "danger"} className="text-[7px]">
+                      {emailSecurity?.mtaStsPresent ? "PASSED" : "FAILED"}
+                    </Badge>
+                  </div>
+                  <p className="text-text-dim text-[11.5px]">
+                    {emailSecurity?.mtaStsPresent 
+                      ? `MTA-STS resolved successfully: "${dns?.mtaSts?.value || "v=sts1; ..."}"`
+                      : "MTA-STS is not enabled on this domain. SMTP servers cannot enforce secure TLS connections when relaying mail, exposing emails to Man-in-the-Middle sniffer tools."}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* ==================== 7. GITHUB EXPOSURE Scanner TAB ==================== */}
+          <div id="github-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="border-b border-white/[0.05] pb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Public GitHub Exposure Audit</h2>
+              <p className="text-[10px] text-text-dim mt-0.5 font-sans text-left">Scans public repositories to ensure credentials or code blocks are not leaked.</p>
+            </div>
+
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 text-left">
+              <div>
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono">GitHub Exposure Scans</h3>
+                <p className="text-[10px] text-text-dim mt-0.5 font-sans">Enter a GitHub profile username or organization directory to query exposures.</p>
+              </div>
+
+              <form onSubmit={handleGithubScan} className="flex gap-2">
+                <input
+                  type="text"
+                  value={githubOrgInput}
+                  onChange={(e) => setGithubOrgInput(e.target.value)}
+                  placeholder="GitHub Username or Org Name (e.g. google)"
+                  className="flex-grow px-3 py-2 bg-bg border border-white/[0.06] focus:border-accent/40 rounded-lg text-xs text-text outline-none transition-all font-mono"
+                />
+                <Button
+                  type="submit"
+                  disabled={githubScanLoading || !githubOrgInput.trim()}
+                  variant="primary"
+                  size="sm"
+                  className="bg-accent text-bg hover:bg-accent-light font-bold"
+                >
+                  {githubScanLoading ? "Auditing..." : "Audit Profile"}
+                </Button>
+              </form>
+            </Card>
+
+            {githubScanLoading && (
+              <div className="text-center py-10 space-y-3 font-mono">
+                <div className="h-8 w-8 rounded-full border-2 border-white/5 border-t-accent animate-spin mx-auto" />
+                <p className="text-text-dim text-[10.5px] uppercase font-mono">Retrieving and parsing public repositories...</p>
+              </div>
+            )}
+
+            {/* GitHub scan results display */}
+            {githubScanResult && (
+              <div className="space-y-6 animate-fadeIn">
+                {/* Account overview card */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+                  <Card className="p-4 bg-surface/30 border border-white/[0.04] font-mono text-xs">
+                    <span className="text-[8px] text-text-muted block uppercase">Owner Username</span>
+                    <span className="font-bold text-text block mt-1 select-all">{githubScanResult.username}</span>
+                  </Card>
+                  <Card className="p-4 bg-surface/30 border border-white/[0.04] font-mono text-xs">
+                    <span className="text-[8px] text-text-muted block uppercase">Account Type</span>
+                    <span className="font-bold text-text block mt-1 uppercase">{githubScanResult.type}</span>
+                  </Card>
+                  <Card className="p-4 bg-surface/30 border border-white/[0.04] font-mono text-xs">
+                    <span className="text-[8px] text-text-muted block uppercase">Public Repositories</span>
+                    <span className="font-bold text-accent block mt-1">{githubScanResult.publicReposCount} Checked</span>
+                  </Card>
+                </div>
+
+                {/* Findings */}
+                <Card className="p-4 bg-surface/30 border border-white/[0.04] space-y-4 text-left font-sans">
+                  <h4 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                    <AlertOctagon className="h-4 w-4 text-accent" /> Exposure Checklist &amp; Findings
+                  </h4>
+
+                  {githubScanResult.findings.length === 0 ? (
+                    <div className="text-center py-6 text-success font-bold font-mono text-xs space-y-2">
+                      <CheckCircle2 className="h-10 w-10 text-success mx-auto" />
+                      <p>POSTURE SECURE: NO CRITICAL GITHUB EXPOSURES DISCOVERED</p>
+                      <p className="text-text-dim text-[9.5px] font-sans font-normal">We analyzed public repositories and found no environment variables, exposed credentials, or config leaks.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 font-mono text-xs">
+                      {githubScanResult.findings.map((finding, idx) => {
+                        const fKey = `github-finding-${idx}`;
+                        const isOpen = expandedFindings[fKey];
+                        const badgeVariant = finding.severity === "critical" || finding.severity === "high" ? "danger" : finding.severity === "medium" ? "warning" : "info";
+                        
+                        return (
+                          <div key={idx} className="border border-white/[0.03] rounded-xl bg-bg/40 overflow-hidden text-left">
+                            <div
+                              onClick={() => toggleFindingExpand(fKey)}
+                              className="flex justify-between items-center p-3 cursor-pointer hover:bg-white/[0.02] gap-4"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 font-sans">
+                                <span className={`h-1.5 w-1.5 rounded-full ${finding.severity === "critical" || finding.severity === "high" ? "bg-danger" : "bg-warning"}`} />
+                                <span className="font-bold text-text text-[11px] truncate font-mono">{finding.title}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Badge variant={badgeVariant} className="text-[7px] py-0.5 uppercase">{finding.severity}</Badge>
+                                {isOpen ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
+                              </div>
+                            </div>
+
+                            {isOpen && (
+                              <div className="p-4 border-t border-white/[0.02] space-y-3.5 leading-relaxed text-xs">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <span className="text-[8px] font-bold text-text-dim uppercase tracking-wider block font-mono">Description</span>
+                                    <p className="text-text-dim font-sans">{finding.description}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[8px] font-bold text-warning uppercase tracking-wider block font-mono">Security Risk Impact</span>
+                                    <p className="text-text-dim font-sans">{finding.businessImpact}</p>
+                                  </div>
+                                </div>
+                                
+                                {finding.evidence && (
+                                  <div className="space-y-1">
+                                    <span className="text-[8px] font-black text-accent-light uppercase tracking-wider block font-mono">Audited Evidence</span>
+                                    <pre className="bg-bg border border-white/[0.04] p-3 rounded-lg text-[10px] text-accent-light break-all select-text whitespace-pre-wrap font-mono">{finding.evidence}</pre>
+                                  </div>
+                                )}
+
+                                {finding.remediation && (
+                                  <div className="p-3 bg-indigo-500/[0.02] border border-indigo-500/10 rounded-xl space-y-1">
+                                    <span className="text-[8.5px] font-black text-accent uppercase tracking-wider block font-mono">Remediation Action Required</span>
+                                    <p className="text-text-dim font-sans">{finding.remediation}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            )}
+          </div>
+
+          {/* ==================== 8. WEBSITE PRIVACY ==================== */}
+          <div id="privacy-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="border-b border-white/[0.05] pb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Website Privacy &amp; Cookie Security</h2>
+              <p className="text-[10px] text-text-dim mt-0.5 font-sans text-left">Cookie safety flags, analytics sniffers, and privacy policy linking audits.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs text-left">
+              {/* Privacy Policy */}
+              <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[140px]">
+                <div>
+                  <span className="text-[8px] text-text-muted uppercase font-bold">Privacy Policy Link</span>
+                  <span className="font-bold text-text text-[11px] block mt-1">
+                    {privacy?.privacyPolicyPresent ? "Detected" : "Not Found"}
+                  </span>
+                </div>
+                {privacy?.privacyPolicyPresent && privacy?.privacyPolicyUrl && (
+                  <a
+                    href={privacy.privacyPolicyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline truncate text-[9.5px] font-bold block select-all mt-2"
+                  >
+                    {privacy.privacyPolicyUrl}
+                  </a>
+                )}
+                <Badge variant={privacy?.privacyPolicyPresent ? "success" : "danger"} className="text-[7.5px] py-0.5 w-max">
+                  {privacy?.privacyPolicyPresent ? "COMPLIANT" : "RISK DETECTED"}
+                </Badge>
+              </Card>
+
+              {/* Cookie Consent banner */}
+              <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[140px]">
+                <div>
+                  <span className="text-[8px] text-text-muted uppercase font-bold">Cookie Consent Banner</span>
+                  <span className="font-bold text-text text-[11px] block mt-1">
+                    {privacy?.cookieBannerPresent ? "Detected" : "Not Detected"}
+                  </span>
+                </div>
+                <p className="text-[9.5px] text-text-dim font-sans font-semibold">
+                  Checks standard banner IDs/consent text structures.
+                </p>
+                <Badge variant={privacy?.cookieBannerPresent ? "success" : "warning"} className="text-[7.5px] py-0.5 w-max mt-2">
+                  {privacy?.cookieBannerPresent ? "ACTIVE CONSENT" : "POLICY ADVISORY"}
+                </Badge>
+              </Card>
+
+              {/* Tracking Pixels */}
+              <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[140px]">
+                <div>
+                  <span className="text-[8px] text-text-muted uppercase font-bold">Tracking Pixels</span>
+                  <span className="font-bold text-text text-[11px] block mt-1">
+                    {privacy?.trackingPixels && privacy.trackingPixels.length > 0 ? `${privacy.trackingPixels.length} Detected` : "None Detected"}
+                  </span>
+                </div>
+                {privacy?.trackingPixels && privacy.trackingPixels.length > 0 && (
+                  <span className="text-[9.5px] text-danger font-bold leading-normal truncate">
+                    {privacy.trackingPixels.join(", ")}
+                  </span>
+                )}
+                <Badge variant={privacy?.trackingPixels && privacy.trackingPixels.length > 0 ? "warning" : "success"} className="text-[7.5px] py-0.5 w-max">
+                  {privacy?.trackingPixels && privacy.trackingPixels.length > 0 ? "TRACKERS EXPOSED" : "NO SNIFFERS"}
+                </Badge>
+              </Card>
+            </div>
+
+            {/* Cookies flags detailed audit list */}
+            {cookies && cookies.length > 0 && (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 text-left">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-3 font-mono flex items-center gap-2">
+                  <Cookie className="h-4 w-4 text-accent" /> Cookies Flag Security Audit ({cookies.length})
+                </h3>
+                <div className="space-y-3 font-mono text-[10.5px]">
+                  {cookies.map((cookie, index) => {
+                    const isSecureFlagMissing = !cookie.secure;
+                    const isHttpOnlyMissing = !cookie.httpOnly;
+                    
+                    return (
+                      <div key={index} className="bg-bg/40 border border-white/[0.02] p-3.5 rounded-xl space-y-2.5 leading-relaxed text-left font-sans">
+                        <div className="flex justify-between items-start gap-4">
+                          <div>
+                            <span className="text-accent font-bold select-all block text-xs font-mono">{cookie.name}</span>
+                            <span className="text-[9.5px] text-text-muted font-mono">Domain: {cookie.domain || domain} | Path: {cookie.path || "/"}</span>
+                          </div>
+                          <div className="flex gap-1.5 shrink-0">
+                            <Badge variant={cookie.httpOnly ? "success" : "danger"} className="text-[7px] py-0.5">HttpOnly</Badge>
+                            <Badge variant={cookie.secure ? "success" : "danger"} className="text-[7px] py-0.5">Secure</Badge>
+                          </div>
+                        </div>
+
+                        {(isSecureFlagMissing || isHttpOnlyMissing) && (
+                          <div className="bg-danger/5 border border-danger/10 rounded-lg p-2 text-[10px]">
+                            <p className="text-danger font-bold font-sans font-mono">Cookie Flags Vulnerability Risk:</p>
+                            <p className="text-text-dim font-sans mt-0.5">
+                              {isHttpOnlyMissing && "Missing HttpOnly flag: Cookie can be extracted programmatically via XSS scripts. "}
+                              {isSecureFlagMissing && "Missing Secure flag: Cookie is transmitted over plaintext transport channels, inviting sniffing intercepts."}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {/* Analytics tools and third-party scripts */}
+            {privacy && (privacy.thirdPartyScripts?.length > 0 || privacy.analyticsTools?.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
+                {privacy.analyticsTools?.length > 0 && (
+                  <Card className="p-4 bg-surface/30 border border-white/[0.04] space-y-3">
+                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono">
+                      Analytics Platforms Detected
+                    </h3>
+                    <div className="space-y-2 font-mono text-xs">
+                      {privacy.analyticsTools.map((tool, idx) => (
+                        <div key={idx} className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg flex justify-between items-center">
+                          <span className="font-bold text-text">{tool}</span>
+                          <Badge variant="info" className="text-[7.5px]">ACTIVE</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {privacy.externalDomains?.length > 0 && (
+                  <Card className="p-4 bg-surface/30 border border-white/[0.04] space-y-3">
+                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono">
+                      External Domain Links Loaded
+                    </h3>
+                    <div className="space-y-2 font-mono text-[10px] max-h-36 overflow-y-auto pr-1">
+                      {privacy.externalDomains.map((extDomain, idx) => (
+                        <div key={idx} className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg select-all">
+                          {extDomain}
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ==================== 9. AI RECOMMENDATIONS ==================== */}
+          <div id="remediation-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="border-b border-white/[0.05] pb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">AI Remediation Recommendations</h2>
+              <p className="text-[10px] text-text-dim mt-0.5 font-sans text-left">Configuration directives sorted by severity weight for popular webservers.</p>
+            </div>
+
+            <div className="bg-accent/5 border border-accent/15 rounded-xl p-4 flex gap-3 text-xs leading-relaxed text-text-dim text-left font-sans">
+              <Info className="h-5 w-5 text-accent flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-text mb-0.5">Prioritized Security Improvements Plan</p>
+                <p>Remediation tasks below are sorted by risk level. Estimated improvement values represent approximate score increases on your next security check.</p>
+              </div>
+            </div>
+
+            {aiAdvice.length === 0 ? (
+              <Card className="p-6 text-center text-xs text-text-dim italic bg-surface/30 border border-white/[0.04]">
+                All scans resolved; no active vulnerabilities requiring configuration remediation.
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {aiAdvice.map((advice, idx) => {
+                  const estimatedGain = getScoreImprovement(advice.severity);
+                  return (
+                    <div key={idx} className="bg-surface/40 border border-white/[0.04] rounded-2xl overflow-hidden shadow-md text-left font-sans">
+                      
+                      {/* Header bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 px-4.5 py-3 bg-white/[0.01] border-b border-white/[0.03]">
+                        <div className="flex items-center gap-2.5">
+                          <AlertOctagon className={`h-4 w-4 ${
+                            advice.severity === "critical" || advice.severity === "high" ? "text-danger" : "text-warning"
+                          }`} />
+                          <span className="text-xs font-bold text-text font-mono truncate max-w-[180px] sm:max-w-md">{advice.title}</span>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Badge variant="accent" className="text-[7px] py-0.5 px-1.5 border-accent/40 text-accent font-mono font-black">
+                            Score Gain +{estimatedGain}
+                          </Badge>
+                          <Badge variant={advice.severity === "critical" || advice.severity === "high" ? "danger" : "warning"} className="text-[7px] py-0.5 font-bold uppercase">
+                            {advice.severity}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      {/* Explanations & fixer panels */}
+                      <div className="p-5 space-y-4 text-xs leading-relaxed">
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-[8.5px] font-black text-text-dim uppercase tracking-wider mb-1 font-mono">Vulnerability Description</p>
+                            <p className="text-text-dim leading-relaxed text-[11px]">{advice.description}</p>
+                          </div>
+                          <div>
+                            <p className="text-[8.5px] font-black text-text-dim uppercase tracking-wider mb-1 font-mono">Security Exploitation Impact</p>
+                            <p className="text-text-dim leading-relaxed text-[11px]">{advice.businessImpact}</p>
+                          </div>
+                        </div>
+
+                        {/* Configurations fixes directives */}
+                        {advice.fixes && (
+                          <div className="pt-4 border-t border-white/[0.03] space-y-2">
+                            
+                            <div className="flex flex-wrap justify-between items-center gap-3">
+                              <span className="text-[9px] font-black text-text-dim uppercase tracking-wider font-mono">Remediation Server Configurations:</span>
+                              
+                              <div className="flex flex-wrap gap-1 bg-bg border border-white/[0.05] p-0.5 rounded-lg font-mono text-[9px] font-bold">
+                                {Object.keys(advice.fixes).map(tab => (
+                                  <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => setRemediationTab(tab)}
+                                    className={`px-2 py-0.5 rounded transition-all ${
+                                      remediationTab === tab
+                                        ? "bg-accent/15 text-accent border border-accent/25"
+                                        : "text-text-dim hover:text-text border border-transparent"
+                                    }`}
+                                  >
+                                    {tab === "nextjs" ? "NextJS" : tab.toUpperCase()}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="bg-bg/90 border border-white/[0.03] rounded-xl p-4 relative group font-mono text-xs min-h-[60px]">
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(advice.fixes[remediationTab] || "")}
+                                className="absolute top-2.5 right-2.5 text-[8.5px] font-black border border-white/[0.06] rounded-md px-2.5 py-1 bg-surface opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-accent transition-all duration-200"
+                              >
+                                {copiedText || "COPY CONFIG"}
+                              </button>
+                              
+                              <pre className="text-xs text-accent-light break-all whitespace-pre-wrap leading-relaxed overflow-x-auto select-text font-mono">
+                                {advice.fixes[remediationTab] || "// Configuration instructions not mapped for selected stack"}
+                              </pre>
+                            </div>
+
+                          </div>
+                        )}
+
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ==================== 10. RAW RESPONSE DATA ==================== */}
+          <div id="raw-section" className="space-y-6 pt-4 scroll-mt-28">
+            <div className="border-b border-white/[0.05] pb-4">
+              <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono text-left">Raw Diagnostic Payload</h2>
+              <p className="text-[10px] text-text-dim mt-0.5 font-sans text-left">Direct JSON result payload returned from host scanners telemetry.</p>
+            </div>
+
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 text-left font-mono">
+              <div className="flex justify-between items-center border-b border-white/[0.05] pb-3">
+                <div>
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono font-sans">
+                    Raw Scanner JSON Payload
+                  </h3>
+                </div>
+                <Button
+                  onClick={() => handleCopy(JSON.stringify(localResult, null, 2))}
+                  variant="outline"
+                  size="sm"
+                  className="hover:border-accent/40 hover:text-accent font-bold text-[10px] font-sans"
+                >
+                  {copiedText || "Copy JSON Payload"}
+                </Button>
+              </div>
+              <div className="bg-bg/95 border border-white/[0.04] rounded-xl p-4 overflow-x-auto max-h-[600px] select-text">
+                <pre className="text-accent-light break-all whitespace-pre-wrap leading-relaxed select-text font-mono text-[11px]">
+                  {JSON.stringify(localResult, null, 2)}
+                </pre>
+              </div>
+            </Card>
+          </div>
 
         </main>
       </div>
@@ -1932,7 +2689,7 @@ export default function ScanResults({ result }) {
                 </p>
               </div>
 
-              <div className="space-y-2 p-3 bg-danger/5 border border-danger/15 rounded-xl">
+              <div className="space-y-2 p-3 bg-danger/5 border border-danger/15 rounded-xl text-left">
                 <p className="font-bold text-danger">Hardening Recommendations:</p>
                 <ul className="list-disc list-inside space-y-1 text-text-dim">
                   {selectedPort.port === 80 ? (
@@ -2052,15 +2809,15 @@ export default function ScanResults({ result }) {
                       <span className="font-bold text-text truncate block">{infrastructure.asn || "Not Disclosed"}</span>
                     </div>
                     <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-[8px] text-text-muted block">ISP Network</span>
+                      <span className="text-[8px] text-text-muted block font-sans">ISP Network</span>
                       <span className="font-bold text-text truncate block">{infrastructure.isp || "Not Disclosed"}</span>
                     </div>
                     <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-[8px] text-text-muted block">Hosting Provider</span>
+                      <span className="text-[8px] text-text-muted block font-sans">Hosting Provider</span>
                       <span className="font-bold text-text truncate block">{infrastructure.hosting || "Not Disclosed"}</span>
                     </div>
                     <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                      <span className="text-[8px] text-text-muted block">Geographic Zone</span>
+                      <span className="text-[8px] text-text-muted block font-sans">Geographic Zone</span>
                       <span className="font-bold text-accent truncate block">{infrastructure.country ? `${infrastructure.country} (${infrastructure.region || "Global"})` : "Not Disclosed"}</span>
                     </div>
                   </div>
@@ -2094,34 +2851,34 @@ export default function ScanResults({ result }) {
             <div className="space-y-4 text-xs text-left font-mono max-h-[400px] overflow-y-auto pr-1">
               <div className="space-y-2">
                 <div className="flex justify-between items-center bg-bg/50 border border-white/[0.02] p-2 rounded">
-                  <span className="text-text-dim text-[10px]">Trusted Status</span>
+                  <span className="text-text-dim text-[10px] font-sans">Trusted Status</span>
                   <Badge variant={ssl.valid ? "success" : "danger"}>{ssl.valid ? "TRUSTED CA" : "UNTRUSTED"}</Badge>
                 </div>
                 <div className="flex justify-between items-center bg-bg/50 border border-white/[0.02] p-2 rounded">
-                  <span className="text-text-dim text-[10px]">Active TLS Protocol</span>
+                  <span className="text-text-dim text-[10px] font-sans">Active TLS Protocol</span>
                   <span className="font-bold text-text">{ssl.tlsVersion || "N/A"}</span>
                 </div>
                 <div className="flex justify-between items-center bg-bg/50 border border-white/[0.02] p-2 rounded">
-                  <span className="text-text-dim text-[10px]">Issuer Common Name</span>
+                  <span className="text-text-dim text-[10px] font-sans font-sans">Issuer Common Name</span>
                   <span className="font-bold text-text truncate max-w-[220px]" title={ssl.issuer}>{ssl.issuer || "N/A"}</span>
                 </div>
                 <div className="flex justify-between items-center bg-bg/50 border border-white/[0.02] p-2 rounded">
-                  <span className="text-text-dim text-[10px]">Expiration Timestamp</span>
+                  <span className="text-text-dim text-[10px] font-sans">Expiration Timestamp</span>
                   <span className="font-bold text-text">{ssl.expirationDate ? new Date(ssl.expirationDate).toLocaleString() : "N/A"}</span>
                 </div>
                 <div className="flex justify-between items-center bg-bg/50 border border-white/[0.02] p-2 rounded">
-                  <span className="text-text-dim text-[10px]">Wildcard Support</span>
+                  <span className="text-text-dim text-[10px] font-sans">Wildcard Support</span>
                   <span className="font-bold text-text">{ssl.wildcard ? "TRUE" : "FALSE"}</span>
                 </div>
                 <div className="flex justify-between items-center bg-bg/50 border border-white/[0.02] p-2 rounded">
-                  <span className="text-text-dim text-[10px]">HSTS Preload Status</span>
+                  <span className="text-text-dim text-[10px] font-sans">HSTS Preload Status</span>
                   <span className={`font-bold ${ssl.hstsPreload ? "text-success" : "text-text-dim"}`}>{ssl.hstsPreload ? "PRELOADED" : "NO"}</span>
                 </div>
               </div>
 
               {ssl.sans && ssl.sans.length > 0 && (
                 <div className="bg-bg/40 border border-white/[0.03] p-3 rounded-lg space-y-1.5">
-                  <p className="text-[9px] font-black text-text-dim uppercase tracking-wider">Subject Alternative Names (SANs)</p>
+                  <p className="text-[9px] font-black text-text-dim uppercase tracking-wider font-sans">Subject Alternative Names (SANs)</p>
                   <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                     {ssl.sans.map((san, i) => (
                       <span key={i} className="bg-surface border border-white/[0.03] px-2 py-0.5 rounded text-[9.5px] select-all font-bold">
@@ -2199,7 +2956,7 @@ export default function ScanResults({ result }) {
                 <div className="flex items-center justify-between p-3 rounded-xl bg-bg/50 border border-white/[0.03]">
                   <div>
                     <h4 className="text-xs font-bold text-text">Public URL Sharing</h4>
-                    <p className="text-[10px] text-text-dim mt-0.5">Enable public URL access to share this report with anyone.</p>
+                    <p className="text-[10px] text-text-dim mt-0.5 font-sans">Enable public URL access to share this report with anyone.</p>
                   </div>
                   <button
                     onClick={handleTogglePublic}
