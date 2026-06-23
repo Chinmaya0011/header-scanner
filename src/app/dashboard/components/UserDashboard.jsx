@@ -14,11 +14,21 @@ import {
   Calendar,
   CheckCircle,
   TrendingUp,
-  Award
+  Award,
+  Copy,
+  Check,
+  Trash2,
+  Plus,
+  AlertCircle,
+  ExternalLink,
+  Globe,
+  ShieldAlert,
+  Info
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import { useToast } from "@/components/common/Toast";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -45,13 +55,102 @@ export default function UserDashboard({
   fetchData,
   formatDate,
   gradeStyle,
+  verifications = [],
 }) {
+  const toast = useToast();
   const [mounted, setMounted] = useState(false);
   const [selectedScanIds, setSelectedScanIds] = useState([]);
   
+  // Verification states
+  const [newDomain, setNewDomain] = useState("");
+  const [verifyingDomainId, setVerifyingDomainId] = useState(null);
+  const [failedVerifications, setFailedVerifications] = useState({});
+  const [expandedDomainId, setExpandedDomainId] = useState(null);
+  const [initiating, setInitiating] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleInitiateVerification = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newDomain.trim()) return;
+    setInitiating(true);
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "initiate", domain: newDomain.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Verification initiated for ${data.domain}`);
+        setNewDomain("");
+        fetchData();
+      } else {
+        toast.error(data.error || "Failed to initiate verification.");
+      }
+    } catch {
+      toast.error("Failed to connect to verification API.");
+    } finally {
+      setInitiating(false);
+    }
+  };
+
+  const handleConfirmVerification = async (verifyId, domainName) => {
+    setVerifyingDomainId(verifyId);
+    setFailedVerifications(prev => {
+      const updated = { ...prev };
+      delete updated[verifyId];
+      return updated;
+    });
+    
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "confirm", domain: domainName })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Domain ${domainName} successfully verified!`);
+        fetchData();
+      } else {
+        setFailedVerifications(prev => ({ ...prev, [verifyId]: data.error || "Verification failed." }));
+        toast.error(data.error || `Verification failed for ${domainName}.`);
+      }
+    } catch {
+      toast.error("Connection error during verification.");
+    } finally {
+      setVerifyingDomainId(null);
+    }
+  };
+
+  const handleDeleteVerification = async (verifyId, domainName) => {
+    if (!confirm(`Are you sure you want to delete verification setup for ${domainName}?`)) return;
+    try {
+      const res = await fetch(`/api/verify?id=${verifyId}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Verification record removed for ${domainName}.`);
+        fetchData();
+      } else {
+        toast.error(data.error || "Failed to delete verification.");
+      }
+    } catch {
+      toast.error("Network error deleting verification.");
+    }
+  };
+
+  const handleCopyToken = (verifyId, token) => {
+    navigator.clipboard.writeText(token);
+    setCopiedId(verifyId);
+    toast.success("Token copied to clipboard!");
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const handleSelectScan = (scanId) => {
     setSelectedScanIds((prev) => {
@@ -142,8 +241,24 @@ export default function UserDashboard({
     .sort((a, b) => a.days - b.days)
     .slice(0, 3);
 
+  const pendingVerifications = verifications.filter(v => !v.verified);
+
   return (
     <div className="space-y-6 font-sans text-text">
+      {/* Pending Verifications Reminder Banner */}
+      {pendingVerifications.length > 0 && (
+        <Card className="border border-warning/30 bg-warning/5 p-4 rounded-xl flex items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-warning h-5 w-5 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-text">Domain Verification Required</p>
+              <p className="text-[10px] text-text-dim mt-0.5">
+                You have {pendingVerifications.length} domain(s) waiting for verification file upload. Access the verification management panel below to finalize ownership checks.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.05] pb-4">
         <div>
@@ -500,6 +615,167 @@ export default function UserDashboard({
               </Button>
             </div>
           )}
+        </Card>
+      </div>
+
+      {/* Domain Verification Management Section */}
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="p-5 border border-white/[0.05]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.05]">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="text-accent h-4 w-4" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-text">
+                Domain Verification & Ownership
+              </h2>
+            </div>
+            
+            {/* Initiate domain verification inline form */}
+            <form onSubmit={handleInitiateVerification} className="flex gap-2 w-full sm:w-auto">
+              <input
+                type="text"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                placeholder="domain.com (e.g. example.com)"
+                className="px-3 py-1.5 bg-bg border border-white/[0.05] focus:border-accent rounded-lg text-xs font-mono text-text outline-none transition-all w-full sm:w-56"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={initiating}
+                icon={Plus}
+                className="text-[10px] shrink-0"
+              >
+                Add Domain
+              </Button>
+            </form>
+          </div>
+
+          <div className="mt-4 space-y-3 overflow-y-auto max-h-[300px] pr-1">
+            {verifications.length === 0 ? (
+              <div className="text-text-dim text-xs font-semibold py-8 text-center">
+                No domain verifications registered. Add a domain above or trigger validation by starting a new scan.
+              </div>
+            ) : (
+              verifications.map((verify) => {
+                const isPending = !verify.verified;
+                const isFailed = failedVerifications[verify._id];
+                const isExpanded = expandedDomainId === verify._id;
+                
+                return (
+                  <div key={verify._id} className="border border-white/[0.04] bg-bg/25 rounded-xl p-4 space-y-3 transition-all">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 truncate">
+                        <Globe className="text-text-dim h-4 w-4 shrink-0" />
+                        <span className="font-mono text-xs font-bold text-text truncate">{verify.domain}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isPending ? (
+                          isFailed ? (
+                            <Badge variant="danger">🔴 Verification Failed</Badge>
+                          ) : (
+                            <Badge variant="warning">🟡 Pending Verification</Badge>
+                          )
+                        ) : (
+                          <Badge variant="success">🟢 Verified</Badge>
+                        )}
+                        
+                        <div className="flex gap-1.5 ml-2">
+                          {isPending && (
+                            <>
+                              <Button
+                                onClick={() => setExpandedDomainId(isExpanded ? null : verify._id)}
+                                variant="outline"
+                                size="sm"
+                                className="text-[9px] py-1 px-2.5"
+                              >
+                                {isExpanded ? "Hide Instructions" : "Show Instructions"}
+                              </Button>
+                              <Button
+                                onClick={() => handleConfirmVerification(verify._id, verify.domain)}
+                                variant="primary"
+                                size="sm"
+                                loading={verifyingDomainId === verify._id}
+                                icon={RefreshCw}
+                                className="text-[9px] py-1 px-2.5 bg-accent text-bg"
+                              >
+                                Verify Domain
+                              </Button>
+                            </>
+                          )}
+                          {!isPending && (
+                            <Button
+                              onClick={() => fetchData()}
+                              variant="outline"
+                              size="sm"
+                              icon={RefreshCw}
+                              className="text-[9px] py-1 px-2.5"
+                            >
+                              Refresh Status
+                            </Button>
+                          )}
+                          <Button
+                            onClick={() => handleDeleteVerification(verify._id, verify.domain)}
+                            variant="danger"
+                            size="sm"
+                            icon={Trash2}
+                            className="text-[9px] py-1 px-2.5"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable step-by-step instructions card */}
+                    {isPending && isExpanded && (
+                      <div className="bg-surface/50 border border-white/[0.03] rounded-lg p-3.5 space-y-3 font-sans text-xs animate-fadeIn">
+                        <p className="text-text-dim leading-relaxed">
+                          Your verification token has been generated, but the verification file <code className="text-accent font-mono">headerguard-verification.txt</code> has not been detected at <code className="text-accent font-mono">http://{verify.domain}/headerguard-verification.txt</code> yet. Please upload the file containing the TOKEN and click <strong className="text-text">Verify Domain</strong>.
+                        </p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-accent font-mono block">Required File Location</span>
+                            <a 
+                              href={`http://${verify.domain}/headerguard-verification.txt`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="font-mono text-[10px] text-text hover:underline break-all flex items-center gap-1.5"
+                            >
+                              http://{verify.domain}/headerguard-verification.txt
+                              <ExternalLink className="h-3 w-3 inline" />
+                            </a>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-accent font-mono block">Token Content to Paste</span>
+                            <div className="flex items-center gap-2 bg-black/40 px-2 py-1 rounded border border-white/[0.04]">
+                              <code className="text-[9.5px] select-all font-mono text-accent-light break-all flex-1">
+                                {verify.verificationToken}
+                              </code>
+                              <button
+                                onClick={() => handleCopyToken(verify._id, verify.verificationToken)}
+                                className="text-[9px] text-accent hover:text-accent-light shrink-0"
+                              >
+                                {copiedId === verify._id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-[10px] text-text-muted flex items-start gap-1.5 bg-bg/50 p-2 rounded border border-white/[0.01]">
+                          <Info className="h-3.5 w-3.5 text-accent shrink-0 mt-0.5" />
+                          <span>
+                            Note: Ensure your web server permits public GET requests on the file path, and allows redirects. Latency or caching may affect detection response.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </Card>
       </div>
     </div>

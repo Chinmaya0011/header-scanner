@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import AssetVerification from "@/lib/models/AssetVerification";
+import User from "@/lib/models/User";
 import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(request) {
@@ -48,7 +49,11 @@ export async function POST(request) {
 
     // 2. CONFIRM VERIFICATION
     if (action === "confirm") {
-      const verification = await AssetVerification.findOne({ domain: cleanDomain, owner: user._id });
+      let query = { domain: cleanDomain };
+      if (user.role !== "admin") {
+        query.owner = user._id;
+      }
+      const verification = await AssetVerification.findOne(query);
       
       if (!verification) {
         return NextResponse.json({ error: "Verification not initiated for this domain." }, { status: 404 });
@@ -132,23 +137,70 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const domain = searchParams.get("domain");
 
-  if (!domain) {
-    return NextResponse.json({ error: "Domain query parameter is required." }, { status: 400 });
-  }
-
-  const cleanDomain = domain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
-
   try {
     await connectDB();
-    const verification = await AssetVerification.findOne({ domain: cleanDomain, owner: user._id });
+
+    if (domain) {
+      const cleanDomain = domain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
+      const verification = await AssetVerification.findOne({ domain: cleanDomain, owner: user._id });
+
+      return NextResponse.json({
+        success: true,
+        verified: verification ? verification.verified : false,
+        verification: verification || null
+      });
+    }
+
+    // List all verification records
+    let verifications = [];
+    if (user.role === "admin") {
+      verifications = await AssetVerification.find({})
+        .populate("owner", "email role")
+        .sort({ createdAt: -1 });
+    } else {
+      verifications = await AssetVerification.find({ owner: user._id })
+        .sort({ createdAt: -1 });
+    }
 
     return NextResponse.json({
       success: true,
-      verified: verification ? verification.verified : false,
-      verification: verification || null
+      verifications
     });
   } catch (err) {
-    console.error("Verification status GET error:", err);
+    console.error("Verification GET error:", err);
+    return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Verification ID is required." }, { status: 400 });
+    }
+
+    await connectDB();
+
+    let query = { _id: id };
+    if (user.role !== "admin") {
+      query.owner = user._id;
+    }
+
+    const deleted = await AssetVerification.findOneAndDelete(query);
+    if (!deleted) {
+      return NextResponse.json({ error: "Verification record not found or unauthorized." }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: "Verification record deleted successfully." });
+  } catch (err) {
+    console.error("Verification DELETE error:", err);
     return NextResponse.json({ error: "An unexpected error occurred." }, { status: 500 });
   }
 }

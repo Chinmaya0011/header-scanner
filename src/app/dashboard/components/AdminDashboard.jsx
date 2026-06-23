@@ -19,6 +19,12 @@ import {
   Key,
   Database,
   UserX,
+  Globe,
+  ShieldAlert,
+  Copy,
+  Check,
+  ExternalLink,
+  Info
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -52,16 +58,77 @@ export default function AdminDashboard({
   fetchData: parentFetchData,
   formatDate,
   gradeStyle,
+  verifications = [],
 }) {
   const toast = useToast();
   const [mounted, setMounted] = useState(false);
   const [adminStats, setAdminStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   
+  // Verification states
+  const [verifyingDomainId, setVerifyingDomainId] = useState(null);
+  const [failedVerifications, setFailedVerifications] = useState({});
+  const [expandedDomainId, setExpandedDomainId] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+
   // Local modifications state
   const [updatingUserId, setUpdatingUserId] = useState(null);
   const [editingLimits, setEditingLimits] = useState({}); // user._id -> limit
   const [deletingUser, setDeletingUser] = useState(null);
+
+  const handleConfirmVerification = async (verifyId, domainName) => {
+    setVerifyingDomainId(verifyId);
+    setFailedVerifications(prev => {
+      const updated = { ...prev };
+      delete updated[verifyId];
+      return updated;
+    });
+    
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "confirm", domain: domainName })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Domain ${domainName} successfully verified!`);
+        await parentFetchData();
+      } else {
+        setFailedVerifications(prev => ({ ...prev, [verifyId]: data.error || "Verification failed." }));
+        toast.error(data.error || `Verification failed for ${domainName}.`);
+      }
+    } catch {
+      toast.error("Connection error during verification.");
+    } finally {
+      setVerifyingDomainId(null);
+    }
+  };
+
+  const handleDeleteVerification = async (verifyId, domainName) => {
+    if (!confirm(`Are you sure you want to delete verification setup for ${domainName}?`)) return;
+    try {
+      const res = await fetch(`/api/verify?id=${verifyId}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Verification record removed for ${domainName}.`);
+        await parentFetchData();
+      } else {
+        toast.error(data.error || "Failed to delete verification.");
+      }
+    } catch {
+      toast.error("Network error deleting verification.");
+    }
+  };
+
+  const handleCopyToken = (verifyId, token) => {
+    navigator.clipboard.writeText(token);
+    setCopiedId(verifyId);
+    toast.success("Token copied to clipboard!");
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -578,6 +645,143 @@ export default function AdminDashboard({
           </Card>
         </div>
         
+      </div>
+
+      {/* Global Domain Verification Control (Admin View) */}
+      <div className="grid grid-cols-1 gap-6 mt-6">
+        <Card className="p-5 border border-white/[0.05]">
+          <div className="flex items-center gap-2 pb-3 border-b border-white/[0.05] mb-4">
+            <ShieldAlert className="text-warning h-4 w-4" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-text">
+              Global Domain Verification Registry
+            </h2>
+          </div>
+
+          <div className="space-y-3 overflow-y-auto max-h-[300px] pr-1">
+            {verifications.length === 0 ? (
+              <div className="text-text-dim text-xs font-semibold py-8 text-center">
+                No domain verifications registered in the system database.
+              </div>
+            ) : (
+              verifications.map((verify) => {
+                const isPending = !verify.verified;
+                const isFailed = failedVerifications[verify._id];
+                const isExpanded = expandedDomainId === verify._id;
+                const ownerEmail = verify.owner?.email || "Unknown User";
+                
+                return (
+                  <div key={verify._id} className="border border-white/[0.04] bg-bg/25 rounded-xl p-4 space-y-3 transition-all">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Globe className="text-text-dim h-4 w-4 shrink-0" />
+                          <span className="font-mono text-xs font-bold text-text truncate">{verify.domain}</span>
+                        </div>
+                        <p className="text-[10px] text-text-dim mt-0.5 font-mono">
+                          Owner: <span className="text-accent font-semibold">{ownerEmail}</span>
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isPending ? (
+                          isFailed ? (
+                            <Badge variant="danger">🔴 Verification Failed</Badge>
+                          ) : (
+                            <Badge variant="warning">🟡 Pending Verification</Badge>
+                          )
+                        ) : (
+                          <Badge variant="success">🟢 Verified</Badge>
+                        )}
+                        
+                        <div className="flex gap-1.5 ml-2">
+                          {isPending && (
+                            <>
+                              <Button
+                                onClick={() => setExpandedDomainId(isExpanded ? null : verify._id)}
+                                variant="outline"
+                                size="sm"
+                                className="text-[9px] py-1 px-2.5"
+                              >
+                                {isExpanded ? "Hide Instructions" : "Show Instructions"}
+                              </Button>
+                              <Button
+                                onClick={() => handleConfirmVerification(verify._id, verify.domain)}
+                                variant="primary"
+                                size="sm"
+                                loading={verifyingDomainId === verify._id}
+                                icon={RefreshCw}
+                                className="text-[9px] py-1 px-2.5 bg-accent text-bg"
+                              >
+                                Verify Domain
+                              </Button>
+                            </>
+                          )}
+                          {!isPending && (
+                            <Button
+                              onClick={() => parentFetchData()}
+                              variant="outline"
+                              size="sm"
+                              icon={RefreshCw}
+                              className="text-[9px] py-1 px-2.5"
+                            >
+                              Refresh Status
+                            </Button>
+                          )}
+                          <Button
+                            onClick={() => handleDeleteVerification(verify._id, verify.domain)}
+                            variant="danger"
+                            size="sm"
+                            icon={Trash2}
+                            className="text-[9px] py-1 px-2.5"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable details and token info */}
+                    {isPending && isExpanded && (
+                      <div className="bg-surface/50 border border-white/[0.03] rounded-lg p-3.5 space-y-3 font-sans text-xs animate-fadeIn">
+                        <p className="text-text-dim leading-relaxed">
+                          This token has been generated by the user, but the file <code className="text-accent font-mono">headerguard-verification.txt</code> has not been detected at <code className="text-accent font-mono">http://{verify.domain}/headerguard-verification.txt</code>.
+                        </p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-accent font-mono block">Required File Location</span>
+                            <a 
+                              href={`http://${verify.domain}/headerguard-verification.txt`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="font-mono text-[10px] text-text hover:underline break-all flex items-center gap-1.5"
+                            >
+                              http://{verify.domain}/headerguard-verification.txt
+                              <ExternalLink className="h-3 w-3 inline" />
+                            </a>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-accent font-mono block">Verification Token</span>
+                            <div className="flex items-center gap-2 bg-black/40 px-2 py-1 rounded border border-white/[0.04]">
+                              <code className="text-[9.5px] select-all font-mono text-accent-light break-all flex-1">
+                                {verify.verificationToken}
+                              </code>
+                              <button
+                                onClick={() => handleCopyToken(verify._id, verify.verificationToken)}
+                                className="text-[9px] text-accent hover:text-accent-light shrink-0"
+                              >
+                                {copiedId === verify._id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </Card>
       </div>
     </div>
   );

@@ -281,19 +281,21 @@ export default function GuidePage() {
     let currentMilestone = 0;
     const interval = setInterval(() => {
       setSimProgress(prev => {
-        const target = milestones[currentMilestone].progress;
-        if (prev >= target) {
-          if (milestones[currentMilestone].log) {
-            setSimLogs(l => [...l, milestones[currentMilestone].log]);
-          }
-          setSimState(milestones[currentMilestone].state);
-          currentMilestone += 1;
-        }
-        
         if (prev >= 100) {
           clearInterval(interval);
           setSimRunning(false);
           return 100;
+        }
+
+        if (currentMilestone < milestones.length) {
+          const target = milestones[currentMilestone].progress;
+          if (prev >= target) {
+            if (milestones[currentMilestone].log) {
+              setSimLogs(l => [...l, milestones[currentMilestone].log]);
+            }
+            setSimState(milestones[currentMilestone].state);
+            currentMilestone += 1;
+          }
         }
         return prev + 2;
       });

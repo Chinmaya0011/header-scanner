@@ -672,7 +672,7 @@ export default function ScanResults({ result }) {
     if (!currentUser || !localResult) return false;
     return (
       currentUser.role === "admin" ||
-      (localResult.owner && localResult.owner.toString() === currentUser._id.toString())
+      (localResult.owner && currentUser._id && localResult.owner.toString() === currentUser._id.toString())
     );
   }, [currentUser, localResult]);
 

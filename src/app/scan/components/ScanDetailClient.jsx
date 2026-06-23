@@ -24,6 +24,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
   const [emailLoading, setEmailLoading] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [verifications, setVerifications] = useState([]);
 
   // Check auth status on mount
   useEffect(() => {
@@ -39,6 +40,22 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
       }
     }
     checkAuth();
+  }, []);
+
+  // Fetch verifications
+  useEffect(() => {
+    async function fetchVerifications() {
+      try {
+        const res = await fetch("/api/verify");
+        const data = await res.json();
+        if (data.success) {
+          setVerifications(data.verifications || []);
+        }
+      } catch (err) {
+        console.log("Failed to fetch verifications on detail page:", err);
+      }
+    }
+    fetchVerifications();
   }, []);
 
   // Fetch scan on demand if not passed via server component props
@@ -308,6 +325,8 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
 
   if (!scan) return null;
 
+  const pendingVerifications = verifications.filter(v => !v.verified);
+
   return (
     <div className="min-h-screen bg-bg font-sans text-text">
       <Navbar />
@@ -322,6 +341,26 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
           <span className="text-white/10">/</span>
           <span className="font-mono text-text-muted select-all truncate max-w-[200px]">{scan.domain}</span>
         </div>
+
+        {/* Pending Verifications Reminder Banner */}
+        {pendingVerifications.length > 0 && (
+          <Card className="border border-warning/30 bg-warning/5 p-4 rounded-xl flex items-center justify-between gap-4 animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="text-warning h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-text">Domain Verification Required</p>
+                <p className="text-[10px] text-text-dim mt-0.5">
+                  You have {pendingVerifications.length} domain(s) waiting for verification file upload. Complete verification in the Console to manage scanning rights.
+                </p>
+              </div>
+            </div>
+            <Link href="/dashboard" passHref>
+              <Button variant="secondary" size="sm" className="text-[10px] shrink-0">
+                Go to Console
+              </Button>
+            </Link>
+          </Card>
+        )}
 
         <ScanResults result={scan} />
       </main>

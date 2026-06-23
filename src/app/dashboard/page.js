@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [usersList, setUsersList] = useState([]);
   const [searchDomain, setSearchDomain] = useState("");
+  const [verifications, setVerifications] = useState([]);
   
   // Scanner states
   const [scanUrl, setScanUrl] = useState("");
@@ -65,6 +66,13 @@ export default function DashboardPage() {
         if (usersData.success) {
           setUsersList(usersData.users || []);
         }
+      }
+      
+      // 4. Fetch domain verification records
+      const verificationsRes = await fetch("/api/verify");
+      const verificationsData = await verificationsRes.json();
+      if (verificationsData.success) {
+        setVerifications(verificationsData.verifications || []);
       }
       
       setLoading(false);
@@ -239,6 +247,7 @@ export default function DashboardPage() {
     fetchData,
     formatDate,
     gradeStyle,
+    verifications,
   };
 
   return (

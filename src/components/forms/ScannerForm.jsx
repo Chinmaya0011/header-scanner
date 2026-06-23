@@ -33,6 +33,7 @@ export default function ScannerForm() {
   const [apiTab, setApiTab] = useState("curl");
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState("https://headerguard.io");
+  const [verifications, setVerifications] = useState([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -52,7 +53,7 @@ export default function ScannerForm() {
 .then(res => res.json())
 .then(data => console.log(data));`,
     python: `import requests
-
+ 
 res = requests.post(
     "${origin}/api/scan",
     json={"url": "example.com"}
@@ -139,6 +140,22 @@ print(res.json())`
       fetchHistory();
     }
   }, [result]);
+
+  // Fetch verifications
+  useEffect(() => {
+    async function fetchVerifications() {
+      try {
+        const res = await fetch("/api/verify");
+        const data = await res.json();
+        if (data.success) {
+          setVerifications(data.verifications || []);
+        }
+      } catch (err) {
+        console.log("Failed to fetch verifications in scanner form:", err);
+      }
+    }
+    fetchVerifications();
+  }, [result, showVerification]);
 
   const handleSendEmail = async (e) => {
     e.preventDefault();
@@ -287,9 +304,31 @@ print(res.json())`
     }
   };
 
+  const pendingVerifications = verifications.filter(v => !v.verified);
+
   return (
     <div className="space-y-6 font-sans">
       
+      {/* Pending Verifications Reminder Banner */}
+      {!result && !showVerification && pendingVerifications.length > 0 && (
+        <Card className="border border-warning/30 bg-warning/5 p-4 rounded-xl flex items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-warning h-5 w-5 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-text">Domain Verification Pending</p>
+              <p className="text-[10px] text-text-dim mt-0.5">
+                You have {pendingVerifications.length} domain(s) waiting for verification file upload. Complete verification in the Console to scan them.
+              </p>
+            </div>
+          </div>
+          <Link href="/dashboard" passHref>
+            <Button variant="secondary" size="sm" className="text-[10px] shrink-0">
+              Go to Console
+            </Button>
+          </Link>
+        </Card>
+      )}
+
       {/* DOMAIN VERIFICATION CARD */}
       {showVerification && (
         <div className="max-w-xl mx-auto w-full py-10 animate-fadeIn">
