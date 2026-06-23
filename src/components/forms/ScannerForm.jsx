@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Shield, Mail, Clock, ChevronRight, Activity, Globe, Copy, Check, ChevronDown, Code } from "lucide-react";
+import { Search, Shield, Mail, Clock, ChevronRight, Activity, Globe, Copy, Check, ChevronDown, Code, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/common/Toast";
 import ScanResults from "@/components/ui/ScanResults";
 import TerminalConsole from "@/components/ui/TerminalConsole";
