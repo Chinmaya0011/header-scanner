@@ -152,6 +152,7 @@ export default function ScanResults({ result }) {
     emailSecurity,
     privacy,
     subdomains = [],
+    publicPages = [],
     exposedServices = [],
     loginSurfaces = [],
     categoryScores,
@@ -219,7 +220,7 @@ export default function ScanResults({ result }) {
       ssl: categoryScores?.ssl ?? (ssl && ssl.expirationDate !== null ? (ssl.valid ? 100 : 40) : 0),
       dns: categoryScores?.dns ?? (dns ? ((dns.spf?.valid ? 30 : 10) + (dns.dmarc?.valid ? 30 : 10) + (dns.dnssec ? 40 : 10)) : 0),
       cookies: categoryScores?.cookies ?? (cookies.length > 0 ? Math.round((cookies.filter(c => c.httpOnly && c.secure).length / cookies.length) * 100) : 100),
-      attackSurface: categoryScores?.exposure ?? Math.max(10, 100 - (exposedServices.filter(s => s.status === "open").length * 20) - (sensitiveFiles.filter(f => f.exists).length * 10) - (subdomains.length * 5)),
+      attackSurface: categoryScores?.exposure ?? Math.max(10, 100 - (exposedServices.filter(s => s.status === "open").length * 20) - (sensitiveFiles.filter(f => f.exists).length * 10) - (subdomains.length * 2)),
       compliance: categoryScores?.compliance ?? Math.round((([compliance?.GDPR?.compliant, compliance?.PCI_DSS?.compliant, compliance?.OWASP?.compliant, compliance?.NIST?.compliant].filter(Boolean).length) / 4) * 100)
     };
   }, [categoryScores, score, ssl, dns, cookies, compliance, exposedServices, sensitiveFiles, subdomains]);
@@ -856,15 +857,16 @@ export default function ScanResults({ result }) {
       { id: "ssl", label: "SSL/TLS Certificate", icon: Lock, show: ssl && ssl.expirationDate !== null },
       { id: "dns", label: "DNS Security", icon: Globe, show: dns && (dns.a?.length > 0 || dns.aaaa?.length > 0 || dns.mx?.length > 0 || dns.txt?.length > 0) },
       { id: "ports", label: "Open Ports", icon: Terminal, show: exposedServices && exposedServices.length > 0, count: exposedServices.filter(s => s.status === "open").length },
-      { id: "subdomains", label: "Subdomains Discovery", icon: Layers, show: subdomains && subdomains.length > 0, count: subdomains.length },
-      { id: "attack-surface", label: "Attack Surface Exposure", icon: Fingerprint, show: (sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0) || (loginSurfaces && loginSurfaces.length > 0), count: (sensitiveFiles?.filter(f => f.exists).length || 0) + (loginSurfaces?.length || 0) },
+      { id: "subdomains", label: "Subdomains", icon: Layers, show: subdomains && subdomains.length > 0, count: subdomains.length },
+      { id: "pages", label: "Public Pages", icon: Link2, show: publicPages && publicPages.length > 0, count: publicPages.length },
+      { id: "attack-surface", label: "Attack Surface", icon: Fingerprint, show: (sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0) || (loginSurfaces && loginSurfaces.length > 0), count: (sensitiveFiles?.filter(f => f.exists).length || 0) + (loginSurfaces?.length || 0) },
       { id: "seo", label: "SEO Parameters", icon: Search, show: true },
-      { id: "performance", label: "Performance Latencies", icon: Activity, show: performance && (performance.responseTime !== undefined || performance.ttfb !== undefined) },
-      { id: "tech", label: "Technologies Stack", icon: Cpu, show: techStack && techStack.length > 0 },
+      { id: "performance", label: "Performance", icon: Activity, show: performance && (performance.responseTime !== undefined || performance.ttfb !== undefined) },
+      { id: "tech", label: "Tech Stack", icon: Cpu, show: techStack && techStack.length > 0 },
       { id: "recommendations", label: "Action Guidelines", icon: BookOpen, show: true, count: failedCount + warningCount },
       { id: "raw", label: "Raw JSON API", icon: Code, show: true }
     ].filter(tab => tab.show);
-  }, [headers, ssl, dns, exposedServices, subdomains, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount]);
+  }, [headers, ssl, dns, exposedServices, subdomains, publicPages, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount]);
 
   if (isRescanning) {
     return <Loading message="RESCANNING ENDPOINT SECURITY MATRIX..." />;
@@ -1491,7 +1493,7 @@ export default function ScanResults({ result }) {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 font-mono text-[10px] max-h-48 overflow-y-auto pr-1">
                     {ssl.sans.map((san, idx) => (
-                      <div key={idx} className="bg-bg/40 border border-white/[0.02] px-2.5 py-1.5 rounded-lg select-all truncate" title={san}>
+                                            <div key={idx} className="bg-surface/40 border border-white/[0.02] px-2.5 py-1.5 rounded-lg select-all truncate" title={san}>
                         {san}
                       </div>
                     ))}
@@ -1727,48 +1729,41 @@ export default function ScanResults({ result }) {
             </div>
           )}
 
+
           {/* ==================== 6. SUBDOMAINS TAB ==================== */}
           {activeTab === "subdomains" && subdomains && subdomains.length > 0 && (
             <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
               {renderSectionLoader("subdomains")}
               <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Active Subdomains Discovery</h2>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Discovered active dns subdomains mapping. Verify configurations to prevent stale link takeovers.</p>
+                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Subdomain Discovery</h2>
+                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Real subdomains discovered via DNS A-record probing and SSL certificate SANs. No guessing — validated live results only.</p>
                 </div>
-                <Button
-                  onClick={() => handleRefreshSection("subdomains")}
-                  disabled={!!refreshingSection}
-                  variant="outline"
-                  size="sm"
-                  icon={RefreshCw}
-                  className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                >
-                  Refresh Subdomains
+                <Button onClick={() => handleRefreshSection("subdomains")} disabled={!!refreshingSection} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5">
+                  Refresh
                 </Button>
               </div>
-
               <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
                 <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
                   <Layers className="h-4 w-4 text-accent" /> Active Subdomains ({subdomains.length})
                 </h3>
-                <p className="text-xs text-text-dim leading-relaxed font-sans pb-2">
-                  Click on any discovered subdomain URL path to perform an instant, active security header scan directly against it.
-                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[480px] overflow-y-auto pr-1">
                   {subdomains.map((sub, idx) => {
                     const subName = sub.subdomain || sub;
+                    const sourceLabel = sub.source?.includes("ssl-cert") ? "SSL Cert" : "DNS Probe";
                     return (
-                      <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl text-xs font-mono hover:border-white/[0.08] transition-all">
-                        <span className="truncate max-w-[200px] text-text select-all" title={subName}>{subName}</span>
-                        <Button
-                          onClick={() => handleScanSubdomain(subName)}
-                          variant="secondary"
-                          size="sm"
-                          className="py-1 text-[9.5px] flex-shrink-0"
-                          icon={RefreshCw}
-                        >
-                          Audit Site
+                      <div key={idx} className="bg-surface/50 border border-white/[0.05] p-3.5 rounded-xl space-y-2 hover:border-accent/20 transition-all">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="truncate font-bold text-[11px] text-text font-mono select-all" title={subName}>{subName}</span>
+                          <Badge variant={sub.severity === "medium" ? "warning" : "info"} className="text-[7px] py-0.5 shrink-0">{sub.severity?.toUpperCase() || "INFO"}</Badge>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          {sub.ip && <span className="text-[9px] text-text-dim font-mono bg-bg/40 px-2 py-0.5 rounded-md">{sub.ip}</span>}
+                          <span className="text-[9px] text-accent font-mono bg-accent/5 border border-accent/20 px-2 py-0.5 rounded-md">{sourceLabel}</span>
+                        </div>
+                        {sub.evidence && <p className="text-[9px] text-text-dim font-sans leading-relaxed">{sub.evidence}</p>}
+                        <Button onClick={() => handleScanSubdomain(subName)} variant="secondary" size="sm" className="py-1 text-[9.5px] w-full" icon={RefreshCw}>
+                          Audit This Subdomain
                         </Button>
                       </div>
                     );
@@ -1778,7 +1773,53 @@ export default function ScanResults({ result }) {
             </div>
           )}
 
+          {/* ==================== 6b. PUBLIC PAGES TAB ==================== */}
+          {activeTab === "pages" && publicPages && publicPages.length > 0 && (
+            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+              {renderSectionLoader("pages")}
+              <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Public Page Discovery</h2>
+                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Internal links extracted from the target homepage HTML — real crawled paths only, no guessing.</p>
+                </div>
+                <Button onClick={() => handleRefreshSection("pages")} disabled={!!refreshingSection} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5">
+                  Refresh
+                </Button>
+              </div>
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-accent" /> Discovered Pages ({publicPages.length})
+                  </h3>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(publicPages.map(p => p.url || p.path).join("\n")); toast.success("Paths copied to clipboard"); }}
+                    className="flex items-center gap-1.5 text-[9px] font-bold text-text-dim hover:text-accent transition-colors font-mono px-2.5 py-1 rounded-lg hover:bg-accent/5 border border-transparent hover:border-accent/20"
+                  >
+                    <Copy className="h-3 w-3" /> Copy All
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[500px] overflow-y-auto pr-1 font-mono text-[11px]">
+                  {publicPages.map((page, idx) => {
+                    const statusColor = !page.status ? "text-text-dim" :
+                      page.status < 300 ? "text-success" :
+                      page.status < 400 ? "text-warning" : "text-danger";
+                    return (
+                      <div key={idx} className="flex items-center gap-3 bg-surface/50 border border-white/[0.03] px-3 py-2.5 rounded-xl hover:border-white/[0.08] transition-all group">
+                        <span className={`text-[9px] font-black w-8 text-center shrink-0 ${statusColor}`}>{page.status || "—"}</span>
+                        <span className="truncate text-text select-all" title={page.path || page.url}>{page.path || page.url}</span>
+                        <a href={page.url} target="_blank" rel="noopener noreferrer" className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-text-dim hover:text-accent">
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+          )}
+
           {/* ==================== 7. ATTACK SURFACE TAB ==================== */}
+
           {activeTab === "attack-surface" && (
             <div className="space-y-6 animate-fadeIn text-left">
               <div className="border-b border-white/[0.05] pb-4">

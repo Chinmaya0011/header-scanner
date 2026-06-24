@@ -4,8 +4,12 @@ import fs from "fs";
 import path from "path";
 import https from "https";
 import http from "http";
+import { spawn } from "child_process";
 
 const { resolve: dnsResolve } = dns.promises;
+
+// Path to subfinder binary – placed next to the project root after download
+const SUBFINDER_BIN = path.join(process.cwd(), "subfinder.exe");
 
 const PORT_SERVICES = {
   20: "FTP-Data",
@@ -197,62 +201,268 @@ export async function checkExposedServices(url) {
   return resolvedResults.filter(Boolean).sort((a, b) => a.port - b.port);
 }
 
+/**
+ * Subdomain discovery using the subfinder binary (ProjectDiscovery).
+ * Falls back to SSL SANs extraction if subfinder is not installed.
+ * Returns only real, validated, publicly discoverable subdomains.
+ */
 export async function checkSubdomains(url) {
-  const domain = extractHost(url);
-  const results = [];
+  let domain;
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    domain = parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return [];
+  }
 
-  if (!domain) return results;
+  const HIGH_RISK_PREFIXES = ["admin", "dev", "staging", "vpn", "secure", "auth", "login",
+    "console", "internal", "panel", "portal", "sso", "id", "gateway", "proxy"];
 
-  const data = loadAttackSurfaceData();
-  const subdomains = data?.subdomainReconnaissanceMap?.subdomains || ["api", "admin", "mail", "beta", "dev", "staging", "portal", "cdn", "dashboard", "test"];
+  function buildResult(subdomain, source, ip) {
+    const prefix = subdomain.split(".")[0].toLowerCase();
+    const severity = HIGH_RISK_PREFIXES.some((p) => prefix.includes(p)) ? "medium" : "info";
+    return {
+      subdomain,
+      ip: ip || null,
+      status: "active",
+      source,
+      severity,
+      evidence: ip ? `DNS A record resolves to ${ip}` : `Found in SSL certificate SANs`,
+      description: `Active subdomain discovered under ${domain}`,
+      securityImpact: severity === "medium"
+        ? "High-privilege subdomain; verify it is patched and not eligible for subdomain takeover."
+        : "Review for stale DNS records or abandoned services that could enable takeover.",
+      remediation: "Audit subdomains periodically. Remove unused DNS entries to prevent hijacking.",
+    };
+  }
 
-  const tasks = subdomains.map(sub => {
-    return () => new Promise((resolve) => {
-      let resolved = false;
-      const timeoutId = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          resolve(null);
-        }
-      }, 800);
+  // --- Try subfinder binary first ---
+  const subfinderExists = fs.existsSync(SUBFINDER_BIN);
+  if (subfinderExists) {
+    try {
+      const subfinderResults = await new Promise((resolve, reject) => {
+        const args = ["-d", domain, "-silent", "-timeout", "30", "-t", "10"];
+        const proc = spawn(SUBFINDER_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
 
-      dnsResolve(`${sub}.${domain}`, "A")
-        .then((ips) => {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeoutId);
-            const severity = ["admin", "dev", "staging", "vpn", "secure", "auth", "login", "console", "internal", "private", "it", "sysadmin"].some(p => sub.toLowerCase().startsWith(p)) ? "medium" : "info";
-            resolve({
-              subdomain: `${sub}.${domain}`,
-              status: "active",
-              ip: ips[0],
-              severity,
-              urlHost: `${sub}.${domain}`,
-              evidence: `DNS A record resolved successfully to IP address: ${ips[0]}.`,
-              description: `Active subdomain host verified under the root domain.`,
-              securityImpact: `Subdomains expand the organization's external attack surface. If subdomains host vulnerable applications or run on insecure servers, they can lead to host takeover, data exposure, or DNS hijacking.`,
-              remediation: `Audit active subdomains periodically. Remove unused DNS entries (CNAME/A records) to prevent subdomain hijacking, and ensure all active subdomains undergo vulnerability scanner assessments.`
-            });
-          }
-        })
-        .catch(() => {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeoutId);
-            resolve(null);
-          }
+        let stdout = "";
+        let stderr = "";
+        proc.stdout.on("data", (d) => { stdout += d.toString(); });
+        proc.stderr.on("data", (d) => { stderr += d.toString(); });
+
+        const kill = setTimeout(() => { proc.kill(); reject(new Error("subfinder timeout")); }, 60000);
+
+        proc.on("close", (code) => {
+          clearTimeout(kill);
+          const lines = stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+          resolve(lines);
         });
-    });
+
+        proc.on("error", (err) => {
+          clearTimeout(kill);
+          reject(err);
+        });
+      });
+
+      if (subfinderResults.length > 0) {
+        // Validate each result via DNS A lookup
+        const validated = await Promise.all(
+          subfinderResults.map((sub) =>
+            new Promise((resolve) => {
+              const tid = setTimeout(() => resolve(null), 3000);
+              dnsResolve(sub, "A")
+                .then((ips) => { clearTimeout(tid); resolve({ sub, ip: ips[0] }); })
+                .catch(() => { clearTimeout(tid); resolve(null); });
+            })
+          )
+        );
+
+        const valid = validated.filter(Boolean);
+        if (valid.length > 0) {
+          return valid.map(({ sub, ip }) => buildResult(sub, "subfinder", ip))
+            .sort((a, b) => a.subdomain.localeCompare(b.subdomain));
+        }
+      }
+    } catch (err) {
+      console.warn("[checkSubdomains] subfinder failed, falling back to SSL SANs:", err.message);
+    }
+  }
+
+  // --- Fallback: extract SANs from SSL certificate ---
+  const discovered = new Map();
+
+  const sansFromCert = await new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve([]), 8000);
+    const req = https.request(
+      { hostname: domain, port: 443, method: "HEAD", rejectUnauthorized: false },
+      (res) => {
+        clearTimeout(timeout);
+        try {
+          const cert = res.socket.getPeerCertificate(true);
+          const altNames = cert?.subjectaltname || "";
+          const sans = altNames
+            .split(",")
+            .map((s) => s.trim().replace(/^DNS:/, "").trim())
+            .filter((s) => s && !s.startsWith("*") && s !== domain && s.endsWith(domain))
+            .map((s) => s.replace(/^www\./, ""))
+            .filter((s) => s !== domain);
+          resolve([...new Set(sans)]);
+        } catch {
+          resolve([]);
+        }
+      }
+    );
+    req.on("error", () => { clearTimeout(timeout); resolve([]); });
+    req.end();
   });
 
-  const resolvedResults = await limitConcurrency(tasks, 50);
-  return resolvedResults.filter(Boolean).sort((a, b) => a.subdomain.localeCompare(b.subdomain));
+  for (const san of sansFromCert) {
+    discovered.set(san, { source: "ssl-cert" });
+  }
+
+  // Validate SANs via DNS
+  const sanValidated = await Promise.all(
+    [...discovered.keys()].map((sub) =>
+      new Promise((resolve) => {
+        const tid = setTimeout(() => resolve(null), 2500);
+        dnsResolve(sub, "A")
+          .then((ips) => { clearTimeout(tid); resolve({ sub, ip: ips[0], source: "ssl-cert" }); })
+          .catch(() => { clearTimeout(tid); resolve(null); });
+      })
+    )
+  );
+
+  const results = sanValidated
+    .filter(Boolean)
+    .map(({ sub, ip, source }) => buildResult(sub, source, ip))
+    .sort((a, b) => a.subdomain.localeCompare(b.subdomain));
+
+  return results;
 }
+
+/**
+ * Discovers public pages by crawling the target homepage HTML using axios + cheerio.
+ * Extracts all internal links from <a href>, nav menus, footer links, and canonical URLs.
+ * Returns normalised, deduplicated internal paths with HTTP status codes.
+ */
+export async function discoverPublicPages(baseUrl) {
+  // Dynamic imports so Next.js doesn't bundle them into client chunks
+  const axios = (await import("axios")).default;
+  const { load } = await import("cheerio");
+
+  let origin;
+  try {
+    const parsed = new URL(baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`);
+    origin = parsed.origin;
+  } catch {
+    return [];
+  }
+
+  // --- Fetch homepage HTML ---
+  let html = "";
+  const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+  const axiosConfig = {
+    timeout: 12000,
+    maxRedirects: 5,
+    headers: {
+      "User-Agent": BROWSER_UA,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+    },
+    validateStatus: (s) => s < 500,
+  };
+
+  try {
+    const res = await axios.get(origin, axiosConfig);
+    if (res.status < 400 && typeof res.data === "string") {
+      html = res.data;
+    }
+  } catch (err) {
+    console.warn("[discoverPublicPages] axios fetch failed:", err.message);
+    return [];
+  }
+
+  if (!html || html.length < 100) return [];
+
+  // --- Parse with cheerio ---
+  const $ = load(html);
+
+  const IGNORED_PREFIXES = ["mailto:", "tel:", "javascript:", "data:", "ftp:", "#", "void"];
+  const pathMap = new Map(); // pathname -> full href
+
+  // Helper to add a link if it's internal
+  function addLink(raw) {
+    if (!raw) return;
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+    if (IGNORED_PREFIXES.some((p) => trimmed.toLowerCase().startsWith(p))) return;
+    try {
+      const resolved = new URL(trimmed, origin);
+      if (resolved.origin !== origin) return;
+      const pathname = resolved.pathname || "/";
+      if (!pathMap.has(pathname)) pathMap.set(pathname, resolved.href);
+    } catch { /* skip invalid */ }
+  }
+
+  // 1. All <a href>
+  $("a[href]").each((_, el) => addLink($(el).attr("href")));
+
+  // 2. Nav links explicitly
+  $("nav a[href], header a[href], [role='navigation'] a[href]").each((_, el) => addLink($(el).attr("href")));
+
+  // 3. Footer links
+  $("footer a[href], [role='contentinfo'] a[href]").each((_, el) => addLink($(el).attr("href")));
+
+  // 4. Canonical URL
+  $("link[rel='canonical']").each((_, el) => addLink($(el).attr("href")));
+
+  // 5. Sitemap links embedded in page
+  $("[href*='sitemap']").each((_, el) => addLink($(el).attr("href")));
+
+  // Always include root
+  if (!pathMap.has("/")) pathMap.set("/", origin + "/");
+
+  const allPaths = [...pathMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+  // --- Probe each path for HTTP status ---
+  const probes = allPaths.slice(0, 80).map(([pathname, href]) =>
+    new Promise((resolve) => {
+      const controller = new AbortController();
+      const tid = setTimeout(() => {
+        controller.abort();
+        resolve({ path: pathname, url: href, status: null, responsive: false });
+      }, 5000);
+
+      fetch(href, {
+        method: "HEAD",
+        signal: controller.signal,
+        redirect: "manual",
+        headers: { "User-Agent": BROWSER_UA },
+      })
+        .then((res) => {
+          clearTimeout(tid);
+          const status = res.status;
+          resolve({ path: pathname, url: href, status, responsive: status < 400 });
+        })
+        .catch(() => {
+          clearTimeout(tid);
+          resolve({ path: pathname, url: href, status: null, responsive: false });
+        });
+    })
+  );
+
+  const results = await limitConcurrency(probes, 20);
+
+  // Filter out 404s and 410s; keep everything else including redirects and unreachable (status: null)
+  return results.filter((r) => r.status !== 404 && r.status !== 410);
+}
+
+
 
 export async function scanPaths(baseUrl) {
   const url = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   
   const results = {
+
     sensitiveFiles: [],
     loginSurfaces: [],
     robotsTxt: { exists: false, sitemaps: [], sensitiveExposed: false, exposedPathsCount: 0 },
