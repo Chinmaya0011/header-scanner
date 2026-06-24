@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User from "@/lib/models/User";
 import Scan from "@/lib/models/Scan";
+import SiteStats from "@/lib/models/SiteStats";
 import { getUserFromRequest } from "@/lib/auth";
 
 export async function GET(request) {
@@ -18,6 +19,9 @@ export async function GET(request) {
     
     // Total API requests (from api source)
     const totalApiRequests = await Scan.countDocuments({ source: "api" });
+
+    // Total scans across all sources (web + api)
+    const totalAllScans = await Scan.countDocuments({ isSuccess: true });
     
     // Success vs Failed API requests
     const successfulApiCalls = await Scan.countDocuments({ source: "api", isSuccess: true });
@@ -25,6 +29,11 @@ export async function GET(request) {
 
     // Blocked users
     const blockedUsersCount = await User.countDocuments({ apiAccessEnabled: false });
+
+    // Site-wide visit & public scan stats (singleton SiteStats document)
+    const siteStats = await SiteStats.findOne({ _key: "global" }).lean();
+    const totalVisits = siteStats?.totalVisits || 0;
+    const totalPublicScans = siteStats?.totalPublicScans || 0;
 
     // 2. Daily Scan Requests count (Created today)
     const startOfToday = new Date();
@@ -96,6 +105,9 @@ export async function GET(request) {
       stats: {
         totalUsers,
         totalApiRequests,
+        totalAllScans,
+        totalPublicScans,
+        totalVisits,
         dailyApiRequests,
         successfulApiCalls,
         failedApiCalls,

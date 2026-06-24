@@ -76,6 +76,9 @@ export default function AdminDashboard({
   const [editingLimits, setEditingLimits] = useState({}); // user._id -> limit
   const [deletingUser, setDeletingUser] = useState(null);
 
+  // Scan owner-type filter (client-side)
+  const [ownerTypeFilter, setOwnerTypeFilter] = useState("all"); // "all" | "public" | "own" | "users"
+
   const handleConfirmVerification = async (verifyId, domainName) => {
     setVerifyingDomainId(verifyId);
     setFailedVerifications(prev => {
@@ -236,7 +239,8 @@ export default function AdminDashboard({
       ) : adminStats ? (
         <>
           {/* Aggregated Metric Cards Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* ── Existing cards ── */}
             <Card>
               <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider">Registered Users</p>
               <p className="text-2xl font-bold font-mono text-accent mt-1.5">{adminStats.totalUsers}</p>
@@ -258,7 +262,7 @@ export default function AdminDashboard({
             <Card>
               <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider">API Success Rate</p>
               <p className="text-2xl font-bold font-mono text-success mt-1.5">
-                {adminStats.totalApiRequests > 0 
+                {adminStats.totalApiRequests > 0
                   ? `${Math.round((adminStats.successfulApiCalls / adminStats.totalApiRequests) * 100)}%`
                   : "100%"
                 }
@@ -266,10 +270,44 @@ export default function AdminDashboard({
               <p className="text-[8px] text-text-muted mt-1 uppercase">{adminStats.failedApiCalls} failures logged</p>
             </Card>
 
-            <Card className="col-span-2 lg:col-span-1">
+            <Card>
               <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider">Active credentials</p>
               <p className="text-2xl font-bold font-mono text-text mt-1.5">{adminStats.activeKeys}</p>
               <p className="text-[8px] text-text-muted mt-1 uppercase">{adminStats.blockedUsers} Users Blocked</p>
+            </Card>
+
+            {/* ── New cards ── */}
+            <Card>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Globe className="w-3 h-3 text-accent opacity-70" />
+                <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider">Page Visits</p>
+              </div>
+              <p className="text-2xl font-bold font-mono text-accent mt-1">
+                {(adminStats.totalVisits ?? 0).toLocaleString()}
+              </p>
+              <p className="text-[8px] text-text-muted mt-1 uppercase">Total site page views</p>
+            </Card>
+
+            <Card>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Database className="w-3 h-3 text-success opacity-70" />
+                <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider">All Scans</p>
+              </div>
+              <p className="text-2xl font-bold font-mono text-success mt-1">
+                {(adminStats.totalAllScans ?? 0).toLocaleString()}
+              </p>
+              <p className="text-[8px] text-text-muted mt-1 uppercase">Web + API combined</p>
+            </Card>
+
+            <Card>
+              <div className="flex items-center gap-1.5 mb-1">
+                <ShieldAlert className="w-3 h-3 text-warning opacity-70" />
+                <p className="text-[9px] text-text-dim font-bold uppercase tracking-wider">Public Scans</p>
+              </div>
+              <p className="text-2xl font-bold font-mono text-warning mt-1">
+                {(adminStats.totalPublicScans ?? 0).toLocaleString()}
+              </p>
+              <p className="text-[8px] text-text-muted mt-1 uppercase">Guest / no-auth scans</p>
             </Card>
           </div>
 
@@ -383,40 +421,88 @@ export default function AdminDashboard({
         {/* Global Audit Logs (Left Columns) */}
         <div className="lg:col-span-7 space-y-6">
           <Card className="flex flex-col h-[560px] p-5 border border-white/[0.05]">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.05] flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <History className="text-accent h-4 w-4" />
-                <h2 className="text-xs font-bold uppercase tracking-wider text-text">
-                  Global Audit Scan Logs
-                </h2>
+            <div className="flex flex-col gap-2 pb-3 border-b border-white/[0.05] flex-shrink-0">
+              {/* Row 1: Title + Domain Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <History className="text-accent h-4 w-4" />
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-text">
+                    Global Audit Scan Logs
+                  </h2>
+                </div>
+
+                <div className="relative w-full sm:w-52">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
+                  <input
+                    type="text"
+                    value={searchDomain}
+                    onChange={(e) => {
+                      setSearchDomain(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder="Filter host endpoints..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-bg border border-white/[0.05] focus:border-accent rounded-lg text-xs font-mono text-text outline-none transition-all"
+                  />
+                </div>
               </div>
 
-              <div className="relative w-full sm:w-52">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
-                <input
-                  type="text"
-                  value={searchDomain}
-                  onChange={(e) => {
-                    setSearchDomain(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  placeholder="Filter host endpoints..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-bg border border-white/[0.05] focus:border-accent rounded-lg text-xs font-mono text-text outline-none transition-all"
-                />
+              {/* Row 2: Owner-type filter pills */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] text-text-muted uppercase font-bold mr-1">Owner:</span>
+                {[
+                  { key: "all",    label: "All" },
+                  { key: "public", label: "🌐 Public" },
+                  { key: "own",    label: "⭐ Mine" },
+                  { key: "users",  label: "👤 Users" },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setOwnerTypeFilter(key)}
+                    className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all border ${
+                      ownerTypeFilter === key
+                        ? "bg-accent/20 border-accent/40 text-accent"
+                        : "bg-white/[0.03] border-white/[0.06] text-text-muted hover:text-text"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Scrollable list */}
             <div className="flex-1 overflow-y-auto mt-3 -mx-1 px-1">
-              {scans.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-text-dim text-xs font-semibold">
-                  No audits found in the database.
-                </div>
-              ) : (
+              {(() => {
+                const filteredScans = scans.filter((scan) => {
+                  if (ownerTypeFilter === "all") return true;
+                  if (ownerTypeFilter === "public") return !scan.owner;
+                  if (ownerTypeFilter === "own") return scan.owner?.email === user?.email;
+                  if (ownerTypeFilter === "users") return scan.owner && scan.owner.email !== user?.email;
+                  return true;
+                });
+
+                if (scans.length === 0) {
+                  return (
+                    <div className="flex items-center justify-center h-full text-text-dim text-xs font-semibold">
+                      No audits found in the database.
+                    </div>
+                  );
+                }
+
+                if (filteredScans.length === 0) {
+                  return (
+                    <div className="flex items-center justify-center h-full text-text-dim text-xs font-semibold">
+                      No scans match this filter.
+                    </div>
+                  );
+                }
+
+                return (
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 bg-surface z-10">
                     <tr className="border-b border-white/[0.05] text-text-muted text-[9px] font-bold uppercase tracking-wider">
                       <th className="py-2.5">Target Host</th>
+                      <th className="py-2.5">Owner</th>
                       <th className="py-2.5 text-center">Score</th>
                       <th className="py-2.5 text-center">Grade</th>
                       <th className="py-2.5">Date</th>
@@ -424,40 +510,69 @@ export default function AdminDashboard({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.05] text-xs">
-                    {scans.map((scan) => (
-                      <tr key={scan._id} className="hover:bg-white/[0.01] transition-colors">
-                        <td className="py-3 font-mono font-semibold text-text truncate max-w-[130px]" title={scan.domain}>
-                          {scan.domain}
-                        </td>
-                        <td className="py-3 text-center font-mono font-bold text-text">
-                          {scan.score}/100
-                        </td>
-                        <td className="py-3 text-center">
-                          <Badge variant={getBadgeVariant(scan.grade)}>
-                            {scan.grade}
-                          </Badge>
-                        </td>
-                        <td className="py-3 text-text-dim font-mono text-[10px]">
-                          {formatDate(scan.createdAt)}
-                        </td>
-                        <td className="py-3 text-right space-x-1.5">
-                          <Link href={`/scan/${scan._id}`} passHref target="_blank">
-                            <Button variant="secondary" size="sm" icon={Eye}>
-                              View
-                            </Button>
-                          </Link>
-                          <Button
-                            onClick={() => handleDeleteScan(scan._id)}
-                            variant="danger"
-                            size="sm"
-                            icon={Trash2}
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredScans.map((scan) => {
+                      const ownerEmail = scan.owner?.email;
+                      const isSelf = ownerEmail === user?.email;
+                      const isPublic = !scan.owner;
+
+                      return (
+                        <tr key={scan._id} className="hover:bg-white/[0.01] transition-colors">
+                          <td className="py-3 font-mono font-semibold text-text truncate max-w-[110px]" title={scan.domain}>
+                            {scan.domain}
+                          </td>
+
+                          {/* Owner cell */}
+                          <td className="py-3 max-w-[130px]">
+                            {isPublic ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                <Globe className="w-2.5 h-2.5" />
+                                Public
+                              </span>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-mono text-[10px] text-text truncate block" title={ownerEmail}>
+                                  {ownerEmail}
+                                </span>
+                                {isSelf ? (
+                                  <span className="text-[8px] font-bold text-accent uppercase">You</span>
+                                ) : (
+                                  <span className="text-[8px] text-text-muted uppercase">{scan.owner?.role || "user"}</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-3 text-center font-mono font-bold text-text">
+                            {scan.score}/100
+                          </td>
+                          <td className="py-3 text-center">
+                            <Badge variant={getBadgeVariant(scan.grade)}>
+                              {scan.grade}
+                            </Badge>
+                          </td>
+                          <td className="py-3 text-text-dim font-mono text-[10px]">
+                            {formatDate(scan.createdAt)}
+                          </td>
+                          <td className="py-3 text-right space-x-1.5">
+                            <Link href={`/scan/${scan._id}`} passHref target="_blank">
+                              <Button variant="secondary" size="sm" icon={Eye}>
+                                View
+                              </Button>
+                            </Link>
+                            <Button
+                              onClick={() => handleDeleteScan(scan._id)}
+                              variant="danger"
+                              size="sm"
+                              icon={Trash2}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
-              )}
+                );
+              })()}
             </div>
 
             {/* Pagination */}
