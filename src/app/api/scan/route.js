@@ -18,7 +18,7 @@ import {
 import { scanSSL } from "@/lib/scanners/sslScanner";
 import { scanDNS } from "@/lib/scanners/dnsScanner";
 import { scanInfraAndTech } from "@/lib/scanners/infraTechScanner";
-import { scanPaths, checkExposedServices, checkSubdomains } from "@/lib/scanners/networkScanner";
+import { scanPaths, checkExposedServices, checkSubdomains, discoverPublicPages } from "@/lib/scanners/networkScanner";
 import { generateAIAdvice } from "@/lib/aiAssistant";
 
 // Configuration constants
@@ -395,19 +395,21 @@ export async function POST(request) {
       loginSurfaces: prevScan.loginSurfaces
     } : null;
     let exposedServices = prevScan ? prevScan.exposedServices : [];
-    let subdomains = prevScan ? prevScan.subdomains : [];
+    let subdomains = prevScan ? (prevScan.subdomains || []) : [];
+    let publicPages = prevScan ? (prevScan.publicPages || []) : [];
 
     const perfStart = Date.now();
     try {
       if (section === "all" || !prevScan) {
         // Run all checks in parallel
         dns = await scanDNS(url);
-        const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult] = await Promise.all([
+        const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult, publicPagesResult] = await Promise.all([
           scanSSL(url),
           scanInfraAndTech(url, dns, headersObj),
           scanPaths(url),
           checkExposedServices(url),
-          checkSubdomains(url)
+          checkSubdomains(url),
+          discoverPublicPages(url)
         ]);
 
         ssl = sslResult;
@@ -415,6 +417,7 @@ export async function POST(request) {
         paths = pathResult;
         exposedServices = servicesResult;
         subdomains = subdomainsResult;
+        publicPages = publicPagesResult;
       } else {
         // Selective scan runs
         if (section === "dns") {
@@ -427,6 +430,8 @@ export async function POST(request) {
           exposedServices = await checkExposedServices(url);
         } else if (section === "subdomains") {
           subdomains = await checkSubdomains(url);
+        } else if (section === "pages") {
+          publicPages = await discoverPublicPages(url);
         }
         
         // Always run infraTech if it wasn't cloned or if we scanned DNS
@@ -616,6 +621,7 @@ export async function POST(request) {
       },
       privacy: privacyDetails,
       subdomains,
+      publicPages,
       exposedServices,
       loginSurfaces: paths ? paths.loginSurfaces : [],
       benchmarks: null,
@@ -713,6 +719,7 @@ export async function POST(request) {
       emailSecurity: scan.emailSecurity,
       privacy: scan.privacy,
       subdomains,
+      publicPages,
       exposedServices,
       loginSurfaces: scan.loginSurfaces,
       benchmarks: scan.benchmarks,

@@ -257,6 +257,8 @@ const ScanSchema = new mongoose.Schema(
     securityTxt: SecurityTxtSchema,
     emailSecurity: EmailSecuritySchema,
     subdomains: [mongoose.Schema.Types.Mixed],
+    publicPages: [mongoose.Schema.Types.Mixed],
+
     exposedServices: [mongoose.Schema.Types.Mixed],
     loginSurfaces: [mongoose.Schema.Types.Mixed],
     benchmarks: BenchmarkSchema,
