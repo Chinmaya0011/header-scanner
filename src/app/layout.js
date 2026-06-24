@@ -3,9 +3,8 @@ import { ToastProvider } from "@/components/common/Toast";
 import VisitTracker from "@/components/common/VisitTracker";
 import "./globals.css";
 
-
 export const metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online"),
   title: {
     default: "HeaderGuard — HTTP Security Header Scanner",
     template: "%s | HeaderGuard",
@@ -24,12 +23,26 @@ export const metadata = {
     "website security scan",
     "CORS misconfiguration",
     "HeaderGuard",
+    "HTTP security scanner",
+    "web security analyzer",
+    "security headers grade",
+    "website security checker",
+    "vulnerability scanner",
   ],
   category: "Security",
   applicationName: "HeaderGuard",
+  creator: "HeaderGuard",
+  publisher: "HeaderGuard",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  authors: [{ name: "HeaderGuard" }],
   openGraph: {
     type: "website",
     locale: "en_US",
+    url: "https://www.headerguards.online",
     siteName: "HeaderGuard",
     title: "HeaderGuard — HTTP Security Header Scanner",
     description:
@@ -46,6 +59,8 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: "@headerguards",
+    creator: "@headerguards",
     title: "HeaderGuard — HTTP Security Header Scanner",
     description:
       "Scan any website's HTTP security headers in seconds. Risk scoring, letter grades, and fix recommendations.",
@@ -60,18 +75,34 @@ export const metadata = {
       follow: true,
       "max-image-preview": "large",
       "max-snippet": -1,
+      "max-video-preview": -1,
     },
+  },
+  alternates: {
+    canonical: "https://www.headerguards.online",
   },
   icons: {
     icon: [
       { url: "/favicon.ico" },
       { url: "/icon-16.png", sizes: "16x16", type: "image/png" },
       { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180" },
+      { url: "/apple-touch-icon-precomposed.png" },
+    ],
     shortcut: "/favicon.ico",
   },
-  // Removed manifest from metadata — handled via static file below
+  manifest: "/manifest.json",
+  verification: {
+    google: "4f7twDcE-tAqyiVVol5Bxnd3lO-I0l2j8yxzzLCkmDI",
+  },
+  other: {
+    "theme-color": "#0a0a0a",
+    "color-scheme": "dark light",
+  },
 };
 
 const jsonLd = {
@@ -82,20 +113,32 @@ const jsonLd = {
     "Scan any website's HTTP security headers. Get risk scoring, letter grades, and actionable fix recommendations.",
   applicationCategory: "SecurityApplication",
   operatingSystem: "All",
+  browserRequirements: "Modern browsers",
+  permissions: "None required",
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
+    availability: "https://schema.org/InStock",
   },
   featureList: [
     "CSP analysis",
-    "HSTS validation",
+    "HSTS validation", 
     "X-Frame-Options check",
     "Permissions-Policy audit",
     "CORP and COOP detection",
     "Risk scoring and letter grades",
     "Actionable fix recommendations",
+    "Detailed vulnerability reports",
+    "Security grade calculations",
+    "Real-time scanning",
   ],
+  url: "https://www.headerguards.online",
+  inLanguage: "en-US",
+  audience: {
+    "@type": "Audience",
+    audienceType: "Security professionals, developers, website owners",
+  },
 };
 
 export default async function RootLayout({ children }) {
@@ -103,8 +146,12 @@ export default async function RootLayout({ children }) {
   const nonce = headersList.get("x-nonce") ?? "";
 
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
+        <meta name="google-site-verification" content="4f7twDcE-tAqyiVVol5Bxnd3lO-I0l2j8yxzzLCkmDI" />
+        <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <script
           nonce={nonce}
           type="application/ld+json"
@@ -113,7 +160,7 @@ export default async function RootLayout({ children }) {
       </head>
       <body
         className="min-h-screen bg-bg antialiased"
-        suppressHydrationWarning 
+        suppressHydrationWarning
       >
         <ToastProvider>
           <VisitTracker />
