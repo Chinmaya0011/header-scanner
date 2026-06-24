@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { ToastProvider } from "@/components/common/Toast";
+import VisitTracker from "@/components/common/VisitTracker";
 import "./globals.css";
 
 
@@ -114,7 +115,10 @@ export default async function RootLayout({ children }) {
         className="min-h-screen bg-bg antialiased"
         suppressHydrationWarning 
       >
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <VisitTracker />
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

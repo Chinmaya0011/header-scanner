@@ -128,6 +128,7 @@ export async function GET(request) {
         .skip(skip)
         .limit(limit)
         .select("-headers") // Exclude full headers for performance
+        .populate("owner", "email role") // Populate owner info for admin view
         .lean(),
       
       // Total count for pagination
@@ -147,7 +148,11 @@ export async function GET(request) {
 
     // Map scans for safety domain masking
     const mappedScans = scans.map(s => {
-      const isOwner = s.owner && s.owner.toString() === user._id.toString();
+      // After populate, s.owner may be an object { _id, email, role } or a raw ObjectId (if populate failed)
+      const ownerIdStr = s.owner
+        ? (s.owner._id ? s.owner._id.toString() : s.owner.toString())
+        : null;
+      const isOwner = ownerIdStr && ownerIdStr === user._id.toString();
       const isAdmin = user.role === "admin";
       return {
         ...s,
