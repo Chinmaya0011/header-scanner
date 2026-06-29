@@ -11,6 +11,24 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Loading from "@/components/common/Loading";
 
+function extractDomainSimple(inputUrl) {
+  if (!inputUrl) return "";
+  let host = inputUrl.trim().toLowerCase();
+  if (!/^https?:\/\//i.test(host)) {
+    host = "http://" + host;
+  }
+  try {
+    const parsed = new URL(host);
+    let hostname = parsed.hostname;
+    if (hostname.startsWith("www.")) {
+      hostname = hostname.substring(4);
+    }
+    return hostname;
+  } catch (e) {
+    return host;
+  }
+}
+
 export default function ScannerForm() {
   const toast = useToast();
   const [url, setUrl] = useState("");
@@ -100,12 +118,53 @@ print(res.json())`
           setLoading(true);
           setResult(null);
           try {
-            const res = await fetch("/api/scan", {
+            const targetDomain = extractDomainSimple(cleanUrl);
+            
+            // Fetch verify status and current user status dynamically to ensure accuracy on mount
+            const [verifyRes, authRes] = await Promise.all([
+              fetch("/api/verify").catch(() => null),
+              fetch("/api/auth/me").catch(() => null)
+            ]);
+
+            let isVerified = false;
+            if (verifyRes && verifyRes.ok) {
+              const verifyData = await verifyRes.json();
+              if (verifyData.success) {
+                const list = verifyData.verifications || [];
+                isVerified = list.some(
+                  (v) => v.domain.toLowerCase() === targetDomain && v.verified
+                );
+              }
+            }
+
+            let loggedIn = false;
+            if (authRes && authRes.ok) {
+              const authData = await authRes.json();
+              loggedIn = authData.loggedIn;
+            }
+
+            let endpoint = "/api/scan/public";
+            if (loggedIn && isVerified) {
+              endpoint = "/api/scan";
+            }
+
+            let res = await fetch(endpoint, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ url: cleanUrl }),
             });
-            const data = await res.json();
+            let data = await res.json();
+
+            if (!res.ok && endpoint === "/api/scan") {
+              endpoint = "/api/scan/public";
+              res = await fetch(endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: cleanUrl }),
+              });
+              data = await res.json();
+            }
+
             if (res.ok) {
               setResult(data.data || data);
               toast.success("Security posture scan completed successfully!");
@@ -196,21 +255,36 @@ print(res.json())`
     setShowVerification(false);
 
     try {
-      const res = await fetch("/api/scan", {
+      const targetDomain = extractDomainSimple(cleanUrl);
+      const isVerified = verifications.some(
+        (v) => v.domain.toLowerCase() === targetDomain && v.verified
+      );
+
+      let endpoint = "/api/scan/public";
+      if (currentUser && isVerified) {
+        endpoint = "/api/scan";
+      }
+
+      let res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: cleanUrl }),
       });
 
-      const data = await res.json();
+      let data = await res.json();
+
+      // If full scan failed because domain ownership verification is required, fall back to public scan
+      if (!res.ok && endpoint === "/api/scan") {
+        endpoint = "/api/scan/public";
+        res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: cleanUrl }),
+        });
+        data = await res.json();
+      }
 
       if (!res.ok) {
-        if (res.status === 403 && data.code === "UNVERIFIED_DOMAIN") {
-          toast.warning("Domain ownership verification required.");
-          setVerificationDomain(data.domain);
-          await initiateVerification(data.domain);
-          return;
-        }
         toast.error(data.error || "Scan failed. Please verify the URL and try again.");
         return;
       }
@@ -763,9 +837,13 @@ print(res.json())`
           <Card className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4.5 border border-white/[0.04] bg-surface/40 backdrop-blur-md rounded-xl">
             <div className="space-y-0.5">
               <h2 className="text-xs font-black text-text font-mono uppercase tracking-wider flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> Audit Scan Resolved
+                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> {result.isPublicScan ? "Public Scan Resolved" : "Audit Scan Resolved"}
               </h2>
-              <p className="text-[10px] text-text-dim font-semibold">Security posture snapshots successfully saved to history database.</p>
+              <p className="text-[10px] text-text-dim font-semibold">
+                {result.isPublicScan 
+                  ? "Temporary scan resolved. Results are not stored in the historical database."
+                  : "Security posture snapshots successfully saved to history database."}
+              </p>
             </div>
             
             <div className="flex items-center gap-2">
@@ -805,6 +883,47 @@ print(res.json())`
               )}
             </div>
           </Card>
+
+          {/* Public scan conversion banner */}
+          {result.isPublicScan && (
+            <Card className="border border-accent/25 bg-accent/5 p-4.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <Shield className="text-accent h-5 w-5 shrink-0 animate-pulse" />
+                <div className="text-left">
+                  <p className="text-xs font-bold text-text">Want Complete Attack Surface Insights?</p>
+                  <p className="text-[10px] text-text-dim mt-0.5 font-sans leading-normal">
+                    {currentUser 
+                      ? "Verify ownership of this domain to unlock full scanning (open ports, subdomain monitoring, tech stack analytics, and sensitive files checks)."
+                      : "Create a free account and verify domain ownership to unlock premium EASM features: continuous subdomain monitoring, ports tracking, and detailed cookie compliance reports."
+                    }
+                  </p>
+                </div>
+              </div>
+              <div>
+                {currentUser ? (
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      const domainName = extractDomainSimple(result.url || url);
+                      setVerificationDomain(domainName);
+                      await initiateVerification(domainName);
+                    }}
+                    variant="primary"
+                    size="sm"
+                    className="text-[10px] shrink-0 font-bold bg-accent text-bg hover:bg-accent-light"
+                  >
+                    Verify Domain Ownership
+                  </Button>
+                ) : (
+                  <Link href="/register" passHref>
+                    <Button variant="primary" size="sm" className="text-[10px] shrink-0 font-bold bg-accent text-bg hover:bg-accent-light">
+                      Create Free Account
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Full dynamic visualizer dashboard */}
           <ScanResults result={result} />
