@@ -688,6 +688,7 @@ export async function POST(request) {
       headers: analysis.headers,
       vulnerabilities: securityAudit.vulnerabilities,
       statusCode,
+      isFirewallProtected: statusCode === 403 || statusCode === 401,
       scanDuration: Date.now() - startTime,
       summary: analysis.summary,
       recommendations: recommendations.slice(0, 5), // Top 5 priorities

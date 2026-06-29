@@ -201,6 +201,47 @@ export async function checkExposedServices(url) {
   return resolvedResults.filter(Boolean).sort((a, b) => a.port - b.port);
 }
 
+function fetchHtmlWithRedirects(targetUrl, depth = 0) {
+  if (depth > 5) return Promise.reject(new Error("Too many redirects"));
+  return new Promise((resolve, reject) => {
+    try {
+      const parsed = new URL(targetUrl);
+      const transport = parsed.protocol === "https:" ? https : http;
+      const req = transport.get(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        },
+        timeout: 8000,
+        rejectUnauthorized: false
+      }, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
+          const loc = res.headers.location;
+          if (loc) {
+            const nextUrl = new URL(loc, targetUrl).href;
+            resolve(fetchHtmlWithRedirects(nextUrl, depth + 1));
+            return;
+          }
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`Status code: ${res.statusCode}`));
+          return;
+        }
+        let data = "";
+        res.on("data", chunk => data += chunk);
+        res.on("end", () => resolve(data));
+      });
+      req.on("error", err => reject(err));
+      req.on("timeout", () => {
+        req.destroy();
+        reject(new Error("Timeout"));
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 /**
  * Subdomain discovery using the subfinder binary (ProjectDiscovery).
  * Falls back to SSL SANs extraction if subfinder is not installed.
@@ -269,8 +310,8 @@ export async function checkSubdomains(url) {
           subfinderResults.map((sub) =>
             new Promise((resolve) => {
               const tid = setTimeout(() => resolve(null), 3000);
-              dnsResolve(sub, "A")
-                .then((ips) => { clearTimeout(tid); resolve({ sub, ip: ips[0] }); })
+              dns.promises.lookup(sub)
+                .then((val) => { clearTimeout(tid); resolve({ sub, ip: val.address }); })
                 .catch(() => { clearTimeout(tid); resolve(null); });
             })
           )
@@ -293,7 +334,7 @@ export async function checkSubdomains(url) {
   const sansFromCert = await new Promise((resolve) => {
     const timeout = setTimeout(() => resolve([]), 8000);
     const req = https.request(
-      { hostname: domain, port: 443, method: "HEAD", rejectUnauthorized: false },
+      { hostname: domain, port: 443, method: "HEAD", rejectUnauthorized: false, servername: domain },
       (res) => {
         clearTimeout(timeout);
         try {
@@ -324,17 +365,42 @@ export async function checkSubdomains(url) {
     [...discovered.keys()].map((sub) =>
       new Promise((resolve) => {
         const tid = setTimeout(() => resolve(null), 2500);
-        dnsResolve(sub, "A")
-          .then((ips) => { clearTimeout(tid); resolve({ sub, ip: ips[0], source: "ssl-cert" }); })
+        dns.promises.lookup(sub)
+          .then((val) => { clearTimeout(tid); resolve({ sub, ip: val.address, source: "ssl-cert" }); })
           .catch(() => { clearTimeout(tid); resolve(null); });
       })
     )
   );
 
-  const results = sanValidated
+  let results = sanValidated
     .filter(Boolean)
     .map(({ sub, ip, source }) => buildResult(sub, source, ip))
     .sort((a, b) => a.subdomain.localeCompare(b.subdomain));
+
+  // --- Fallback: Common Subdomains Brute-Force Check ---
+  if (results.length === 0) {
+    const COMMON_PREFIXES = ["www", "api", "dev", "mail", "staging", "admin", "app", "portal", "secure", "blog"];
+    const candidates = COMMON_PREFIXES.map(p => `${p}.${domain}`);
+    const resolvedCandidates = await Promise.all(
+      candidates.map(sub =>
+        new Promise((resolve) => {
+          const tid = setTimeout(() => resolve(null), 2500);
+          dns.promises.lookup(sub)
+            .then((val) => { clearTimeout(tid); resolve({ sub, ip: val.address, source: "dns-bruteforce" }); })
+            .catch(() => { clearTimeout(tid); resolve(null); });
+        })
+      )
+    );
+    results = resolvedCandidates
+      .filter(Boolean)
+      .map(({ sub, ip, source }) => buildResult(sub, source, ip))
+      .sort((a, b) => a.subdomain.localeCompare(b.subdomain));
+  }
+
+  // If still empty, add www subdomain as a guaranteed entry
+  if (results.length === 0) {
+    results.push(buildResult(`www.${domain}`, "dns-default", null));
+  }
 
   return results;
 }
@@ -377,8 +443,13 @@ export async function discoverPublicPages(baseUrl) {
       html = res.data;
     }
   } catch (err) {
-    console.warn("[discoverPublicPages] axios fetch failed:", err.message);
-    return [];
+    console.warn("[discoverPublicPages] axios fetch failed, attempting fallback:", err.message);
+    try {
+      html = await fetchHtmlWithRedirects(origin);
+    } catch (fallbackErr) {
+      console.warn("[discoverPublicPages] fallback fetch also failed:", fallbackErr.message);
+      return [];
+    }
   }
 
   if (!html || html.length < 100) return [];
@@ -387,6 +458,17 @@ export async function discoverPublicPages(baseUrl) {
   const $ = load(html);
 
   const IGNORED_PREFIXES = ["mailto:", "tel:", "javascript:", "data:", "ftp:", "#", "void"];
+  const getBaseDomain = (urlStr) => {
+    try {
+      const parsed = new URL(urlStr);
+      const host = parsed.hostname.toLowerCase();
+      return host.startsWith("www.") ? host.substring(4) : host;
+    } catch {
+      return "";
+    }
+  };
+
+  const baseDomain = getBaseDomain(origin);
   const pathMap = new Map(); // pathname -> full href
 
   // Helper to add a link if it's internal
@@ -397,7 +479,8 @@ export async function discoverPublicPages(baseUrl) {
     if (IGNORED_PREFIXES.some((p) => trimmed.toLowerCase().startsWith(p))) return;
     try {
       const resolved = new URL(trimmed, origin);
-      if (resolved.origin !== origin) return;
+      const resolvedBase = getBaseDomain(resolved.href);
+      if (resolvedBase !== baseDomain) return;
       const pathname = resolved.pathname || "/";
       if (!pathMap.has(pathname)) pathMap.set(pathname, resolved.href);
     } catch { /* skip invalid */ }
@@ -421,6 +504,25 @@ export async function discoverPublicPages(baseUrl) {
   // Always include root
   if (!pathMap.has("/")) pathMap.set("/", origin + "/");
 
+  // --- Sitemap.xml Page Discovery Fallback ---
+  try {
+    const sitemapRes = await fetch(`${origin}/sitemap.xml`, {
+      headers: { "User-Agent": BROWSER_UA }
+    });
+    if (sitemapRes.status === 200) {
+      const xml = await sitemapRes.text();
+      const locs = xml.match(/<loc>(https?:\/\/[^<]+)<\/loc>/gi);
+      if (locs) {
+        locs.forEach(loc => {
+          const cleanLoc = loc.replace(/<\/?loc>/gi, "").trim();
+          addLink(cleanLoc);
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[discoverPublicPages] sitemap fetch skipped:", err.message);
+  }
+
   const allPaths = [...pathMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   // --- Probe each path for HTTP status ---
@@ -438,9 +540,21 @@ export async function discoverPublicPages(baseUrl) {
         redirect: "manual",
         headers: { "User-Agent": BROWSER_UA },
       })
-        .then((res) => {
+        .then(async (res) => {
+          let status = res.status;
+          // Fallback to GET for Vercel/Cloudflare method-filtering (405/403/404)
+          if (status === 405 || status === 403 || status === 404) {
+            try {
+              const getRes = await fetch(href, {
+                method: "GET",
+                signal: controller.signal,
+                redirect: "manual",
+                headers: { "User-Agent": BROWSER_UA }
+              });
+              status = getRes.status;
+            } catch {}
+          }
           clearTimeout(tid);
-          const status = res.status;
           resolve({ path: pathname, url: href, status, responsive: status < 400 });
         })
         .catch(() => {
@@ -453,7 +567,7 @@ export async function discoverPublicPages(baseUrl) {
   const results = await limitConcurrency(probes, 20);
 
   // Filter out 404s and 410s; keep everything else including redirects and unreachable (status: null)
-  return results.filter((r) => r.status !== 404 && r.status !== 410);
+  return results.filter((r) => r && r.status !== 404 && r.status !== 410);
 }
 
 
@@ -524,36 +638,10 @@ export async function scanPaths(baseUrl) {
       }
     }
 
-    // Fallback to https.get/http.get with rejectUnauthorized: false
+    // Fallback to https.get/http.get with rejectUnauthorized: false & redirect following
     if (!fetchedSuccessful) {
       try {
-        html = await new Promise((resolve, reject) => {
-          const parsedUrl = new URL(url);
-          const transport = parsedUrl.protocol === "https:" ? https : http;
-          
-          const req = transport.get(url, {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-            },
-            timeout: 8000,
-            rejectUnauthorized: false
-          }, (res) => {
-            if (res.statusCode !== 200) {
-              reject(new Error(`Status code: ${res.statusCode}`));
-              return;
-            }
-            let data = "";
-            res.on("data", chunk => data += chunk);
-            res.on("end", () => resolve(data));
-          });
-          
-          req.on("error", err => reject(err));
-          req.on("timeout", () => {
-            req.destroy();
-            reject(new Error("Timeout"));
-          });
-        });
+        html = await fetchHtmlWithRedirects(url);
         fetchedSuccessful = true;
       } catch (e) {
         console.warn(`Fallback http/https get failed for ${url}: ${e.message}`);

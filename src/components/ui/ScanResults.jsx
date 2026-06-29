@@ -529,7 +529,8 @@ export default function ScanResults({ result }) {
     setIsRescanning(true);
     toast.info(`Initiating security scan for ${domain}...`);
     try {
-      const res = await fetch("/api/scan", {
+      const endpoint = localResult?.isPublicScan ? "/api/scan/public" : "/api/scan";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: domain }),
@@ -758,7 +759,11 @@ export default function ScanResults({ result }) {
   const handleShare = () => {
     const scanId = localResult._id || localResult.scanId;
     if (!scanId) {
-      toast.warning("Local scan: Save scan or check history for shareable logs.");
+      if (typeof window !== "undefined") {
+        const shareUrl = `${window.location.origin}/scanner?url=${encodeURIComponent(domain || "")}`;
+        navigator.clipboard.writeText(shareUrl);
+        toast.success("Public scanner link copied to clipboard!");
+      }
       return;
     }
     setShareModalOpen(true);
@@ -868,6 +873,8 @@ export default function ScanResults({ result }) {
     ].filter(tab => tab.show);
   }, [headers, ssl, dns, exposedServices, subdomains, publicPages, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount]);
 
+  const isFirewallProtected = localResult?.isFirewallProtected || localResult?.statusCode === 403 || localResult?.statusCode === 401;
+
   if (isRescanning) {
     return <Loading message="RESCANNING ENDPOINT SECURITY MATRIX..." />;
   }
@@ -875,24 +882,27 @@ export default function ScanResults({ result }) {
     <div className="font-sans text-text max-w-5xl mx-auto px-1 sm:px-4 space-y-6">
       
       {/* 1. SUMMARY HEADER CARD */}
-      <Card className="p-6 bg-surface border border-white/[0.05] rounded-2xl flex flex-col md:flex-row justify-between items-stretch md:items-center gap-6 text-left shadow-md">
+      <Card className="p-6 bg-gradient-to-br from-surface/90 to-surface/40 backdrop-blur-md border border-white/[0.06] rounded-2xl flex flex-col md:flex-row justify-between items-stretch md:items-center gap-6 text-left shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative overflow-hidden group">
+        <div className="absolute -top-12 -left-12 w-24 h-24 bg-accent/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute -bottom-12 -right-12 w-24 h-24 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
+        
         {/* Domain and metadata */}
-        <div className="space-y-3 flex-grow">
+        <div className="space-y-3.5 flex-grow relative z-10">
           <div className="space-y-1">
-            <span className="text-[9px] font-bold text-text-dim uppercase tracking-wider font-mono">Target Domain</span>
+            <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Target Domain</span>
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black font-mono tracking-tight text-text uppercase select-all" title={domain}>
                 {domain}
               </h1>
               <button
                 onClick={() => handleCopy(domain)}
-                className="p-1.5 rounded-lg hover:bg-white/5 text-text-dim hover:text-text transition-colors flex items-center gap-1"
+                className="p-1.5 rounded-lg hover:bg-white/5 text-text-dim hover:text-text transition-all flex items-center gap-1.5"
                 title="Copy Domain Address"
               >
                 <Copy className="h-3.5 w-3.5" />
-                {copiedText && <span className="text-[9px] text-accent font-bold font-mono">{copiedText}</span>}
+                {copiedText && <span className="text-[9px] text-accent font-extrabold font-mono">{copiedText}</span>}
               </button>
-              <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-white/5 text-text-dim hover:text-text transition-colors">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-white/5 text-text-dim hover:text-text transition-all">
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
@@ -927,13 +937,13 @@ export default function ScanResults({ result }) {
         </div>
 
         {/* Grade, Score & Risk */}
-        <div className="flex items-center gap-6 bg-bg/20 border border-white/[0.03] p-4 rounded-xl shrink-0 justify-between md:justify-start">
+        <div className="flex items-center gap-6 bg-surface-dark border border-white/[0.04] p-4 rounded-xl shrink-0 justify-between md:justify-start relative z-10 shadow-inner">
           <div className="text-center space-y-0.5">
-            <span className="text-[8px] font-bold text-text-muted uppercase tracking-wider font-mono">Grade</span>
-            <div className={`text-2xl font-black px-3.5 py-1.5 rounded-lg border font-mono ${grade.startsWith("A") ? "text-success bg-success/5 border-success/20 shadow-[0_0_12px_rgba(16,185,129,0.1)]" :
-                grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20 shadow-[0_0_12px_rgba(99,102,241,0.1)]" :
-                  grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20 shadow-[0_0_12px_rgba(245,158,11,0.1)]" :
-                    "text-danger bg-danger/5 border-danger/20 shadow-[0_0_12px_rgba(239,68,68,0.1)]"
+            <span className="text-[8px] font-extrabold text-text-dim uppercase tracking-wider font-mono">Grade</span>
+            <div className={`text-2xl font-black px-4 py-1.5 rounded-lg border font-mono transition-all duration-300 ${grade.startsWith("A") ? "text-success bg-success/5 border-success/20 shadow-[0_0_12px_rgba(16,185,129,0.15)]" :
+                grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20 shadow-[0_0_12px_rgba(99,102,241,0.15)]" :
+                  grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20 shadow-[0_0_12px_rgba(245,158,11,0.15)]" :
+                    "text-danger bg-danger/5 border-danger/20 shadow-[0_0_12px_rgba(239,68,68,0.15)]"
               }`}>
               {grade}
             </div>
@@ -944,14 +954,14 @@ export default function ScanResults({ result }) {
           <div className="flex items-center gap-3">
             <div className="relative flex items-center justify-center h-12 w-12 shrink-0">
               <svg className="absolute inset-0 transform -rotate-90 w-full h-full">
-                <circle cx="24" cy="24" r="20" className="stroke-white/[0.03] fill-none" strokeWidth="3" />
+                <circle cx="24" cy="24" r="20" className="stroke-white/[0.04] fill-none" strokeWidth="3.5" />
                 <circle
                   cx="24"
                   cy="24"
                   r="20"
-                  className={`fill-none ${score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
+                  className={`fill-none transition-all duration-1000 ${score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
                     }`}
-                  strokeWidth="3"
+                  strokeWidth="3.5"
                   strokeDasharray={`${2 * Math.PI * 20}`}
                   strokeDashoffset={`${2 * Math.PI * 20 * (1 - score / 100)}`}
                   strokeLinecap="round"
@@ -961,8 +971,8 @@ export default function ScanResults({ result }) {
             </div>
 
             <div className="space-y-0.5">
-              <span className="text-[8px] font-bold text-text-muted uppercase tracking-wider font-mono block">Risk Level</span>
-              <Badge variant={posture.badge} className="text-[7.5px] uppercase tracking-widest font-black py-0.5 px-2">
+              <span className="text-[8px] font-extrabold text-text-dim uppercase tracking-wider font-mono block">Risk Level</span>
+              <Badge variant={posture.badge} className="text-[8px] uppercase tracking-widest font-extrabold py-0.5 px-2">
                 {posture.text}
               </Badge>
             </div>
@@ -970,23 +980,23 @@ export default function ScanResults({ result }) {
         </div>
 
         {/* Actions Grid */}
-        <div className="flex flex-col gap-2 shrink-0 justify-center min-w-[150px]">
+        <div className="flex flex-col gap-2 shrink-0 justify-center min-w-[160px] relative z-10">
           <div className="grid grid-cols-2 gap-2">
-            <Button onClick={handleRescan} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-bold text-[10px] justify-center py-1.5">
+            <Button onClick={handleRescan} variant="outline" size="sm" icon={RefreshCw} className="hover:bg-accent/15 hover:border-accent/40 hover:text-accent font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
               Re-scan
             </Button>
-            <Button onClick={handleDownloadPDF} variant="outline" size="sm" icon={Download} className="hover:border-success/40 hover:text-success font-bold text-[10px] justify-center py-1.5">
+            <Button onClick={handleDownloadPDF} variant="outline" size="sm" icon={Download} className="hover:bg-success/15 hover:border-success/40 hover:text-success font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
               PDF
             </Button>
-            <Button onClick={downloadJSON} variant="outline" size="sm" icon={FileCode} className="hover:border-blue-500/40 hover:text-blue-400 font-bold text-[10px] justify-center py-1.5">
+            <Button onClick={downloadJSON} variant="outline" size="sm" icon={FileCode} className="hover:bg-blue-500/15 hover:border-blue-500/40 hover:text-blue-400 font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
               JSON
             </Button>
-            <Button onClick={handleShare} variant="outline" size="sm" icon={Share2} className="hover:border-indigo-500/40 hover:text-indigo-400 font-bold text-[10px] justify-center py-1.5">
+            <Button onClick={handleShare} variant="outline" size="sm" icon={Share2} className="hover:bg-indigo-500/15 hover:border-indigo-500/40 hover:text-indigo-400 font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
               Share
             </Button>
           </div>
           {currentUser && (
-            <Button onClick={() => { setRecipientEmail(currentUser.email); setEmailModalOpen(true); }} variant="outline" size="sm" icon={Mail} className="hover:border-purple-500/40 hover:text-purple-400 font-bold text-[10px] w-full justify-center py-1.5">
+            <Button onClick={() => { setRecipientEmail(currentUser.email); setEmailModalOpen(true); }} variant="outline" size="sm" icon={Mail} className="hover:bg-purple-500/15 hover:border-purple-500/40 hover:text-purple-400 font-extrabold text-[10px] w-full tracking-wider justify-center py-2 transition-all">
               Email PDF Report
             </Button>
           )}
@@ -994,7 +1004,7 @@ export default function ScanResults({ result }) {
       </Card>
 
       {/* 2. HORIZONTAL TAB SELECTOR */}
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-white/[0.05]">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 border-b border-white/[0.04]">
         {availableTabs.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -1002,15 +1012,15 @@ export default function ScanResults({ result }) {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-semibold tracking-wider transition-all duration-200 border whitespace-nowrap ${isActive
-                  ? "bg-accent/10 text-accent border-accent/20 shadow-[0_0_12px_rgba(99,102,241,0.1)]"
-                  : "text-text-dim hover:text-text hover:bg-white/5 border-transparent"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11.5px] font-bold tracking-wider transition-all duration-300 border whitespace-nowrap ${isActive
+                  ? "bg-gradient-to-r from-accent/15 to-indigo-500/10 text-accent border-accent/30 shadow-[0_4px_16px_rgba(99,102,241,0.15)] scale-[1.02]"
+                  : "text-text-dim hover:text-text hover:bg-white/[0.03] border-transparent"
                 }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className={`h-4 w-4 transition-transform duration-300 ${isActive ? "rotate-3 scale-110" : ""}`} />
               <span>{item.label}</span>
               {item.count !== undefined && item.count > 0 && (
-                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded ${isActive ? "bg-accent/20 text-accent" : "bg-white/5 text-text-dim"}`}>
+                <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded-md ${isActive ? "bg-accent/30 text-accent" : "bg-white/5 text-text-dim"}`}>
                   {item.count}
                 </span>
               )}
@@ -1025,6 +1035,22 @@ export default function ScanResults({ result }) {
           {/* ==================== 1. OVERVIEW TAB ==================== */}
           {activeTab === "overview" && (
             <div className="space-y-6 animate-fadeIn text-left">
+              {isFirewallProtected && (
+                <Card className="p-5 bg-gradient-to-r from-warning/10 to-warning/5 border border-warning/20 rounded-2xl flex gap-4 text-left items-start shadow-[0_4px_24px_rgba(245,158,11,0.08)]">
+                  <AlertOctagon className="h-5.5 w-5.5 text-warning shrink-0 mt-0.5 animate-pulse" />
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-warning font-mono">
+                      Active Bot Mitigation Firewall Detected
+                    </h4>
+                    <p className="text-[10px] text-text-dim leading-relaxed font-sans font-medium">
+                      The target endpoint responded with an HTTP status of <strong>{statusCode || 403} Forbidden</strong>. 
+                      A Web Application Firewall (WAF) or bot blocker (e.g. Vercel Security Checkpoint, Cloudflare) intercepted the scanning process.
+                      Some headers and security results represent the edge firewall config, not the origin codebase environment. Deeper crawlers have been gracefully skipped.
+                    </p>
+                  </div>
+                </Card>
+              )}
+
               <div className="border-b border-white/[0.05] pb-4">
                 <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Executive Overview</h2>
                 <p className="text-[10px] text-text-dim mt-0.5 font-sans">Summary metrics, key category diagnostics, and posture score distribution charts.</p>
@@ -1032,66 +1058,69 @@ export default function ScanResults({ result }) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {/* Domain Card */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg">
-                  <div>
-                    <span className="text-[9px] font-bold text-text-dim uppercase tracking-wider font-mono">Target Host Domain</span>
+                <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 backdrop-blur-sm border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  <div className="relative z-10">
+                    <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Target Host Domain</span>
                     <h3 className="text-lg font-bold font-mono tracking-tight text-accent mt-2 truncate flex items-center gap-1.5 select-all">
                       {domain}
                     </h3>
                   </div>
-                  <div className="flex gap-2 items-center mt-3 pt-3 border-t border-white/[0.03]">
+                  <div className="flex gap-2 items-center mt-3 pt-3 border-t border-white/[0.04] relative z-10 text-[10px] text-text-dim font-mono">
                     <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                    <span className="text-[10px] text-text-muted font-mono">Status: HTTP {statusCode || 200}</span>
+                    <span>Status: <strong className="text-text font-bold">HTTP {statusCode || 200}</strong></span>
                   </div>
                 </Card>
 
                 {/* Score Card */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] flex items-center justify-between min-h-[140px] shadow-lg">
-                  <div className="space-y-2">
-                    <span className="text-[9px] font-bold text-text-dim uppercase tracking-wider font-mono">Posture Score</span>
+                <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 backdrop-blur-sm border border-white/[0.04] flex items-center justify-between min-h-[140px] shadow-lg relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  <div className="space-y-2 relative z-10">
+                    <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Posture Score</span>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-black font-mono text-accent">{score}</span>
-                      <span className="text-text-muted text-xs font-mono">/ 100</span>
+                      <span className="text-4xl font-black font-mono text-accent">{score}</span>
+                      <span className="text-text-dim text-xs font-mono">/ 100</span>
                     </div>
-                    <Badge variant={posture.badge} className="text-[7.5px] uppercase tracking-wider font-black py-0.5 px-1.5">
+                    <Badge variant={posture.badge} className="text-[8px] uppercase tracking-wider font-extrabold py-0.5 px-2">
                       {posture.text}
                     </Badge>
                   </div>
-                  <div className="relative flex items-center justify-center h-18 w-18 flex-shrink-0">
+                  <div className="relative flex items-center justify-center h-20 w-20 flex-shrink-0 z-10 transition-transform duration-300 group-hover:scale-105">
                     <svg className="absolute inset-0 transform -rotate-90 w-full h-full">
-                      <circle cx="36" cy="36" r="30" className="stroke-white/[0.03] fill-none" strokeWidth="5" />
+                      <circle cx="40" cy="40" r="34" className="stroke-white/[0.04] fill-none" strokeWidth="6" />
                       <circle
-                        cx="36"
-                        cy="36"
-                        r="30"
-                        className={`fill-none ${score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
+                        cx="40"
+                        cy="40"
+                        r="34"
+                        className={`fill-none transition-all duration-1000 ${score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
                           }`}
-                        strokeWidth="5"
-                        strokeDasharray={`${2 * Math.PI * 30}`}
-                        strokeDashoffset={`${2 * Math.PI * 30 * (1 - score / 100)}`}
+                        strokeWidth="6"
+                        strokeDasharray={`${2 * Math.PI * 34}`}
+                        strokeDashoffset={`${2 * Math.PI * 34 * (1 - score / 100)}`}
                         strokeLinecap="round"
                       />
                     </svg>
-                    <span className="text-[11px] font-black font-mono text-text">{grade}</span>
+                    <span className="text-sm font-black font-mono text-text">{grade}</span>
                   </div>
                 </Card>
 
                 {/* Summary status */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg">
-                  <div>
-                    <span className="text-[9px] font-bold text-text-dim uppercase tracking-wider font-mono">Security Check Findings</span>
-                    <div className="grid grid-cols-3 gap-2 mt-2 text-center text-xs font-mono">
-                      <div className="bg-success/5 border border-success/15 p-1.5 rounded-lg text-success">
-                        <div className="font-bold">{passedCount}</div>
-                        <div className="text-[7px] text-text-muted uppercase">Pass</div>
+                <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 backdrop-blur-sm border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  <div className="relative z-10 w-full">
+                    <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Security Check Findings</span>
+                    <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs font-mono">
+                      <div className="bg-success/5 border border-success/15 p-2 rounded-xl text-success transition-all duration-300 group-hover:bg-success/10 group-hover:scale-105">
+                        <div className="font-extrabold text-sm">{passedCount}</div>
+                        <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Pass</div>
                       </div>
-                      <div className="bg-warning/5 border border-warning/15 p-1.5 rounded-lg text-warning">
-                        <div className="font-bold">{warningCount}</div>
-                        <div className="text-[7px] text-text-muted uppercase">Warn</div>
+                      <div className="bg-warning/5 border border-warning/15 p-2 rounded-xl text-warning transition-all duration-300 group-hover:bg-warning/10 group-hover:scale-105">
+                        <div className="font-extrabold text-sm">{warningCount}</div>
+                        <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Warn</div>
                       </div>
-                      <div className="bg-danger/5 border border-danger/15 p-1.5 rounded-lg text-danger">
-                        <div className="font-bold">{failedCount}</div>
-                        <div className="text-[7px] text-text-muted uppercase">Fail</div>
+                      <div className="bg-danger/5 border border-danger/15 p-2 rounded-xl text-danger transition-all duration-300 group-hover:bg-danger/10 group-hover:scale-105">
+                        <div className="font-extrabold text-sm">{failedCount}</div>
+                        <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Fail</div>
                       </div>
                     </div>
                   </div>
@@ -1290,16 +1319,18 @@ export default function ScanResults({ result }) {
                   <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">HTTP Security Headers</h2>
                   <p className="text-[10px] text-text-dim mt-0.5 font-sans font-medium">Verify standard security response headers configured on the remote server.</p>
                 </div>
-                <Button
-                  onClick={() => handleRefreshSection("headers")}
-                  disabled={!!refreshingSection}
-                  variant="outline"
-                  size="sm"
-                  icon={RefreshCw}
-                  className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                >
-                  Refresh Headers
-                </Button>
+                {!localResult?.isPublicScan && (
+                  <Button
+                    onClick={() => handleRefreshSection("headers")}
+                    disabled={!!refreshingSection}
+                    variant="outline"
+                    size="sm"
+                    icon={RefreshCw}
+                    className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
+                  >
+                    Refresh Headers
+                  </Button>
+                )}
               </div>
 
               {/* Filtering Controls */}
@@ -1397,16 +1428,18 @@ export default function ScanResults({ result }) {
                   <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">SSL/TLS Certificates</h2>
                   <p className="text-[10px] text-text-dim mt-0.5 font-sans">Inspect encryption keys validation, trusted CA issuers, and validity schedules.</p>
                 </div>
-                <Button
-                  onClick={() => handleRefreshSection("ssl")}
-                  disabled={!!refreshingSection}
-                  variant="outline"
-                  size="sm"
-                  icon={RefreshCw}
-                  className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                >
-                  Refresh SSL
-                </Button>
+                {!localResult?.isPublicScan && (
+                  <Button
+                    onClick={() => handleRefreshSection("ssl")}
+                    disabled={!!refreshingSection}
+                    variant="outline"
+                    size="sm"
+                    icon={RefreshCw}
+                    className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
+                  >
+                    Refresh SSL
+                  </Button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -1512,16 +1545,18 @@ export default function ScanResults({ result }) {
                   <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">DNS &amp; Domain Records</h2>
                   <p className="text-[10px] text-text-dim mt-0.5 font-sans">Active DNS server zones lookup and validation check summaries.</p>
                 </div>
-                <Button
-                  onClick={() => handleRefreshSection("dns")}
-                  disabled={!!refreshingSection}
-                  variant="outline"
-                  size="sm"
-                  icon={RefreshCw}
-                  className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                >
-                  Refresh DNS
-                </Button>
+                {!localResult?.isPublicScan && (
+                  <Button
+                    onClick={() => handleRefreshSection("dns")}
+                    disabled={!!refreshingSection}
+                    variant="outline"
+                    size="sm"
+                    icon={RefreshCw}
+                    className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
+                  >
+                    Refresh DNS
+                  </Button>
+                )}
               </div>
 
               {/* SPF, DMARC, MTA-STS email integrity cards */}
