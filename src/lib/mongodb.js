@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "./models/User";
+import { initSocketServer } from "@/server/socketServer";
 
 let cached = global.mongoose;
 
@@ -54,6 +55,13 @@ async function connectDB() {
 
   cached.conn = await cached.promise;
   await seedAdmin();
+
+  // Auto boot the WebSocket server on startup
+  if (typeof window === "undefined" && !global.socketServerStarted) {
+    global.socketServerStarted = true;
+    initSocketServer();
+  }
+
   return cached.conn;
 }
 

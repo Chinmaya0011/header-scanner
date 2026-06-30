@@ -517,19 +517,17 @@ print(res.json())`
 
           {/* Centered Large Audit input */}
           <form onSubmit={handleScan} className="max-w-3xl mx-auto w-full relative">
-            <div className="flex flex-col sm:flex-row gap-0 rounded-xl overflow-hidden border border-white/[0.06] bg-surface/40 backdrop-blur-md focus-within:border-accent/50 focus-within:shadow-[0_0_25px_rgba(99,102,241,0.15)] transition-all duration-300">
-              <div className="flex flex-1 items-center">
-                <div className="pl-4 text-accent/70 flex items-center">
-                  <Search className="h-4.5 w-4.5" />
+            <div className="relative flex flex-col sm:flex-row gap-3 p-2 bg-surface/50 border border-white/[0.06] rounded-2xl backdrop-blur-md shadow-2xl focus-within:border-accent/40 focus-within:shadow-[0_0_30px_rgba(99,102,241,0.1)] transition-all duration-300">
+              <div className="flex flex-1 items-center min-w-0">
+                <div className="pl-3 text-accent/70 shrink-0">
+                  <Globe className="h-5 w-5 text-accent animate-pulse" />
                 </div>
                 <input
                   type="text"
                   value={url}
-                  onChange={(e) => {
-                    setUrl(e.target.value);
-                  }}
+                  onChange={(e) => setUrl(e.target.value)}
                   placeholder="Enter target host domain or URL (e.g. cloudflare.com)"
-                  className="w-full bg-transparent px-3.5 py-4 text-text placeholder:text-text-muted font-mono text-xs sm:text-sm focus:outline-none"
+                  className="w-full bg-transparent px-3 py-3 text-text placeholder:text-text-muted/60 font-mono text-xs sm:text-sm focus:outline-none"
                   autoComplete="off"
                   spellCheck={false}
                   aria-label="Target domain or URL to scan"
@@ -540,11 +538,26 @@ print(res.json())`
                 type="submit"
                 disabled={!url.trim()}
                 variant="primary"
-                className="rounded-none py-4 px-8 border-0 bg-accent text-bg hover:bg-accent-light hover:shadow-glow font-bold uppercase tracking-wider transition-all duration-300 flex-shrink-0"
+                className="py-3 px-6 rounded-xl bg-accent text-white hover:bg-accent-light transition-all duration-300 uppercase tracking-wider font-extrabold text-xs shrink-0 flex items-center justify-center gap-2 hover:shadow-glow"
                 icon={Shield}
               >
                 Audit Endpoint
               </Button>
+            </div>
+
+            {/* Quick suggested domains for faster testing */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-4 text-[10px] uppercase font-bold text-text-dim/80 select-none">
+              <span className="text-text-muted">Suggested:</span>
+              {["github.com", "cloudflare.com", "google.com"].map((domain) => (
+                <button
+                  key={domain}
+                  type="button"
+                  onClick={() => setUrl(domain)}
+                  className="px-2.5 py-1 bg-surface/40 hover:bg-accent/10 border border-white/[0.04] hover:border-accent/30 rounded-lg text-text-dim hover:text-accent transition-all duration-200"
+                >
+                  {domain}
+                </button>
+              ))}
             </div>
           </form>
 

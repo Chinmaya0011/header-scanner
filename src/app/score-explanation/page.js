@@ -22,9 +22,9 @@ import Loading from "@/components/common/Loading";
 
 function gradeColor(grade) {
   if (grade === "A+" || grade === "A" || grade === "A-") return "var(--success)";
-  if (grade === "B+" || grade === "B" || grade === "B-") return "var(--warning)";
-  if (grade === "C+" || grade === "C" || grade === "C-") return "#f59e0b";
-  if (grade === "D+" || grade === "D" || grade === "D-") return "#f97316";
+  if (grade === "B+" || grade === "B" || grade === "B-") return "var(--accent)";
+  if (grade === "C+" || grade === "C" || grade === "C-") return "var(--warning)";
+  if (grade === "D+" || grade === "D" || grade === "D-") return "var(--warning)";
   return "var(--danger)";
 }
 

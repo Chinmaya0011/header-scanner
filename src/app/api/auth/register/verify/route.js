@@ -53,6 +53,19 @@ export async function POST(request) {
     user.otpExpires = undefined;
     await user.save();
 
+    // Trigger admin notification on new registration
+    try {
+      const { createNotification } = await import("@/lib/notificationService");
+      await createNotification({
+        recipientRole: "admin",
+        title: "New User Registered",
+        message: `User ${user.email} has completed verification and registered as ${user.role}.`,
+        type: "success"
+      });
+    } catch (notifErr) {
+      console.error("Failed to trigger registration notification:", notifErr);
+    }
+
     // Log the verified user in
     const token = signToken(user);
 

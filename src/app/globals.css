@@ -145,3 +145,17 @@ body {
 .grade-b { text-shadow: 0 0 15px rgba(99, 102, 241, 0.35); }
 .grade-c { text-shadow: 0 0 15px rgba(245, 158, 11, 0.35); }
 .grade-f { text-shadow: 0 0 15px rgba(239, 68, 68, 0.35); }
+
+/* WebSocket Notification Bell Shake Keyframes */
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  15%, 85% { transform: rotate(-10deg); }
+  30%, 70% { transform: rotate(12deg); }
+  45%, 55% { transform: rotate(-14deg); }
+  60% { transform: rotate(10deg); }
+}
+
+.animate-shake {
+  animation: shake 0.6s ease-in-out;
+  transform-origin: top center;
+}

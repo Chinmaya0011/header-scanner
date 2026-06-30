@@ -5,6 +5,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { checkRateLimitDB } from "@/lib/rateLimit";
 import https from "https";
 import http from "http";
+import dns from "dns";
 import {
   analyzeHeaders,
   maskDomain,
@@ -41,7 +42,7 @@ const RATE_LIMIT = {
 /**
  * Validate private IP addresses
  */
-function isPrivateIP(domain) {
+async function isPrivateIP(domain) {
   const privatePatterns = [
     /^localhost$/i,
     /^127\.\d+\.\d+\.\d+$/,
@@ -53,7 +54,18 @@ function isPrivateIP(domain) {
     /^fe80:/,
   ];
   
-  return privatePatterns.some(pattern => pattern.test(domain));
+  if (privatePatterns.some(pattern => pattern.test(domain))) {
+    return true;
+  }
+
+  try {
+    const lookupResult = await dns.promises.lookup(domain, { all: true });
+    return lookupResult.some(addr => 
+      privatePatterns.some(pattern => pattern.test(addr.address))
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -131,6 +143,15 @@ async function logFailedScan(user, url, domain, reason, statusCode) {
         apiKeyId: user.authMethod === "api-key" ? user.apiKeyId : null,
         isSuccess: false,
         failReason: reason,
+      });
+
+      // Trigger admin alert notification
+      const { createNotification } = await import("@/lib/notificationService");
+      await createNotification({
+        recipientRole: "admin",
+        title: "Scan Execution Failure",
+        message: `User ${user.email} scan failed on ${domain || "unknown"}: ${reason}`,
+        type: "warning",
       });
     } catch (err) {
       console.error("Failed to log scan failure:", err);
@@ -279,7 +300,7 @@ export async function POST(request) {
     }
 
     // Security: Block private IPs and localhost
-    if (isPrivateIP(domain) && !isLocalhost) {
+    if (await isPrivateIP(domain) && !isLocalhost) {
       await logFailedScan(user, url, domain, "Scanning private/local addresses is not allowed.", 400);
       return NextResponse.json(
         { 
@@ -642,6 +663,19 @@ export async function POST(request) {
 
     // Log successful scan
     console.log(`[${requestId}] Scan completed for ${domain} | Score: ${finalScore} | Grade: ${grade} | Duration: ${Date.now() - startTime}ms`);
+
+    // Trigger user notification on scan completion
+    try {
+      const { createNotification } = await import("@/lib/notificationService");
+      await createNotification({
+        recipient: user._id,
+        title: "Security Scan Completed",
+        message: `Scan for ${domain} completed successfully. Score: ${finalScore} (${grade}).`,
+        type: finalScore >= 80 ? "success" : finalScore >= 55 ? "warning" : "danger"
+      });
+    } catch (notifErr) {
+      console.error("Failed to trigger scan completion notification:", notifErr);
+    }
 
     // Trigger Webhook asynchronously if configured
     if (user?.authMethod === "api-key" && user.webhookUrl) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import https from "https";
 import http from "http";
+import dns from "dns";
 import {
   analyzeHeaders,
   normalizeUrl,
@@ -577,8 +578,30 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid URL format.", code: "INVALID_URL" }, { status: 400 });
   }
 
-  const privatePatterns = [/^localhost$/i, /^127\./, /^192\.168\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[01])\./];
-  if (privatePatterns.some((p) => p.test(domain))) {
+  const privatePatterns = [
+    /^localhost$/i,
+    /^127\.\d+\.\d+\.\d+$/,
+    /^192\.168\.\d+\.\d+$/,
+    /^10\.\d+\.\d+\.\d+$/,
+    /^172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+$/,
+    /^::1$/,
+    /^fc00:/,
+    /^fe80:/,
+  ];
+
+  let isPrivate = privatePatterns.some((p) => p.test(domain));
+  if (!isPrivate) {
+    try {
+      const lookupResult = await dns.promises.lookup(domain, { all: true });
+      isPrivate = lookupResult.some(addr => 
+        privatePatterns.some(pattern => pattern.test(addr.address))
+      );
+    } catch {
+      // Ignore resolution errors; handled later in fetch headers
+    }
+  }
+
+  if (isPrivate) {
     return NextResponse.json({ error: "Scanning private or local addresses is not allowed.", code: "PRIVATE_IP_BLOCKED" }, { status: 400 });
   }
 
@@ -703,6 +726,19 @@ export async function POST(request) {
       sensitiveFiles: paths ? paths.sensitiveFiles : []
     };
     const aiAdvice = generateAIAdvice(aiAdviceScanData);
+
+    // Trigger admin alert when a guest executes a public scan
+    try {
+      const { createNotification } = await import("@/lib/notificationService");
+      await createNotification({
+        recipientRole: "admin",
+        title: "Guest Public Scan",
+        message: `A public scan was executed on ${domain}. Score: ${finalScore} (${grade}).`,
+        type: "info"
+      });
+    } catch (notifErr) {
+      console.error("Failed to trigger public scan admin notification:", notifErr);
+    }
 
     return NextResponse.json({
       success: true,

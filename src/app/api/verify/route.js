@@ -106,6 +106,29 @@ export async function POST(request) {
         verification.verificationMethod = "file";
         await verification.save();
 
+        // Trigger notifications for user and admins
+        try {
+          const { createNotification } = await import("@/lib/notificationService");
+          
+          // Notify user
+          await createNotification({
+            recipient: user._id,
+            title: "Domain Verified",
+            message: `Domain ${cleanDomain} has been successfully verified! You can now run full posture scans.`,
+            type: "success"
+          });
+
+          // Notify admins
+          await createNotification({
+            recipientRole: "admin",
+            title: "Domain Verified Alert",
+            message: `User ${user.email} verified ownership of ${cleanDomain}.`,
+            type: "info"
+          });
+        } catch (notifErr) {
+          console.error("Failed to trigger domain verification notifications:", notifErr);
+        }
+
         return NextResponse.json({
           success: true,
           verified: true,

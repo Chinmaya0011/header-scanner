@@ -153,11 +153,40 @@ export async function checkExposedServices(url) {
   
   if (!domain) return results;
 
+  // Run a quick pre-scan check on a random closed port to detect DNS/TCP wildcard interception
+  const isIntercepted = await new Promise((resolve) => {
+    const controlSocket = new net.Socket();
+    controlSocket.setTimeout(600);
+    
+    controlSocket.on("connect", () => {
+      controlSocket.destroy();
+      resolve(true); // Connection succeeded on a closed port -> interception / spoofing detected!
+    });
+    
+    controlSocket.on("error", () => {
+      controlSocket.destroy();
+      resolve(false);
+    });
+    
+    controlSocket.on("timeout", () => {
+      controlSocket.destroy();
+      resolve(false);
+    });
+    
+    controlSocket.connect(58371, domain); // Connect to a random high port unlikely to be open
+  });
+
   const data = loadAttackSurfaceData();
   const ports = data?.exposedServiceGateways?.ports || [21, 22, 25, 80, 443];
 
   const tasks = ports.map(port => {
     return () => new Promise((resolve) => {
+      // If wildcard port interception is detected, skip administrative ports to prevent massive false positives
+      if (isIntercepted && port !== 80 && port !== 443) {
+        resolve(null);
+        return;
+      }
+
       const socket = new net.Socket();
       socket.setTimeout(800);
 
