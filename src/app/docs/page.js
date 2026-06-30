@@ -1252,7 +1252,7 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; prelo
                   </p>
                   <ul className="list-disc list-inside space-y-2 text-text-dim ml-2 font-semibold">
                     <li><span className="text-text">Shallow Path Crawls:</span> The SEO/sensitive file crawler checks defined target lists. It does not recursively crawl all site subpages.</li>
-                    <li><span className="text-text">Fixed Port Lists:</span> Port checks are limited to standard services in `attackSurface.json` (max 500 ports), rather than full 65k sweeps.</li>
+                    <li><span className="text-text">Fixed Port Lists:</span> Port checks are limited to standard services defined in the scanner database (common ports), rather than full 65k sweeps.</li>
                     <li><span className="text-text">Rate-Limit Bounds:</span> Scans resolve to a single IPv4/IPv6 target address; concurrent target sweeps are constrained by concurrency workers.</li>
                   </ul>
                 </div>

@@ -4,31 +4,31 @@
 @tailwind utilities;
 
 :root {
-  /* Premium Slate Dark Palette */
-  --bg: #030712;            /* Zinc 950 - pitch dark background */
-  --surface: #0b0f19;       /* Slate 950 - sleek cards */
-  --panel: #161b26;         /* Slate 900 - dropdowns, popups */
-  --border: rgba(255, 255, 255, 0.05); /* Extremely soft transparent border */
-  --border-hover: rgba(255, 255, 255, 0.12); /* Subtle hover border */
+  /* Colorful Sci-Fi Cyber Punk Theme */
+  --bg: #040209;            /* Deep Obsidian Void */
+  --surface: #0b0718;       /* Tech Dark Violet Card */
+  --panel: #130c27;         /* Radiant Deep Cyber Panel */
+  --border: rgba(0, 240, 255, 0.08); /* Cyber Neon Cyan Border */
+  --border-hover: rgba(168, 85, 247, 0.3); /* Cyber Neon Purple Hover Border */
 
-  /* Indigo Accent Tones */
-  --accent: #6366f1;        /* Indigo 500 */
-  --accent-light: #818cf8;  /* Indigo 400 */
-  --accent-dim: rgba(99, 102, 241, 0.4);
-  --accent-glow: rgba(99, 102, 241, 0.15);
+  /* Cyber Neon Accent Colors */
+  --accent: #00f0ff;        /* Neon Laser Cyan */
+  --accent-light: #a855f7;  /* Neon Electric Violet */
+  --accent-dim: rgba(0, 240, 255, 0.35);
+  --accent-glow: rgba(0, 240, 255, 0.12);
 
-  /* Status Indicators */
-  --success: #10b981;       /* Emerald 500 */
-  --success-dim: rgba(16, 185, 129, 0.15);
-  --warning: #f59e0b;       /* Amber 500 */
-  --warning-dim: rgba(245, 158, 11, 0.15);
-  --danger: #ef4444;        /* Rose 500 */
-  --danger-dim: rgba(239, 68, 68, 0.15);
+  /* Cyber Neon Status Signals */
+  --success: #39ff14;       /* Laser Lime Green */
+  --success-dim: rgba(57, 255, 20, 0.15);
+  --warning: #ffe600;       /* Cyber Shock Yellow */
+  --warning-dim: rgba(255, 230, 0, 0.15);
+  --danger: #ff0055;        /* Laser Rose Pink/Red */
+  --danger-dim: rgba(255, 0, 85, 0.15);
 
-  /* Accessible Typography (WCAG AA/AAA compliant contrasts on #030712) */
-  --text: #f3f4f6;          /* Zinc 100 - clean primary text */
-  --text-dim: #9ca3af;      /* Zinc 400 - secondary descriptor text */
-  --text-muted: #6b7280;    /* Zinc 500 - disabled/placeholder labels */
+  /* Highly Accessible Typography */
+  --text: #f5f3ff;          /* Crisp Ice White */
+  --text-dim: #c084fc;      /* Bright Violet Descriptor Text */
+  --text-muted: #7c3aed;    /* Muted Tech Purple Label */
 }
 
 * {
@@ -141,10 +141,10 @@ body {
 .stagger-4 { animation-delay: 0.2s; opacity: 0; }
 .stagger-5 { animation-delay: 0.25s; opacity: 0; }
 
-.grade-a { text-shadow: 0 0 15px rgba(16, 185, 129, 0.35); }
-.grade-b { text-shadow: 0 0 15px rgba(99, 102, 241, 0.35); }
-.grade-c { text-shadow: 0 0 15px rgba(245, 158, 11, 0.35); }
-.grade-f { text-shadow: 0 0 15px rgba(239, 68, 68, 0.35); }
+.grade-a { text-shadow: 0 0 15px rgba(57, 255, 20, 0.55); }
+.grade-b { text-shadow: 0 0 15px rgba(0, 240, 255, 0.55); }
+.grade-c { text-shadow: 0 0 15px rgba(255, 230, 0, 0.55); }
+.grade-f { text-shadow: 0 0 15px rgba(255, 0, 85, 0.55); }
 
 /* WebSocket Notification Bell Shake Keyframes */
 @keyframes shake {

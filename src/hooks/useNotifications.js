@@ -186,7 +186,7 @@ export function useNotifications(user) {
     };
 
     ws.onerror = (err) => {
-      console.error("[WebSocket] Error occurred:", err.message);
+      console.error("[WebSocket] Error occurred:", err);
     };
   }, [user, toast]);
 
@@ -224,7 +224,7 @@ export function useNotifications(user) {
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.close(1001, "Cleanup");
+        socketRef.current.close(1000, "Cleanup");
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
