@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { ToastProvider } from "@/components/common/Toast";
 import VisitTracker from "@/components/common/VisitTracker";
+import ActivityTimeoutListener from "@/components/common/ActivityTimeoutListener";
 import "./globals.css";
 
 export const metadata = {
@@ -164,6 +165,7 @@ export default async function RootLayout({ children }) {
       >
         <ToastProvider>
           <VisitTracker />
+          <ActivityTimeoutListener />
           {children}
         </ToastProvider>
       </body>

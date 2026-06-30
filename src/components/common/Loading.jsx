@@ -33,7 +33,7 @@ export default function Loading({ message = "SYSTEM LOADING...", fullScreen = fa
 
   if (fullScreen) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 font-mono select-none relative overflow-hidden bg-[#030712] text-text">
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 font-mono select-none relative overflow-hidden bg-bg text-text">
         {/* Background gradient overlay */}
         <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-surface/40 to-bg" />
 
@@ -83,7 +83,7 @@ export default function Loading({ message = "SYSTEM LOADING...", fullScreen = fa
           </div>
 
           {/* High-tech simulated log console */}
-          <div className="w-full text-left p-3.5 rounded-xl text-[9px] font-semibold bg-[#030712] border border-white/[0.04] text-text-muted leading-relaxed font-mono h-24 overflow-y-auto scrollbar-thin">
+          <div className="w-full text-left p-3.5 rounded-xl text-[9px] font-semibold bg-bg border border-white/[0.04] text-text-muted leading-relaxed font-mono h-24 overflow-y-auto scrollbar-thin">
             {logs.map((log, index) => (
               <div key={index} className="flex gap-2">
                 <span className="text-accent">&gt;</span>

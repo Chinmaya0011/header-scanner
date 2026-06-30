@@ -216,6 +216,32 @@ export async function GET(request) {
             scan._id.toString()
           );
           results.alertsSent++;
+
+          // Trigger security degradation alert notification
+          try {
+            const { createNotification } = await import("@/lib/notificationService");
+            await createNotification({
+              recipient: monitor.user,
+              title: "Security Posture Degraded",
+              message: `Monitor alert for ${monitor.domain}: score dropped from ${monitor.lastScore} to ${analysis.score} (${analysis.grade}).`,
+              type: "danger"
+            });
+          } catch (notifErr) {
+            console.error("Failed to create monitor degradation notification:", notifErr);
+          }
+        } else {
+          // Trigger standard monitor check completed notification
+          try {
+            const { createNotification } = await import("@/lib/notificationService");
+            await createNotification({
+              recipient: monitor.user,
+              title: "Monitor Check Completed",
+              message: `Periodic monitor check for ${monitor.domain} completed successfully. Score: ${analysis.score} (${analysis.grade}).`,
+              type: "success"
+            });
+          } catch (notifErr) {
+            console.error("Failed to create monitor completion notification:", notifErr);
+          }
         }
 
         // Update monitor status

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getUserFromRequest } from "@/lib/auth";
@@ -135,10 +136,10 @@ export async function GET(request) {
       Scan.countDocuments(query),
       
       // Get global statistics
-      getAggregateStats(user.role === "admin" ? {} : { owner: user._id }),
+      getAggregateStats(user.role === "admin" ? {} : { owner: new mongoose.Types.ObjectId(user._id) }),
       
       // Get available filter options
-      getAvailableFilters(user.role === "admin" ? {} : { owner: user._id })
+      getAvailableFilters(user.role === "admin" ? {} : { owner: new mongoose.Types.ObjectId(user._id) })
     ]);
 
     // Get filtered statistics based on current query

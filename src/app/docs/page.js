@@ -235,7 +235,7 @@ export default function DocumentationPage() {
   }, [activeSection, allSections]);
 
   return (
-    <div className="min-h-screen bg-[#030712] font-sans text-text select-none">
+    <div className="min-h-screen bg-bg font-sans text-text select-none">
       <Navbar />
 
       {/* Main Container */}
@@ -243,7 +243,7 @@ export default function DocumentationPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative items-start">
           
           {/* ================= SIDEBAR NAVIGATION (lg:col-span-3) ================= */}
-          <aside className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-[#030712] border-r border-white/[0.05] p-6 transition-transform duration-300 lg:sticky lg:top-24 lg:z-0 lg:w-auto lg:translate-x-0 lg:border-none lg:p-0 ${
+          <aside className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-bg border-r border-white/[0.05] p-6 transition-transform duration-300 lg:sticky lg:top-24 lg:z-0 lg:w-auto lg:translate-x-0 lg:border-none lg:p-0 ${
             mobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:col-span-3"
           }`}>
             
@@ -435,7 +435,7 @@ export default function DocumentationPage() {
                   </div>
                   
                   {/* Visually descriptive diagram */}
-                  <div className="bg-[#0b0f19] border border-white/[0.06] rounded-xl p-4.5 space-y-3 mt-4 text-center font-mono">
+                  <div className="bg-surface border border-white/[0.06] rounded-xl p-4.5 space-y-3 mt-4 text-center font-mono">
                     <span className="text-[9px] font-bold text-accent uppercase tracking-wider block">System Component Blueprint</span>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-[10px] text-text pt-2">
                       <div className="border border-white/10 bg-bg p-2 rounded-lg w-full sm:w-32">Client UI (Dashboard)</div>
@@ -576,7 +576,7 @@ export default function DocumentationPage() {
                   </p>
                   
                   {/* Visual SVG flow chart */}
-                  <div className="bg-[#0b0f19] border border-white/[0.06] rounded-xl p-5 overflow-x-auto flex justify-center">
+                  <div className="bg-surface border border-white/[0.06] rounded-xl p-5 overflow-x-auto flex justify-center">
                     <svg className="w-full max-w-xl" viewBox="0 0 500 280" fill="none" xmlns="http://www.w3.org/2000/svg">
                       {/* Step 1 */}
                       <rect x="180" y="10" width="140" height="30" rx="6" fill="#1e1b4b" stroke="#6366f1" strokeWidth="1"/>
@@ -752,7 +752,7 @@ export default function DocumentationPage() {
                   </p>
                   
                   {/* Multi tab config code visual */}
-                  <Card className="p-4 bg-[#0b0f19] border border-white/[0.06] rounded-xl font-mono text-[10.5px] space-y-3">
+                  <Card className="p-4 bg-surface border border-white/[0.06] rounded-xl font-mono text-[10.5px] space-y-3">
                     <div className="flex justify-between items-center border-b border-white/5 pb-2 text-[9px] text-accent">
                       <span>HTTP STRICT TRANSPORT SECURITY (HSTS) DIRECTIVE</span>
                       <span>NGINX CONFIGURATION</span>
@@ -855,7 +855,7 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; prelo
                     </p>
                     
                     <span className="font-bold text-text text-[10px] block mt-3">REQUEST BODY:</span>
-                    <pre className="bg-[#0b0f19] border border-white/5 p-3 rounded-lg text-accent-light text-[10px] select-all">
+                    <pre className="bg-surface border border-white/5 p-3 rounded-lg text-accent-light text-[10px] select-all">
 {`{
   "url": "example.com",
   "section": "all" // Optional: "headers" | "ssl" | "dns" | "ports" | "subdomains" | "seo"
@@ -863,7 +863,7 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; prelo
                     </pre>
 
                     <span className="font-bold text-text text-[10px] block mt-3">HTTP RESPONSE (200 OK):</span>
-                    <pre className="bg-[#0b0f19] border border-white/5 p-3 rounded-lg text-text-dim/80 text-[9px] select-all leading-normal max-h-56 overflow-y-auto">
+                    <pre className="bg-surface border border-white/5 p-3 rounded-lg text-text-dim/80 text-[9px] select-all leading-normal max-h-56 overflow-y-auto">
 {`{
   "success": true,
   "scanId": "6f29e1d8cd34",
@@ -1252,7 +1252,7 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; prelo
                   </p>
                   <ul className="list-disc list-inside space-y-2 text-text-dim ml-2 font-semibold">
                     <li><span className="text-text">Shallow Path Crawls:</span> The SEO/sensitive file crawler checks defined target lists. It does not recursively crawl all site subpages.</li>
-                    <li><span className="text-text">Fixed Port Lists:</span> Port checks are limited to standard services in `attackSurface.json` (max 500 ports), rather than full 65k sweeps.</li>
+                    <li><span className="text-text">Fixed Port Lists:</span> Port checks are limited to standard services defined in the scanner database (common ports), rather than full 65k sweeps.</li>
                     <li><span className="text-text">Rate-Limit Bounds:</span> Scans resolve to a single IPv4/IPv6 target address; concurrent target sweeps are constrained by concurrency workers.</li>
                   </ul>
                 </div>

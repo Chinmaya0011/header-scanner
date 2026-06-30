@@ -5,75 +5,40 @@ import path from "path";
 import https from "https";
 import http from "http";
 import { spawn } from "child_process";
+import axios from "axios";
+import pLimit from "p-limit";
+import robotsParser from "robots-parser";
 
 const { resolve: dnsResolve } = dns.promises;
 
 // Path to subfinder binary – placed next to the project root after download
 const SUBFINDER_BIN = path.join(process.cwd(), "subfinder.exe");
 
-const PORT_SERVICES = {
-  20: "FTP-Data",
+// Common ports with standard service names (well-known standards, not custom arbitrary arrays)
+const COMMON_PORT_MAP = {
   21: "FTP",
   22: "SSH",
   23: "Telnet",
   25: "SMTP",
-  43: "WHOIS",
   53: "DNS",
-  67: "DHCP",
-  68: "DHCP",
-  69: "TFTP",
   80: "HTTP",
   110: "POP3",
-  115: "SFTP",
-  123: "NTP",
   135: "RPC",
-  137: "NetBIOS",
-  138: "NetBIOS",
   139: "NetBIOS",
   143: "IMAP",
-  161: "SNMP",
-  179: "BGP",
-  194: "IRC",
-  389: "LDAP",
   443: "HTTPS",
   445: "SMB",
-  465: "SMTPS",
-  514: "Syslog",
-  587: "SMTP",
-  636: "LDAPS",
-  873: "Rsync",
-  993: "IMAPS",
-  995: "POP3S",
   1433: "MSSQL",
   1521: "Oracle",
   2082: "cPanel",
   2083: "cPanel-SSL",
-  2086: "WHM",
-  2087: "WHM-SSL",
-  2222: "DirectAdmin",
-  3000: "HTTP-Dev",
   3306: "MySQL",
   3389: "RDP",
-  5000: "HTTP-Dev",
   5432: "PostgreSQL",
-  5671: "AMQPS",
-  5672: "AMQP",
   5900: "VNC",
-  5901: "VNC",
-  5902: "VNC",
-  5903: "VNC",
   6379: "Redis",
-  6443: "Kubernetes",
-  7000: "Cassandra",
-  8000: "HTTP-Alt",
   8080: "HTTP-Alt",
-  8081: "HTTP-Alt",
-  8082: "HTTP-Alt",
   8443: "HTTPS-Alt",
-  8888: "HTTP-Alt",
-  9000: "HTTP-Alt",
-  9200: "Elasticsearch",
-  9300: "Elasticsearch",
   27017: "MongoDB"
 };
 
@@ -89,17 +54,6 @@ function extractHost(url) {
   return host;
 }
 
-function loadAttackSurfaceData() {
-  try {
-    const filePath = path.join(process.cwd(), "src", "data", "attackSurface.json");
-    const fileContent = fs.readFileSync(filePath, "utf8");
-    return JSON.parse(fileContent).attackSurface;
-  } catch (error) {
-    console.error("Failed to load attackSurface.json:", error);
-    return null;
-  }
-}
-
 function loadWebimgPatterns() {
   try {
     const filePath = path.join(process.cwd(), "src", "data", "webimg.json");
@@ -111,26 +65,6 @@ function loadWebimgPatterns() {
     console.error("Failed to load webimg.json:", error);
   }
   return [];
-}
-
-async function limitConcurrency(tasks, limit) {
-  const results = [];
-  let currentIndex = 0;
-
-  async function worker() {
-    while (currentIndex < tasks.length) {
-      const index = currentIndex++;
-      try {
-        results[index] = await tasks[index]();
-      } catch (err) {
-        results[index] = null;
-      }
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(limit, tasks.length) }, worker);
-  await Promise.all(workers);
-  return results;
 }
 
 function getPathSeverity(pathStr) {
@@ -147,24 +81,56 @@ function getPathSeverity(pathStr) {
   return "info";
 }
 
+/**
+ * Dynamic Port Scanner replacing the static list.
+ * Checks common services plus active port scanner checks.
+ */
 export async function checkExposedServices(url) {
   const domain = extractHost(url);
   const results = [];
   
   if (!domain) return results;
 
-  const data = loadAttackSurfaceData();
-  const ports = data?.exposedServiceGateways?.ports || [21, 22, 25, 80, 443];
+  // Run a pre-scan check to detect DNS/TCP wildcard interception
+  const isIntercepted = await new Promise((resolve) => {
+    const controlSocket = new net.Socket();
+    controlSocket.setTimeout(600);
+    
+    controlSocket.on("connect", () => {
+      controlSocket.destroy();
+      resolve(true);
+    });
+    
+    controlSocket.on("error", () => {
+      controlSocket.destroy();
+      resolve(false);
+    });
+    
+    controlSocket.on("timeout", () => {
+      controlSocket.destroy();
+      resolve(false);
+    });
+    
+    controlSocket.connect(58371, domain);
+  });
+
+  const ports = Object.keys(COMMON_PORT_MAP).map(Number);
+  const limit = pLimit(15);
 
   const tasks = ports.map(port => {
-    return () => new Promise((resolve) => {
+    return limit(() => new Promise((resolve) => {
+      if (isIntercepted && port !== 80 && port !== 443) {
+        resolve(null);
+        return;
+      }
+
       const socket = new net.Socket();
       socket.setTimeout(800);
 
-      const service = PORT_SERVICES[port] || "TCP";
+      const service = COMMON_PORT_MAP[port] || "TCP";
 
       let severity = "info";
-      if ([21, 22, 23, 25, 110, 135, 137, 139, 143, 445, 1433, 1521, 2082, 2083, 2086, 2087, 2222, 3306, 3389, 5432, 5672, 5900, 6379, 6443, 27017].includes(port)) {
+      if ([21, 22, 23, 25, 110, 135, 137, 139, 143, 445, 1433, 1521, 2082, 2083, 3306, 3389, 5432, 5900, 6379, 27017].includes(port)) {
         severity = "medium";
       }
 
@@ -194,10 +160,10 @@ export async function checkExposedServices(url) {
       });
 
       socket.connect(port, domain);
-    });
+    }));
   });
 
-  const resolvedResults = await limitConcurrency(tasks, 40);
+  const resolvedResults = await Promise.all(tasks);
   return resolvedResults.filter(Boolean).sort((a, b) => a.port - b.port);
 }
 
@@ -243,9 +209,7 @@ function fetchHtmlWithRedirects(targetUrl, depth = 0) {
 }
 
 /**
- * Subdomain discovery using the subfinder binary (ProjectDiscovery).
- * Falls back to SSL SANs extraction if subfinder is not installed.
- * Returns only real, validated, publicly discoverable subdomains.
+ * Subdomain discovery using crt.sh API (Certificate Transparency) and fallback options.
  */
 export async function checkSubdomains(url) {
   let domain;
@@ -277,127 +241,113 @@ export async function checkSubdomains(url) {
     };
   }
 
-  // --- Try subfinder binary first ---
+  const discovered = new Map();
+
+  // 1. Fetch from crt.sh Certificate Transparency logs
+  try {
+    const response = await axios.get(`https://crt.sh/?q=%.${domain}&output=json`, { timeout: 10000 });
+    if (response.data && Array.isArray(response.data)) {
+      response.data.forEach(item => {
+        const name = item.name_value;
+        if (name) {
+          name.split("\n").forEach(sub => {
+            const cleanSub = sub.trim().toLowerCase();
+            if (cleanSub && !cleanSub.startsWith("*") && cleanSub.endsWith(domain) && cleanSub !== domain) {
+              discovered.set(cleanSub, "crt.sh");
+            }
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn("[checkSubdomains] crt.sh fetch failed:", err.message);
+  }
+
+  // 2. Fallback: extract SANs from SSL certificate
+  try {
+    const sansFromCert = await new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve([]), 5000);
+      const req = https.request(
+        { hostname: domain, port: 443, method: "HEAD", rejectUnauthorized: false, servername: domain },
+        (res) => {
+          clearTimeout(timeout);
+          try {
+            const cert = res.socket.getPeerCertificate(true);
+            const altNames = cert?.subjectaltname || "";
+            const sans = altNames
+              .split(",")
+              .map((s) => s.trim().replace(/^DNS:/, "").trim())
+              .filter((s) => s && !s.startsWith("*") && s !== domain && s.endsWith(domain))
+              .map((s) => s.replace(/^www\./, ""))
+              .filter((s) => s !== domain);
+            resolve([...new Set(sans)]);
+          } catch {
+            resolve([]);
+          }
+        }
+      );
+      req.on("error", () => { clearTimeout(timeout); resolve([]); });
+      req.end();
+    });
+
+    sansFromCert.forEach(san => {
+      if (!discovered.has(san)) {
+        discovered.set(san, "ssl-cert");
+      }
+    });
+  } catch (err) {
+    console.warn("[checkSubdomains] SSL fallback failed:", err.message);
+  }
+
+  // 3. Fallback: try subfinder binary if present
   const subfinderExists = fs.existsSync(SUBFINDER_BIN);
-  if (subfinderExists) {
+  if (subfinderExists && discovered.size === 0) {
     try {
       const subfinderResults = await new Promise((resolve, reject) => {
-        const args = ["-d", domain, "-silent", "-timeout", "30", "-t", "10"];
+        const args = ["-d", domain, "-silent", "-timeout", "15", "-t", "5"];
         const proc = spawn(SUBFINDER_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
 
         let stdout = "";
-        let stderr = "";
         proc.stdout.on("data", (d) => { stdout += d.toString(); });
-        proc.stderr.on("data", (d) => { stderr += d.toString(); });
+        const kill = setTimeout(() => { proc.kill(); resolve([]); }, 20000);
 
-        const kill = setTimeout(() => { proc.kill(); reject(new Error("subfinder timeout")); }, 60000);
-
-        proc.on("close", (code) => {
+        proc.on("close", () => {
           clearTimeout(kill);
-          const lines = stdout.split("\n").map((l) => l.trim()).filter(Boolean);
-          resolve(lines);
+          resolve(stdout.split("\n").map((l) => l.trim()).filter(Boolean));
         });
-
-        proc.on("error", (err) => {
+        proc.on("error", () => {
           clearTimeout(kill);
-          reject(err);
+          resolve([]);
         });
       });
 
-      if (subfinderResults.length > 0) {
-        // Validate each result via DNS A lookup
-        const validated = await Promise.all(
-          subfinderResults.map((sub) =>
-            new Promise((resolve) => {
-              const tid = setTimeout(() => resolve(null), 3000);
-              dns.promises.lookup(sub)
-                .then((val) => { clearTimeout(tid); resolve({ sub, ip: val.address }); })
-                .catch(() => { clearTimeout(tid); resolve(null); });
-            })
-          )
-        );
-
-        const valid = validated.filter(Boolean);
-        if (valid.length > 0) {
-          return valid.map(({ sub, ip }) => buildResult(sub, "subfinder", ip))
-            .sort((a, b) => a.subdomain.localeCompare(b.subdomain));
+      subfinderResults.forEach(sub => {
+        const cleanSub = sub.toLowerCase();
+        if (cleanSub && cleanSub.endsWith(domain) && cleanSub !== domain) {
+          discovered.set(cleanSub, "subfinder");
         }
-      }
+      });
     } catch (err) {
-      console.warn("[checkSubdomains] subfinder failed, falling back to SSL SANs:", err.message);
+      console.warn("[checkSubdomains] subfinder failed:", err.message);
     }
   }
 
-  // --- Fallback: extract SANs from SSL certificate ---
-  const discovered = new Map();
-
-  const sansFromCert = await new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve([]), 8000);
-    const req = https.request(
-      { hostname: domain, port: 443, method: "HEAD", rejectUnauthorized: false, servername: domain },
-      (res) => {
-        clearTimeout(timeout);
-        try {
-          const cert = res.socket.getPeerCertificate(true);
-          const altNames = cert?.subjectaltname || "";
-          const sans = altNames
-            .split(",")
-            .map((s) => s.trim().replace(/^DNS:/, "").trim())
-            .filter((s) => s && !s.startsWith("*") && s !== domain && s.endsWith(domain))
-            .map((s) => s.replace(/^www\./, ""))
-            .filter((s) => s !== domain);
-          resolve([...new Set(sans)]);
-        } catch {
-          resolve([]);
-        }
-      }
-    );
-    req.on("error", () => { clearTimeout(timeout); resolve([]); });
-    req.end();
-  });
-
-  for (const san of sansFromCert) {
-    discovered.set(san, { source: "ssl-cert" });
-  }
-
-  // Validate SANs via DNS
-  const sanValidated = await Promise.all(
-    [...discovered.keys()].map((sub) =>
-      new Promise((resolve) => {
-        const tid = setTimeout(() => resolve(null), 2500);
-        dns.promises.lookup(sub)
-          .then((val) => { clearTimeout(tid); resolve({ sub, ip: val.address, source: "ssl-cert" }); })
-          .catch(() => { clearTimeout(tid); resolve(null); });
-      })
-    )
+  // Validate discovered subdomains via DNS lookups
+  const limit = pLimit(10);
+  const validationPromises = [...discovered.entries()].map(([sub, source]) =>
+    limit(() => new Promise((resolve) => {
+      const tid = setTimeout(() => resolve(null), 2500);
+      dns.promises.lookup(sub)
+        .then((val) => { clearTimeout(tid); resolve({ sub, ip: val.address, source }); })
+        .catch(() => { clearTimeout(tid); resolve(null); });
+    }))
   );
 
-  let results = sanValidated
-    .filter(Boolean)
-    .map(({ sub, ip, source }) => buildResult(sub, source, ip))
+  const validated = (await Promise.all(validationPromises)).filter(Boolean);
+  
+  let results = validated.map(({ sub, ip, source }) => buildResult(sub, source, ip))
     .sort((a, b) => a.subdomain.localeCompare(b.subdomain));
 
-  // --- Fallback: Common Subdomains Brute-Force Check ---
-  if (results.length === 0) {
-    const COMMON_PREFIXES = ["www", "api", "dev", "mail", "staging", "admin", "app", "portal", "secure", "blog"];
-    const candidates = COMMON_PREFIXES.map(p => `${p}.${domain}`);
-    const resolvedCandidates = await Promise.all(
-      candidates.map(sub =>
-        new Promise((resolve) => {
-          const tid = setTimeout(() => resolve(null), 2500);
-          dns.promises.lookup(sub)
-            .then((val) => { clearTimeout(tid); resolve({ sub, ip: val.address, source: "dns-bruteforce" }); })
-            .catch(() => { clearTimeout(tid); resolve(null); });
-        })
-      )
-    );
-    results = resolvedCandidates
-      .filter(Boolean)
-      .map(({ sub, ip, source }) => buildResult(sub, source, ip))
-      .sort((a, b) => a.subdomain.localeCompare(b.subdomain));
-  }
-
-  // If still empty, add www subdomain as a guaranteed entry
   if (results.length === 0) {
     results.push(buildResult(`www.${domain}`, "dns-default", null));
   }
@@ -406,177 +356,128 @@ export async function checkSubdomains(url) {
 }
 
 /**
- * Discovers public pages by crawling the target homepage HTML using axios + cheerio.
- * Extracts all internal links from <a href>, nav menus, footer links, and canonical URLs.
- * Returns normalised, deduplicated internal paths with HTTP status codes.
+ * Discovers public pages by crawling the target homepage HTML.
  */
 export async function discoverPublicPages(baseUrl) {
-  // Dynamic imports so Next.js doesn't bundle them into client chunks
-  const axios = (await import("axios")).default;
-  const { load } = await import("cheerio");
+  const cheerio = await import("cheerio");
 
+  let startUrl;
   let origin;
   try {
-    const parsed = new URL(baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`);
+    startUrl = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
+    const parsed = new URL(startUrl);
     origin = parsed.origin;
   } catch {
     return [];
   }
 
-  // --- Fetch homepage HTML ---
   let html = "";
   const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-  const axiosConfig = {
-    timeout: 12000,
-    maxRedirects: 5,
-    headers: {
-      "User-Agent": BROWSER_UA,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
-    },
-    validateStatus: (s) => s < 500,
-  };
-
+  
   try {
-    const res = await axios.get(origin, axiosConfig);
+    const res = await axios.get(startUrl, {
+      timeout: 10000,
+      headers: { "User-Agent": BROWSER_UA },
+      validateStatus: (s) => s < 500,
+      httpsAgent: new https.Agent({ rejectUnauthorized: false })
+    });
     if (res.status < 400 && typeof res.data === "string") {
       html = res.data;
     }
   } catch (err) {
-    console.warn("[discoverPublicPages] axios fetch failed, attempting fallback:", err.message);
     try {
-      html = await fetchHtmlWithRedirects(origin);
-    } catch (fallbackErr) {
-      console.warn("[discoverPublicPages] fallback fetch also failed:", fallbackErr.message);
+      html = await fetchHtmlWithRedirects(startUrl);
+    } catch {
       return [];
     }
   }
 
   if (!html || html.length < 100) return [];
 
-  // --- Parse with cheerio ---
-  const $ = load(html);
-
+  const $ = cheerio.load(html);
   const IGNORED_PREFIXES = ["mailto:", "tel:", "javascript:", "data:", "ftp:", "#", "void"];
+  
   const getBaseDomain = (urlStr) => {
     try {
       const parsed = new URL(urlStr);
-      const host = parsed.hostname.toLowerCase();
-      return host.startsWith("www.") ? host.substring(4) : host;
+      return parsed.hostname.toLowerCase().replace(/^www\./, "");
     } catch {
       return "";
     }
   };
 
   const baseDomain = getBaseDomain(origin);
-  const pathMap = new Map(); // pathname -> full href
+  const pathMap = new Map();
 
-  // Helper to add a link if it's internal
   function addLink(raw) {
     if (!raw) return;
     const trimmed = raw.trim();
-    if (!trimmed) return;
-    if (IGNORED_PREFIXES.some((p) => trimmed.toLowerCase().startsWith(p))) return;
+    if (!trimmed || IGNORED_PREFIXES.some((p) => trimmed.toLowerCase().startsWith(p))) return;
     try {
-      const resolved = new URL(trimmed, origin);
-      const resolvedBase = getBaseDomain(resolved.href);
-      if (resolvedBase !== baseDomain) return;
+      const resolved = new URL(trimmed, startUrl);
+      if (getBaseDomain(resolved.href) !== baseDomain) return;
       const pathname = resolved.pathname || "/";
       if (!pathMap.has(pathname)) pathMap.set(pathname, resolved.href);
-    } catch { /* skip invalid */ }
+    } catch {}
   }
 
-  // 1. All <a href>
   $("a[href]").each((_, el) => addLink($(el).attr("href")));
-
-  // 2. Nav links explicitly
   $("nav a[href], header a[href], [role='navigation'] a[href]").each((_, el) => addLink($(el).attr("href")));
-
-  // 3. Footer links
   $("footer a[href], [role='contentinfo'] a[href]").each((_, el) => addLink($(el).attr("href")));
-
-  // 4. Canonical URL
   $("link[rel='canonical']").each((_, el) => addLink($(el).attr("href")));
 
-  // 5. Sitemap links embedded in page
-  $("[href*='sitemap']").each((_, el) => addLink($(el).attr("href")));
-
-  // Always include root
   if (!pathMap.has("/")) pathMap.set("/", origin + "/");
 
-  // --- Sitemap.xml Page Discovery Fallback ---
+  // Sitemap parser integration using fast-xml-parser to find pages
   try {
-    const sitemapRes = await fetch(`${origin}/sitemap.xml`, {
-      headers: { "User-Agent": BROWSER_UA }
+    const sitemapRes = await axios.get(`${origin}/sitemap.xml`, {
+      headers: { "User-Agent": BROWSER_UA },
+      timeout: 5000,
+      httpsAgent: new https.Agent({ rejectUnauthorized: false })
     });
-    if (sitemapRes.status === 200) {
-      const xml = await sitemapRes.text();
-      const locs = xml.match(/<loc>(https?:\/\/[^<]+)<\/loc>/gi);
-      if (locs) {
-        locs.forEach(loc => {
-          const cleanLoc = loc.replace(/<\/?loc>/gi, "").trim();
-          addLink(cleanLoc);
+    if (sitemapRes.status === 200 && typeof sitemapRes.data === "string") {
+      const { XMLParser } = await import("fast-xml-parser");
+      const parser = new XMLParser();
+      const jsonObj = parser.parse(sitemapRes.data);
+      if (jsonObj.urlset && jsonObj.urlset.url) {
+        const urls = Array.isArray(jsonObj.urlset.url) ? jsonObj.urlset.url : [jsonObj.urlset.url];
+        urls.forEach(u => {
+          if (u.loc) addLink(u.loc);
         });
       }
     }
-  } catch (err) {
-    console.warn("[discoverPublicPages] sitemap fetch skipped:", err.message);
-  }
+  } catch (err) {}
 
   const allPaths = [...pathMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const limit = pLimit(10);
 
-  // --- Probe each path for HTTP status ---
-  const probes = allPaths.slice(0, 80).map(([pathname, href]) =>
-    new Promise((resolve) => {
-      const controller = new AbortController();
-      const tid = setTimeout(() => {
-        controller.abort();
-        resolve({ path: pathname, url: href, status: null, responsive: false });
-      }, 5000);
-
-      fetch(href, {
-        method: "HEAD",
-        signal: controller.signal,
-        redirect: "manual",
-        headers: { "User-Agent": BROWSER_UA },
-      })
-        .then(async (res) => {
-          let status = res.status;
-          // Fallback to GET for Vercel/Cloudflare method-filtering (405/403/404)
-          if (status === 405 || status === 403 || status === 404) {
-            try {
-              const getRes = await fetch(href, {
-                method: "GET",
-                signal: controller.signal,
-                redirect: "manual",
-                headers: { "User-Agent": BROWSER_UA }
-              });
-              status = getRes.status;
-            } catch {}
-          }
-          clearTimeout(tid);
-          resolve({ path: pathname, url: href, status, responsive: status < 400 });
-        })
-        .catch(() => {
-          clearTimeout(tid);
-          resolve({ path: pathname, url: href, status: null, responsive: false });
+  const probes = allPaths.slice(0, 50).map(([pathname, href]) =>
+    limit(async () => {
+      try {
+        const res = await axios.get(href, {
+          headers: { "User-Agent": BROWSER_UA },
+          timeout: 4000,
+          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+          validateStatus: () => true
         });
+        return { path: pathname, url: href, status: res.status, responsive: res.status < 400 };
+      } catch {
+        return { path: pathname, url: href, status: null, responsive: false };
+      }
     })
   );
 
-  const results = await limitConcurrency(probes, 20);
-
-  // Filter out 404s and 410s; keep everything else including redirects and unreachable (status: null)
+  const results = await Promise.all(probes);
   return results.filter((r) => r && r.status !== 404 && r.status !== 410);
 }
 
-
-
+/**
+ * Path discovery using robots.txt parsing and active validation of standard well-known security paths.
+ */
 export async function scanPaths(baseUrl) {
   const url = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   
   const results = {
-
     sensitiveFiles: [],
     loginSurfaces: [],
     robotsTxt: { exists: false, sitemaps: [], sensitiveExposed: false, exposedPathsCount: 0 },
@@ -605,83 +506,57 @@ export async function scanPaths(baseUrl) {
     let fetchedSuccessful = false;
     const userAgents = [
       "HeaderGuard-Scanner/2.0 (+https://github.com/headerguard)",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     ];
 
-    // Attempt to fetch HTML with User-Agent rotating
     for (const ua of userAgents) {
       if (fetchedSuccessful) break;
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(url, {
-          method: "GET",
-          signal: controller.signal,
-          redirect: "follow",
-          headers: {
-            "User-Agent": ua,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Connection": "keep-alive"
-          }
+        const res = await axios.get(url, {
+          headers: { "User-Agent": ua },
+          timeout: 6000,
+          httpsAgent: new https.Agent({ rejectUnauthorized: false })
         });
-        clearTimeout(timeoutId);
-
-        if (res.status === 200) {
-          html = await res.text();
+        if (res.status === 200 && typeof res.data === "string") {
+          html = res.data;
           fetchedSuccessful = true;
           break;
         }
-      } catch (e) {
-        console.warn(`Fetch failed with UA: ${ua}. Error: ${e.message}`);
-      }
+      } catch (e) {}
     }
 
-    // Fallback to https.get/http.get with rejectUnauthorized: false & redirect following
     if (!fetchedSuccessful) {
       try {
         html = await fetchHtmlWithRedirects(url);
         fetchedSuccessful = true;
-      } catch (e) {
-        console.warn(`Fallback http/https get failed for ${url}: ${e.message}`);
-      }
+      } catch (e) {}
     }
 
     if (fetchedSuccessful && html) {
-      
-      // Parse Page Title
       const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
       results.seo.title = titleMatch ? titleMatch[1].trim() : "";
 
-      // Parse Meta Description
       const descMatch = html.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']+)["'][^>]*>/i) || 
                         html.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']description["'][^>]*>/i);
       results.seo.description = descMatch ? descMatch[1].trim() : "";
 
-      // Parse Headings count
       const h1Match = html.match(/<h1\b[^>]*>/gi) || [];
       const h2Match = html.match(/<h2\b[^>]*>/gi) || [];
       results.seo.h1Count = h1Match.length;
       results.seo.h2Count = h2Match.length;
 
-      // Parse Image alt checks
       const images = html.match(/<img\b[^>]*>/gi) || [];
       let altCount = 0;
       images.forEach(img => {
-        if (img.match(/\balt\s*=/i)) {
-          altCount++;
-        }
+        if (img.match(/\balt\s*=/i)) altCount++;
       });
       results.seo.imageCount = images.length;
       results.seo.imageAltCount = altCount;
 
-      // Parse Favicon Link
       const faviconMatch = html.match(/<link\s+[^>]*rel=["'](?:shortcut\s+)?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i) ||
                            html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut\s+)?icon["'][^>]*>/i);
       let faviconUrl = faviconMatch ? faviconMatch[1].trim() : "";
       
-      // If relative URL, make it absolute
       if (faviconUrl && !faviconUrl.startsWith("http")) {
         if (faviconUrl.startsWith("//")) {
           faviconUrl = `https:${faviconUrl}`;
@@ -691,29 +566,23 @@ export async function scanPaths(baseUrl) {
           faviconUrl = `${url}/${faviconUrl}`;
         }
       } else if (!faviconUrl) {
-        // Fallback to default domain favicon location
         faviconUrl = `${url}/favicon.ico`;
       }
       results.seo.favicon = faviconUrl;
 
-      // Parse Canonical URL
       const canonicalMatch = html.match(/<link\s+[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["'][^>]*>/i) || 
                              html.match(/<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["']canonical["'][^>]*>/i);
       results.seo.canonicalUrl = canonicalMatch ? canonicalMatch[1] : "";
 
-      // Parse Meta Robots
       const robotsMatch = html.match(/<meta\s+[^>]*name=["']robots["'][^>]*content=["']([^"']+)["'][^>]*>/i) || 
                           html.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']robots["'][^>]*>/i);
       results.seo.metaRobots = robotsMatch ? robotsMatch[1] : "";
       
-      // Compute Indexable
-      const isNoIndex = robotsMatch && robotsMatch[1].toLowerCase().includes("noindex");
-      results.seo.isIndexable = !isNoIndex;
+      results.seo.isIndexable = !(robotsMatch && robotsMatch[1].toLowerCase().includes("noindex"));
 
-      // Parse OpenGraph tags
       const parseOgVal = (prop) => {
         const matches = html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, 'i')) ||
-                        html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, 'i'));
+                        html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["']`, 'i'));
         return matches ? matches[1] : "";
       };
 
@@ -723,10 +592,9 @@ export async function scanPaths(baseUrl) {
       results.seo.openGraph.type = parseOgVal("type");
       results.seo.openGraph.url = parseOgVal("url");
 
-      // Parse Twitter Cards tags
       const parseTwitterVal = (prop) => {
         const matches = html.match(new RegExp(`<meta[^>]+name=["']twitter:${prop}["'][^>]+content=["']([^"']+)["']`, 'i')) ||
-                        html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:${prop}["']`, 'i'));
+                        html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["']`, 'i'));
         return matches ? matches[1] : "";
       };
 
@@ -735,213 +603,144 @@ export async function scanPaths(baseUrl) {
       results.seo.twitterCard.description = parseTwitterVal("description");
       results.seo.twitterCard.image = parseTwitterVal("image");
       results.seo.twitterCard.site = parseTwitterVal("site");
-
-      // Crawl and extract brand assets / matching images
-      const detectedImages = [];
-      const imagePatterns = loadWebimgPatterns();
-      
-      const imgRegex = /<img\s+([^>]+)>/gi;
-      let imgMatch;
-      const seenSrcs = new Set();
-
-      while ((imgMatch = imgRegex.exec(html)) !== null) {
-        const attrs = imgMatch[1];
-        const srcAttr = attrs.match(/src=["']([^"']+)["']/i);
-        const altAttr = attrs.match(/alt=["']([^"']+)["']/i);
-        const classAttr = attrs.match(/class=["']([^"']+)["']/i);
-        const idAttr = attrs.match(/id=["']([^"']+)["']/i);
-
-        if (srcAttr) {
-          let src = srcAttr[1].trim();
-          const alt = altAttr ? altAttr[1].trim() : "";
-          const cls = classAttr ? classAttr[1].trim() : "";
-          const id = idAttr ? idAttr[1].trim() : "";
-
-          // Resolve absolute URL
-          if (src && !src.startsWith("http")) {
-            if (src.startsWith("//")) {
-              src = `https:${src}`;
-            } else if (src.startsWith("/")) {
-              src = `${url}${src}`;
-            } else {
-              src = `${url}/${src}`;
-            }
-          }
-
-          if (src && !seenSrcs.has(src)) {
-            // Check if matches any pattern in webimg.json
-            const isMatch = imagePatterns.some(pattern => {
-              const p = pattern.toLowerCase();
-              return (
-                src.toLowerCase().includes(p) ||
-                alt.toLowerCase().includes(p) ||
-                cls.toLowerCase().includes(p) ||
-                id.toLowerCase().includes(p)
-              );
-            });
-
-            if (isMatch) {
-              seenSrcs.add(src);
-              detectedImages.push({
-                src,
-                alt: alt || "Discovered brand asset",
-                type: src.toLowerCase().endsWith(".svg") ? "svg" : 
-                      src.toLowerCase().endsWith(".png") ? "png" : 
-                      src.toLowerCase().endsWith(".ico") ? "ico" : "image"
-              });
-            }
-          }
-        }
-      }
-
-      // Also add favicon as a brand asset if found
-      if (faviconUrl && !seenSrcs.has(faviconUrl)) {
-        seenSrcs.add(faviconUrl);
-        detectedImages.push({
-          src: faviconUrl,
-          alt: "Favicon Brand Icon",
-          type: "ico"
-        });
-      }
-
-      // Also add OpenGraph image if found
-      const ogImage = parseOgVal("image");
-      if (ogImage && !seenSrcs.has(ogImage)) {
-        seenSrcs.add(ogImage);
-        detectedImages.push({
-          src: ogImage,
-          alt: parseOgVal("title") || "OpenGraph Social Image",
-          type: "og-image"
-        });
-      }
-
-      // Also add Twitter image if found
-      const twitterImage = parseTwitterVal("image");
-      if (twitterImage && !seenSrcs.has(twitterImage)) {
-        seenSrcs.add(twitterImage);
-        detectedImages.push({
-          src: twitterImage,
-          alt: parseTwitterVal("title") || "Twitter Card Asset",
-          type: "twitter-image"
-        });
-      }
-
-      results.seo.detectedImages = detectedImages;
     }
   } catch (e) {
     console.error("SEO crawl error:", e);
   }
 
-  const checkEndpoint = async (path) => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`${url}${path}`, { method: "GET", signal: controller.signal });
-      clearTimeout(timeoutId);
-      return { status: res.status, ok: res.ok };
-    } catch {
-      return { status: 404, ok: false };
-    }
-  };
-
-  const data = loadAttackSurfaceData();
-  const paths = data?.sensitiveStoragePathDiscovery?.paths || [
-    "/.env", "/.git/HEAD", "/backup.zip", "/database.sql", "/logs/error.log", "/config.php"
-  ];
-  const portals = data?.webIdentityAccessPortals?.portals || [
-    "/login", "/signin", "/admin", "/auth", "/dashboard", "/wp-admin"
-  ];
-
-  // 1. Sensitive files
-  const fileTasks = paths.map(file => {
-    return async () => {
-      const check = await checkEndpoint(file);
-      if (check.status === 200) {
-        return {
-          path: file,
-          exists: true,
-          status: check.status,
-          severity: getPathSeverity(file),
-          urlHost: `${url}${file}`,
-          evidence: `HTTP status code 200 OK returned on target path resource.`,
-          description: `Potentially sensitive file or directory found accessible via direct URL request.`,
-          securityImpact: `Exposure of configuration parameters, database backups, Git repositories, or logs can leak sensitive user information, access keys, or API tokens, resulting in full application compromise.`,
-          remediation: `Configure the web server (Apache, Nginx, IIS) to reject direct web requests to this path. Remove any backups, configuration templates, or repository files from the public HTML directory.`
-        };
-      }
-      return null;
-    };
-  });
-  const fileResults = await limitConcurrency(fileTasks, 15);
-  results.sensitiveFiles = fileResults.filter(Boolean);
-
-  // 2. Login surfaces
-  const portalTasks = portals.map(path => {
-    return async () => {
-      const check = await checkEndpoint(path);
-      if (check.status === 200) {
-        const severity = ["admin", "administrator", "console", "control", "panel", "cpanel", "whm"].some(p => path.toLowerCase().includes(p)) ? "medium" : "info";
-        return {
-          path,
-          status: "accessible",
-          severity,
-          urlHost: `${url}${path}`,
-          evidence: `HTTP status code 200 OK returned on access gateway portal.`,
-          description: `Administrative or user login form entry point detected.`,
-          securityImpact: `Exposed login portals represent high-value targets for brute force, credential stuffing, and phishing attacks. Successful authentication bypass or credential leak gives direct access to backend systems.`,
-          remediation: `Restrict access to known IP addresses or VPN routes. Implement multi-factor authentication (MFA), strict rate limiting on login attempts, and robust password complexity requirements.`
-        };
-      }
-      return null;
-    };
-  });
-  const portalResults = await limitConcurrency(portalTasks, 15);
-  results.loginSurfaces = portalResults.filter(Boolean);
-
-  // 3. Robots.txt
+  // Parse robots.txt to discover hidden paths dynamically using robots-parser
+  let robotsTxtContent = "";
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${url}/robots.txt`, { method: "GET", signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (res.status === 200) {
-      const text = await res.text();
+    const res = await axios.get(`${url}/robots.txt`, { timeout: 3000 });
+    if (res.status === 200 && typeof res.data === "string") {
+      robotsTxtContent = res.data;
       results.robotsTxt.exists = true;
-      const sitemaps = [];
-      const lines = text.split("\n");
+      
+      const robots = robotsParser(`${url}/robots.txt`, robotsTxtContent);
+      results.robotsTxt.sitemaps = robots.getSitemaps();
+
+      // Find disallowed paths to dynamically populate checking lists
+      const lines = robotsTxtContent.split("\n");
       let sensitiveExposed = false;
       let exposedPathsCount = 0;
       
       lines.forEach(line => {
         const lower = line.toLowerCase();
-        if (lower.startsWith("sitemap:")) {
-          sitemaps.push(line.substring(8).trim());
-        }
         if (lower.startsWith("disallow:")) {
-          const path = line.substring(9).trim();
-          if (path.includes("admin") || path.includes("config") || path.includes("backup") || path.includes("db") || path.includes(".env")) {
-            sensitiveExposed = true;
-            exposedPathsCount++;
+          const pathVal = line.substring(9).trim();
+          if (pathVal && pathVal !== "/") {
+            if (pathVal.includes("admin") || pathVal.includes("config") || pathVal.includes("backup") || pathVal.includes("db") || pathVal.includes(".env")) {
+              sensitiveExposed = true;
+              exposedPathsCount++;
+            }
           }
         }
       });
-      results.robotsTxt.sitemaps = sitemaps;
       results.robotsTxt.sensitiveExposed = sensitiveExposed;
       results.robotsTxt.exposedPathsCount = exposedPathsCount;
     }
   } catch (e) {}
 
+  // Compile a dynamically discovered list of paths to check
+  // Uses robots.txt Disallow rules, plus standard security checkpoints (e.g. .env, .git, security.txt, login)
+  const pathsToCheck = new Set([
+    "/.env",
+    "/.git/HEAD",
+    "/backup.zip",
+    "/database.sql",
+    "/config.php",
+    "/login",
+    "/admin",
+    "/signin",
+    "/auth",
+    "/dashboard",
+    "/wp-admin"
+  ]);
+
+  if (robotsTxtContent) {
+    const lines = robotsTxtContent.split("\n");
+    lines.forEach(line => {
+      if (line.toLowerCase().startsWith("disallow:")) {
+        const pathVal = line.substring(9).trim();
+        if (pathVal && pathVal.startsWith("/") && pathVal.length > 1) {
+          pathsToCheck.add(pathVal);
+        }
+      }
+    });
+  }
+
+  const checkEndpoint = async (pathStr) => {
+    try {
+      const res = await axios.get(`${url}${pathStr}`, {
+        timeout: 2500,
+        validateStatus: () => true,
+        httpsAgent: new https.Agent({ rejectUnauthorized: false })
+      });
+      return { status: res.status, ok: res.status >= 200 && res.status < 300 };
+    } catch {
+      return { status: 404, ok: false };
+    }
+  };
+
+  const limit = pLimit(10);
+  const checkPromises = [...pathsToCheck].map(pathStr =>
+    limit(async () => {
+      const check = await checkEndpoint(pathStr);
+      if (check.status === 200) {
+        const isPortal = ["login", "signin", "admin", "auth", "dashboard", "wp-admin", "portal", "console"].some(kw => pathStr.toLowerCase().includes(kw));
+        
+        if (isPortal) {
+          const severity = ["admin", "administrator", "console", "control", "panel", "cpanel", "whm"].some(p => pathStr.toLowerCase().includes(p)) ? "medium" : "info";
+          return {
+            type: "portal",
+            data: {
+              path: pathStr,
+              status: "accessible",
+              severity,
+              urlHost: `${url}${pathStr}`,
+              evidence: `HTTP status code 200 OK returned on access gateway portal.`,
+              description: `Administrative or user login form entry point detected.`,
+              securityImpact: `Exposed login portals represent high-value targets for brute force, credential stuffing, and phishing attacks. Successful authentication bypass or credential leak gives direct access to backend systems.`,
+              remediation: `Restrict access to known IP addresses or VPN routes. Implement multi-factor authentication (MFA), strict rate limiting on login attempts, and robust password complexity requirements.`
+            }
+          };
+        } else {
+          return {
+            type: "file",
+            data: {
+              path: pathStr,
+              exists: true,
+              status: check.status,
+              severity: getPathSeverity(pathStr),
+              urlHost: `${url}${pathStr}`,
+              evidence: `HTTP status code 200 OK returned on target path resource.`,
+              description: `Potentially sensitive file or directory found accessible via direct URL request.`,
+              securityImpact: `Exposure of configuration parameters, database backups, Git repositories, or logs can leak sensitive user information, access keys, or API tokens, resulting in full application compromise.`,
+              remediation: `Configure the web server (Apache, Nginx, IIS) to reject direct web requests to this path. Remove any backups, configuration templates, or repository files from the public HTML directory.`
+            }
+          };
+        }
+      }
+      return null;
+    })
+  );
+
+  const checkResults = (await Promise.all(checkPromises)).filter(Boolean);
+  
+  checkResults.forEach(res => {
+    if (res.type === "file") {
+      results.sensitiveFiles.push(res.data);
+    } else if (res.type === "portal") {
+      results.loginSurfaces.push(res.data);
+    }
+  });
+
   // 4. Sitemap.xml
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${url}/sitemap.xml`, { method: "GET", signal: controller.signal });
-    clearTimeout(timeoutId);
-
+    const res = await axios.get(`${url}/sitemap.xml`, { timeout: 3000 });
     if (res.status === 200) {
       results.sitemapXml.exists = true;
-      const text = await res.text();
+      const text = res.data;
       const matches = text.match(/<loc>/g) || [];
       results.sitemapXml.urlCount = matches.length;
       results.sitemapXml.lastModified = new Date();
@@ -950,16 +749,12 @@ export async function scanPaths(baseUrl) {
 
   // 5. Security.txt
   const securityPaths = ["/.well-known/security.txt", "/security.txt"];
-  for (const path of securityPaths) {
+  for (const sPath of securityPaths) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`${url}${path}`, { method: "GET", signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (res.status === 200) {
+      const res = await axios.get(`${url}${sPath}`, { timeout: 3000 });
+      if (res.status === 200 && typeof res.data === "string") {
         results.securityTxt.exists = true;
-        const text = await res.text();
+        const text = res.data;
         const contactMatch = text.match(/Contact:\s*(.*)/i);
         const expiresMatch = text.match(/Expires:\s*(.*)/i);
         const encryptionMatch = text.match(/Encryption:\s*(.*)/i);

@@ -160,7 +160,7 @@ export default function ScanResults({ result }) {
     metadata
   } = localResult || {};
 
-  // Resolve fallbacks for SEO details if null/undefined in database (e.g. older scans or failed crawls)
+  // Resolve fallbacks for SEO details if null/undefined in database
   const seoData = useMemo(() => {
     const defaultSeo = {
       title: "",
@@ -209,7 +209,7 @@ export default function ScanResults({ result }) {
     if (score >= 80) return { text: "Strong Protection", color: "text-success", bg: "bg-success/5", border: "border-success/15", glow: "shadow-[0_0_15px_rgba(34,197,94,0.1)]", badge: "success" };
     if (score >= 60) return { text: "Moderate Risks", color: "text-warning", bg: "bg-warning/10", border: "border-warning/20", glow: "shadow-[0_0_15px_rgba(245,158,11,0.1)]", badge: "warning" };
     if (score >= 40) return { text: "Weak Safeguards", color: "text-warning", bg: "bg-warning/5", border: "border-warning/15", glow: "shadow-[0_0_15px_rgba(234,179,8,0.08)]", badge: "warning" };
-    return { text: "Critical Deficiencies", color: "text-danger", bg: "bg-danger/10", border: "border-danger/20", glow: "shadow-[0_0_20px_rgba(239,68,68,0.15)]", badge: "danger" };
+    return { text: "Critical Risks", color: "text-danger", bg: "bg-danger/10", border: "border-danger/20", glow: "shadow-[0_0_20px_rgba(239,68,68,0.15)]", badge: "danger" };
   };
 
   const posture = getSecurityPosture();
@@ -515,10 +515,10 @@ export default function ScanResults({ result }) {
   const renderSectionLoader = (sectionKey) => {
     if (refreshingSection !== sectionKey) return null;
     return (
-      <div className="absolute inset-0 bg-bg/85 backdrop-blur-sm z-30 flex flex-col items-center justify-center space-y-3 rounded-2xl animate-fadeIn min-h-[250px]">
+      <div className="absolute inset-0 bg-bg/85 backdrop-blur-sm z-35 flex flex-col items-center justify-center space-y-3 rounded-2xl animate-fadeIn min-h-[250px]">
         <RefreshCw className="h-6 w-6 text-accent animate-spin" />
-        <span className="text-[9px] font-bold tracking-widest text-text-dim uppercase font-mono">
-          Refreshing {sectionKey.toUpperCase()} data matrix...
+        <span className="text-[10px] font-bold tracking-widest text-text-dim uppercase font-mono">
+          Syncing {sectionKey.toUpperCase()} data matrix...
         </span>
       </div>
     );
@@ -590,11 +590,9 @@ export default function ScanResults({ result }) {
       const textColor = "#334155";
       const textLightColor = "#64748b";
 
-      // Header Banner
       doc.setFillColor(primaryColor);
       doc.rect(0, 0, 210, 42, "F");
 
-      // Title
       doc.setFont("helvetica", "bold");
       doc.setFontSize(22);
       doc.setTextColor("#ffffff");
@@ -607,13 +605,11 @@ export default function ScanResults({ result }) {
       doc.text(`Scanned: ${new Date(scanDateStr).toLocaleString()} | Duration: ${scanDuration || 0}ms`, 15, 27);
       doc.text(`Target Host Domain: ${domain}`, 15, 34);
 
-      // Body Overview Section
       doc.setTextColor(primaryColor);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.text("Vulnerability Audit Summary", 15, 54);
 
-      // Stats box
       doc.setDrawColor("#e2e8f0");
       doc.setFillColor("#f8fafc");
       doc.roundedRect(15, 59, 180, 28, 2, 2, "FD");
@@ -648,7 +644,6 @@ export default function ScanResults({ result }) {
       doc.setFontSize(15);
       doc.text(`${score}/100`, 135, 78);
 
-      // Detailed Audits
       doc.setTextColor(primaryColor);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
@@ -859,149 +854,175 @@ export default function ScanResults({ result }) {
     return [
       { id: "overview", label: "Overview", icon: Layout, show: true },
       { id: "headers", label: "Security Headers", icon: ShieldCheck, show: headers && headers.length > 0, count: headers.filter(h => h.status !== "present").length },
-      { id: "ssl", label: "SSL/TLS Certificate", icon: Lock, show: ssl && ssl.expirationDate !== null },
+      { id: "ssl", label: "SSL/TLS", icon: Lock, show: ssl && ssl.expirationDate !== null },
       { id: "dns", label: "DNS Security", icon: Globe, show: dns && (dns.a?.length > 0 || dns.aaaa?.length > 0 || dns.mx?.length > 0 || dns.txt?.length > 0) },
       { id: "ports", label: "Open Ports", icon: Terminal, show: exposedServices && exposedServices.length > 0, count: exposedServices.filter(s => s.status === "open").length },
       { id: "subdomains", label: "Subdomains", icon: Layers, show: subdomains && subdomains.length > 0, count: subdomains.length },
       { id: "pages", label: "Public Pages", icon: Link2, show: publicPages && publicPages.length > 0, count: publicPages.length },
       { id: "attack-surface", label: "Attack Surface", icon: Fingerprint, show: (sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0) || (loginSurfaces && loginSurfaces.length > 0), count: (sensitiveFiles?.filter(f => f.exists).length || 0) + (loginSurfaces?.length || 0) },
-      { id: "seo", label: "SEO Parameters", icon: Search, show: true },
+      { id: "seo", label: "SEO Data", icon: Search, show: true },
       { id: "performance", label: "Performance", icon: Activity, show: performance && (performance.responseTime !== undefined || performance.ttfb !== undefined) },
       { id: "tech", label: "Tech Stack", icon: Cpu, show: techStack && techStack.length > 0 },
-      { id: "recommendations", label: "Action Guidelines", icon: BookOpen, show: true, count: failedCount + warningCount },
-      { id: "raw", label: "Raw JSON API", icon: Code, show: true }
+      { id: "recommendations", label: "Guidelines", icon: BookOpen, show: true, count: failedCount + warningCount },
+      { id: "raw", label: "Raw JSON", icon: Code, show: true }
     ].filter(tab => tab.show);
   }, [headers, ssl, dns, exposedServices, subdomains, publicPages, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount]);
 
   const isFirewallProtected = localResult?.isFirewallProtected || localResult?.statusCode === 403 || localResult?.statusCode === 401;
 
   if (isRescanning) {
-    return <Loading message="RESCANNING ENDPOINT SECURITY MATRIX..." />;
+    return (
+      <div className="max-w-2xl mx-auto w-full py-16 text-center">
+        <Loading message="RESCANNING ENDPOINT SECURITY MATRIX..." />
+      </div>
+    );
   }
+
   return (
-    <div className="font-sans text-text max-w-5xl mx-auto px-1 sm:px-4 space-y-6">
+    <div className="font-sans text-text max-w-6xl mx-auto space-y-8">
       
-      {/* 1. SUMMARY HEADER CARD */}
-      <Card className="p-6 bg-gradient-to-br from-surface/90 to-surface/40 backdrop-blur-md border border-white/[0.06] rounded-2xl flex flex-col md:flex-row justify-between items-stretch md:items-center gap-6 text-left shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative overflow-hidden group">
-        <div className="absolute -top-12 -left-12 w-24 h-24 bg-accent/15 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-12 -right-12 w-24 h-24 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
-        
-        {/* Domain and metadata */}
-        <div className="space-y-3.5 flex-grow relative z-10">
-          <div className="space-y-1">
-            <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Target Domain</span>
+      {/* 1. SECURITY AUDIT HEADER TOOLBAR */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-surface/40 border border-white/[0.04] p-4.5 rounded-2xl backdrop-blur-md shadow-lg">
+        {/* Left Side: Target Domain Asset */}
+        <div className="flex items-center gap-3 min-w-0 w-full md:w-auto">
+          <div className="h-10 w-10 rounded-xl bg-accent/10 border border-accent/25 flex items-center justify-center text-accent shrink-0">
+            <Globe className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 text-left">
+            <span className="text-[8px] font-black text-text-muted uppercase tracking-widest font-mono block">Target Host Address</span>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black font-mono tracking-tight text-text uppercase select-all" title={domain}>
+              <h1 className="text-lg sm:text-xl font-black font-mono tracking-tight text-text select-all truncate" title={domain}>
                 {domain}
               </h1>
-              <button
-                onClick={() => handleCopy(domain)}
-                className="p-1.5 rounded-lg hover:bg-white/5 text-text-dim hover:text-text transition-all flex items-center gap-1.5"
-                title="Copy Domain Address"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {copiedText && <span className="text-[9px] text-accent font-extrabold font-mono">{copiedText}</span>}
-              </button>
-              <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-white/5 text-text-dim hover:text-text transition-all">
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-semibold text-text-dim font-mono">
-            {statusCode !== undefined && (
-              <div className="flex items-center gap-1.5">
-                <Radio className="h-3.5 w-3.5 text-accent-light" />
-                <span>Status: <span className="text-text font-bold">HTTP {statusCode}</span></span>
+              <div className="flex gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleCopy(domain)}
+                  className="p-1 rounded bg-white/5 border border-white/[0.04] hover:bg-white/10 text-text-dim hover:text-text transition-all flex items-center gap-1"
+                  title="Copy Domain Address"
+                >
+                  <Copy className="h-3 w-3" />
+                  {copiedText && <span className="text-[8px] text-accent font-black font-mono">{copiedText}</span>}
+                </button>
+                <a href={url} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-white/5 border border-white/[0.04] hover:bg-white/10 text-text-dim hover:text-text transition-all">
+                  <ExternalLink className="h-3 w-3" />
+                </a>
               </div>
-            )}
-            {scanDuration !== undefined && (
-              <>
-                <div className="h-3 w-px bg-white/10" />
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-accent-light" />
-                  <span>Duration: <span className="text-text font-bold">{scanDuration}ms</span></span>
-                </div>
-              </>
-            )}
-            {metadata?.timestamp && (
-              <>
-                <div className="h-3 w-px bg-white/10" />
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-accent-light" />
-                  <span>Audited: <span className="text-text font-bold">{new Date(metadata.timestamp).toLocaleTimeString()}</span></span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Grade, Score & Risk */}
-        <div className="flex items-center gap-6 bg-surface-dark border border-white/[0.04] p-4 rounded-xl shrink-0 justify-between md:justify-start relative z-10 shadow-inner">
-          <div className="text-center space-y-0.5">
-            <span className="text-[8px] font-extrabold text-text-dim uppercase tracking-wider font-mono">Grade</span>
-            <div className={`text-2xl font-black px-4 py-1.5 rounded-lg border font-mono transition-all duration-300 ${grade.startsWith("A") ? "text-success bg-success/5 border-success/20 shadow-[0_0_12px_rgba(16,185,129,0.15)]" :
-                grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20 shadow-[0_0_12px_rgba(99,102,241,0.15)]" :
-                  grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20 shadow-[0_0_12px_rgba(245,158,11,0.15)]" :
-                    "text-danger bg-danger/5 border-danger/20 shadow-[0_0_12px_rgba(239,68,68,0.15)]"
-              }`}>
-              {grade}
-            </div>
-          </div>
-
-          <div className="h-8 w-px bg-white/10" />
-
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center h-12 w-12 shrink-0">
-              <svg className="absolute inset-0 transform -rotate-90 w-full h-full">
-                <circle cx="24" cy="24" r="20" className="stroke-white/[0.04] fill-none" strokeWidth="3.5" />
-                <circle
-                  cx="24"
-                  cy="24"
-                  r="20"
-                  className={`fill-none transition-all duration-1000 ${score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
-                    }`}
-                  strokeWidth="3.5"
-                  strokeDasharray={`${2 * Math.PI * 20}`}
-                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - score / 100)}`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="text-xs font-black font-mono text-text">{score}</span>
-            </div>
-
-            <div className="space-y-0.5">
-              <span className="text-[8px] font-extrabold text-text-dim uppercase tracking-wider font-mono block">Risk Level</span>
-              <Badge variant={posture.badge} className="text-[8px] uppercase tracking-widest font-extrabold py-0.5 px-2">
-                {posture.text}
-              </Badge>
             </div>
           </div>
         </div>
 
-        {/* Actions Grid */}
-        <div className="flex flex-col gap-2 shrink-0 justify-center min-w-[160px] relative z-10">
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={handleRescan} variant="outline" size="sm" icon={RefreshCw} className="hover:bg-accent/15 hover:border-accent/40 hover:text-accent font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
-              Re-scan
-            </Button>
-            <Button onClick={handleDownloadPDF} variant="outline" size="sm" icon={Download} className="hover:bg-success/15 hover:border-success/40 hover:text-success font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
-              PDF
-            </Button>
-            <Button onClick={downloadJSON} variant="outline" size="sm" icon={FileCode} className="hover:bg-blue-500/15 hover:border-blue-500/40 hover:text-blue-400 font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
-              JSON
-            </Button>
-            <Button onClick={handleShare} variant="outline" size="sm" icon={Share2} className="hover:bg-indigo-500/15 hover:border-indigo-500/40 hover:text-indigo-400 font-extrabold text-[10px] tracking-wider justify-center py-2 transition-all">
-              Share
-            </Button>
-          </div>
+        {/* Right Side: Sleek Controls Toolbar */}
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          <Button onClick={handleRescan} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-extrabold text-[9.5px] tracking-wider px-3.5 py-2">
+            Re-scan
+          </Button>
+          <Button onClick={handleDownloadPDF} variant="outline" size="sm" icon={Download} className="hover:border-success/40 hover:text-success font-extrabold text-[9.5px] tracking-wider px-3.5 py-2">
+            Export PDF
+          </Button>
+          <Button onClick={downloadJSON} variant="outline" size="sm" icon={FileCode} className="hover:border-blue-400/40 hover:text-blue-400 font-extrabold text-[9.5px] tracking-wider px-3.5 py-2">
+            Raw JSON
+          </Button>
+          <Button onClick={handleShare} variant="outline" size="sm" icon={Share2} className="hover:border-indigo-400/40 hover:text-indigo-400 font-extrabold text-[9.5px] tracking-wider px-3.5 py-2">
+            Share
+          </Button>
           {currentUser && (
-            <Button onClick={() => { setRecipientEmail(currentUser.email); setEmailModalOpen(true); }} variant="outline" size="sm" icon={Mail} className="hover:bg-purple-500/15 hover:border-purple-500/40 hover:text-purple-400 font-extrabold text-[10px] w-full tracking-wider justify-center py-2 transition-all">
-              Email PDF Report
+            <Button onClick={() => { setRecipientEmail(currentUser.email); setEmailModalOpen(true); }} variant="outline" size="sm" icon={Mail} className="hover:border-purple-400/40 hover:text-purple-400 font-extrabold text-[9.5px] tracking-wider px-3.5 py-2">
+              Email PDF
             </Button>
           )}
         </div>
-      </Card>
+      </div>
+
+      {/* 2. SECURITY METRICS KEYCARDS GRID */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Rating & Grade Card */}
+        <Card className="p-5 bg-gradient-to-br from-surface/80 to-surface/30 border border-white/[0.05] rounded-2xl flex items-center justify-between shadow-lg relative overflow-hidden group min-h-[125px]">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent pointer-events-none rounded-full blur-2xl" />
+          <div className="space-y-2 text-left relative z-10">
+            <span className="text-[8px] font-black text-text-muted uppercase tracking-widest font-mono block">Security Rating</span>
+            <h3 className="text-[11.5px] font-bold text-text-dim">Overall posture evaluation grade</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[9.5px] text-text-muted font-bold font-mono">Status:</span>
+              <span className={`text-[9.5px] font-extrabold font-mono uppercase ${
+                grade.startsWith("A") || grade.startsWith("B") ? "text-success" : "text-danger"
+              }`}>
+                {grade.startsWith("A") || grade.startsWith("B") ? "Secure Target" : "Vulnerable Target"}
+              </span>
+            </div>
+          </div>
+          <div className={`text-4xl font-black px-6 py-3 rounded-2xl border font-mono shrink-0 select-none transition-all duration-300 relative z-10 ${
+            grade.startsWith("A") ? "text-success bg-success/5 border-success/20 shadow-[0_0_20px_rgba(16,185,129,0.2)]" :
+            grade.startsWith("B") ? "text-accent bg-accent/5 border-accent/20 shadow-[0_0_20px_rgba(99,102,241,0.2)]" :
+            grade.startsWith("C") || grade.startsWith("D") ? "text-warning bg-warning/5 border-warning/20 shadow-[0_0_20px_rgba(245,158,11,0.2)]" :
+            "text-danger bg-danger/5 border-danger/20 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+          }`}>
+            {grade}
+          </div>
+        </Card>
+
+        {/* Posture Score Circular Gauge */}
+        <Card className="p-5 bg-gradient-to-br from-surface/80 to-surface/30 border border-white/[0.05] rounded-2xl flex items-center justify-between shadow-lg relative overflow-hidden group min-h-[125px]">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent pointer-events-none rounded-full blur-2xl" />
+          <div className="space-y-2 text-left relative z-10">
+            <span className="text-[8px] font-black text-text-muted uppercase tracking-widest font-mono block">Threat Level</span>
+            <Badge variant={posture.badge} className="text-[8.5px] uppercase tracking-widest font-black py-1 px-3 rounded-xl block w-max">
+              {posture.text}
+            </Badge>
+            <p className="text-[9.5px] text-text-muted font-bold font-mono mt-1">Based on dynamic vulnerability profiling checks</p>
+          </div>
+          
+          <div className="relative flex items-center justify-center h-20 w-20 flex-shrink-0 z-10 select-none">
+            <svg className="absolute inset-0 transform -rotate-90 w-full h-full">
+              <circle cx="40" cy="40" r="34" className="stroke-white/[0.04] fill-none" strokeWidth="4.5" />
+              <circle
+                cx="40"
+                cy="40"
+                r="34"
+                className={`fill-none transition-all duration-1000 ${
+                  score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
+                }`}
+                strokeWidth="4.5"
+                strokeDasharray={`${2 * Math.PI * 34}`}
+                strokeDashoffset={`${2 * Math.PI * 34 * (1 - score / 100)}`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="flex flex-col items-center">
+              <span className="text-lg font-black font-mono text-text leading-none">{score}</span>
+              <span className="text-[8px] font-bold text-text-muted font-mono mt-0.5">/100</span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Scan Telemetry Metadata */}
+        <Card className="p-5 bg-gradient-to-br from-surface/80 to-surface/30 border border-white/[0.05] rounded-2xl flex flex-col justify-between shadow-lg relative overflow-hidden group min-h-[125px]">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent pointer-events-none rounded-full blur-2xl" />
+          <div className="w-full relative z-10 space-y-2.5 font-mono text-[10.5px]">
+            <div className="flex justify-between items-center">
+              <span className="text-text-muted font-bold text-[9px] uppercase tracking-wider">HTTP Status</span>
+              {statusCode !== undefined ? (
+                <span className={`font-black font-mono ${statusCode >= 400 ? "text-danger" : "text-success"}`}>
+                  HTTP {statusCode}
+                </span>
+              ) : (
+                <span className="text-text-muted">N/A</span>
+              )}
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-text-muted font-bold text-[9px] uppercase tracking-wider">Scan Duration</span>
+              <span className="text-text font-black">{scanDuration ? `${scanDuration}ms` : "N/A"}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-text-muted font-bold text-[9px] uppercase tracking-wider">Audit Date</span>
+              <span className="text-text font-black">
+                {metadata?.timestamp ? new Date(metadata.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "N/A"}
+              </span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
 
       {/* 2. HORIZONTAL TAB SELECTOR */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 border-b border-white/[0.04]">
@@ -1012,10 +1033,11 @@ export default function ScanResults({ result }) {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11.5px] font-bold tracking-wider transition-all duration-300 border whitespace-nowrap ${isActive
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11.5px] font-bold tracking-wider transition-all duration-300 border whitespace-nowrap ${
+                isActive
                   ? "bg-gradient-to-r from-accent/15 to-indigo-500/10 text-accent border-accent/30 shadow-[0_4px_16px_rgba(99,102,241,0.15)] scale-[1.02]"
                   : "text-text-dim hover:text-text hover:bg-white/[0.03] border-transparent"
-                }`}
+              }`}
             >
               <Icon className={`h-4 w-4 transition-transform duration-300 ${isActive ? "rotate-3 scale-110" : ""}`} />
               <span>{item.label}</span>
@@ -1032,1520 +1054,1485 @@ export default function ScanResults({ result }) {
       {/* 3. WORKSPACE CONTENT */}
       <main className="w-full">
 
-          {/* ==================== 1. OVERVIEW TAB ==================== */}
-          {activeTab === "overview" && (
-            <div className="space-y-6 animate-fadeIn text-left">
-              {isFirewallProtected && (
-                <Card className="p-5 bg-gradient-to-r from-warning/10 to-warning/5 border border-warning/20 rounded-2xl flex gap-4 text-left items-start shadow-[0_4px_24px_rgba(245,158,11,0.08)]">
-                  <AlertOctagon className="h-5.5 w-5.5 text-warning shrink-0 mt-0.5 animate-pulse" />
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-warning font-mono">
-                      Active Bot Mitigation Firewall Detected
-                    </h4>
-                    <p className="text-[10px] text-text-dim leading-relaxed font-sans font-medium">
-                      The target endpoint responded with an HTTP status of <strong>{statusCode || 403} Forbidden</strong>. 
-                      A Web Application Firewall (WAF) or bot blocker (e.g. Vercel Security Checkpoint, Cloudflare) intercepted the scanning process.
-                      Some headers and security results represent the edge firewall config, not the origin codebase environment. Deeper crawlers have been gracefully skipped.
-                    </p>
-                  </div>
-                </Card>
-              )}
-
-              <div className="border-b border-white/[0.05] pb-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Executive Overview</h2>
-                <p className="text-[10px] text-text-dim mt-0.5 font-sans">Summary metrics, key category diagnostics, and posture score distribution charts.</p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {/* Domain Card */}
-                <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 backdrop-blur-sm border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  <div className="relative z-10">
-                    <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Target Host Domain</span>
-                    <h3 className="text-lg font-bold font-mono tracking-tight text-accent mt-2 truncate flex items-center gap-1.5 select-all">
-                      {domain}
-                    </h3>
-                  </div>
-                  <div className="flex gap-2 items-center mt-3 pt-3 border-t border-white/[0.04] relative z-10 text-[10px] text-text-dim font-mono">
-                    <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                    <span>Status: <strong className="text-text font-bold">HTTP {statusCode || 200}</strong></span>
-                  </div>
-                </Card>
-
-                {/* Score Card */}
-                <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 backdrop-blur-sm border border-white/[0.04] flex items-center justify-between min-h-[140px] shadow-lg relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  <div className="space-y-2 relative z-10">
-                    <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Posture Score</span>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-4xl font-black font-mono text-accent">{score}</span>
-                      <span className="text-text-dim text-xs font-mono">/ 100</span>
-                    </div>
-                    <Badge variant={posture.badge} className="text-[8px] uppercase tracking-wider font-extrabold py-0.5 px-2">
-                      {posture.text}
-                    </Badge>
-                  </div>
-                  <div className="relative flex items-center justify-center h-20 w-20 flex-shrink-0 z-10 transition-transform duration-300 group-hover:scale-105">
-                    <svg className="absolute inset-0 transform -rotate-90 w-full h-full">
-                      <circle cx="40" cy="40" r="34" className="stroke-white/[0.04] fill-none" strokeWidth="6" />
-                      <circle
-                        cx="40"
-                        cy="40"
-                        r="34"
-                        className={`fill-none transition-all duration-1000 ${score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
-                          }`}
-                        strokeWidth="6"
-                        strokeDasharray={`${2 * Math.PI * 34}`}
-                        strokeDashoffset={`${2 * Math.PI * 34 * (1 - score / 100)}`}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <span className="text-sm font-black font-mono text-text">{grade}</span>
-                  </div>
-                </Card>
-
-                {/* Summary status */}
-                <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 backdrop-blur-sm border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  <div className="relative z-10 w-full">
-                    <span className="text-[9px] font-extrabold text-text-dim uppercase tracking-widest font-mono">Security Check Findings</span>
-                    <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs font-mono">
-                      <div className="bg-success/5 border border-success/15 p-2 rounded-xl text-success transition-all duration-300 group-hover:bg-success/10 group-hover:scale-105">
-                        <div className="font-extrabold text-sm">{passedCount}</div>
-                        <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Pass</div>
-                      </div>
-                      <div className="bg-warning/5 border border-warning/15 p-2 rounded-xl text-warning transition-all duration-300 group-hover:bg-warning/10 group-hover:scale-105">
-                        <div className="font-extrabold text-sm">{warningCount}</div>
-                        <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Warn</div>
-                      </div>
-                      <div className="bg-danger/5 border border-danger/15 p-2 rounded-xl text-danger transition-all duration-300 group-hover:bg-danger/10 group-hover:scale-105">
-                        <div className="font-extrabold text-sm">{failedCount}</div>
-                        <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Fail</div>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              {/* Charts grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 1. Risk Distribution (Pie Chart) */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04]">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-accent" /> Security Risk Distribution
-                  </h3>
-                  <div className="h-48 w-full mt-4 flex items-center justify-between gap-4">
-                    <div className="space-y-1.5 text-[10px] font-semibold font-mono flex-1">
-                      {[
-                        { name: "Passed Verification", value: passedCount, color: "#10b981" },
-                        { name: "Warning / Hardening", value: warningCount, color: "#f59e0b" },
-                        { name: "Vulnerabilities Found", value: failedCount, color: "#ef4444" }
-                      ].map((d, i) => (
-                        <div key={i} className="flex justify-between items-center p-2 rounded bg-bg/50 border border-white/[0.02]">
-                          <span className="flex items-center gap-1.5" style={{ color: d.color }}>
-                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
-                            {d.name}
-                          </span>
-                          <span className="font-bold text-text">{d.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {mounted && (
-                      <div className="h-32 w-32 flex-shrink-0 relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={[
-                                { name: "Passed", value: passedCount, color: "#10b981" },
-                                { name: "Warning", value: warningCount, color: "#f59e0b" },
-                                { name: "Failed", value: failedCount, color: "#ef4444" }
-                              ]}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={28}
-                              outerRadius={40}
-                              paddingAngle={3}
-                              dataKey="value"
-                            >
-                              {[
-                                { color: "#10b981" },
-                                { color: "#f59e0b" },
-                                { color: "#ef4444" }
-                              ].map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
-                          <span className="text-sm font-black text-text">{passedCount + warningCount + failedCount}</span>
-                          <span className="text-[7.5px] text-text-muted uppercase tracking-wider">Total</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-
-                {/* 2. Findings by Severity (Bar Chart) */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04]">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 text-accent" /> Vulnerabilities by Severity
-                  </h3>
-                  <div className="h-48 w-full mt-4">
-                    {mounted && (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[
-                          { name: "Critical", value: severityCounts.critical, fill: "#ef4444" },
-                          { name: "High", value: severityCounts.high, fill: "#f97316" },
-                          { name: "Medium", value: severityCounts.medium, fill: "#f59e0b" },
-                          { name: "Low", value: severityCounts.low, fill: "#3b82f6" },
-                          { name: "Info/Pass", value: severityCounts.info, fill: "#10b981" }
-                        ]} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
-                          <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
-                          <YAxis stroke="#64748b" fontSize={8} tickLine={false} allowDecimals={false} />
-                          <Tooltip
-                            contentStyle={{ background: "#0b0f19", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", fontSize: "10px" }}
-                            itemStyle={{ color: "#f3f4f6" }}
-                          />
-                          <Bar dataKey="value" radius={[3, 3, 0, 0]}>
-                            {[
-                              { fill: "#ef4444" },
-                              { fill: "#f97316" },
-                              { fill: "#f59e0b" },
-                              { fill: "#3b82f6" },
-                              { fill: "#10b981" }
-                            ].map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </Card>
-
-                {/* 3. Scan Categories Status (Radar Chart) */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04]">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <Cpu className="h-4 w-4 text-accent" /> Scan Categories Status
-                  </h3>
-                  <div className="h-48 w-full mt-4 flex items-center justify-center">
-                    {mounted && (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={[
-                          { subject: "Headers", score: computedScores.headers },
-                          { subject: "SSL/TLS", score: computedScores.ssl },
-                          { subject: "DNS", score: computedScores.dns },
-                          { subject: "Cookies", score: computedScores.cookies },
-                          { subject: "Exposure", score: computedScores.attackSurface },
-                          { subject: "Compliance", score: computedScores.compliance }
-                        ]}>
-                          <PolarGrid stroke="rgba(255,255,255,0.05)" />
-                          <PolarAngleAxis dataKey="subject" stroke="#9ca3af" fontSize={8} />
-                          <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#6b7280" fontSize={7} />
-                          <Radar name="Category Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </Card>
-
-                {/* 4. Security Headers Status (Pie Chart) */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04]">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-accent" /> Security Headers Status
-                  </h3>
-                  <div className="h-48 w-full mt-4 flex items-center justify-between gap-4">
-                    <div className="space-y-1.5 text-[10px] font-semibold font-mono flex-1">
-                      {[
-                        { name: "Passed (Present)", value: headers.filter(h => h.status === "present").length, color: "#10b981" },
-                        { name: "Warning (Weak)", value: headers.filter(h => h.status === "weak").length, color: "#f59e0b" },
-                        { name: "Failed (Missing)", value: headers.filter(h => h.status === "missing").length, color: "#ef4444" }
-                      ].map((d, i) => (
-                        <div key={i} className="flex justify-between items-center p-2 rounded bg-bg/50 border border-white/[0.02]">
-                          <span className="flex items-center gap-1.5" style={{ color: d.color }}>
-                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
-                            {d.name}
-                          </span>
-                          <span className="font-bold text-text">{d.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {mounted && (
-                      <div className="h-32 w-32 flex-shrink-0 relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={[
-                                { name: "Present", value: headers.filter(h => h.status === "present").length, color: "#10b981" },
-                                { name: "Weak", value: headers.filter(h => h.status === "weak").length, color: "#f59e0b" },
-                                { name: "Missing", value: headers.filter(h => h.status === "missing").length, color: "#ef4444" }
-                              ]}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={28}
-                              outerRadius={40}
-                              paddingAngle={3}
-                              dataKey="value"
-                            >
-                              {[
-                                { color: "#10b981" },
-                                { color: "#f59e0b" },
-                                { color: "#ef4444" }
-                              ].map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
-                          <span className="text-sm font-black text-text">{headers.length}</span>
-                          <span className="text-[7.5px] text-text-muted uppercase tracking-wider">Headers</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 2. SECURITY HEADERS TAB ==================== */}
-          {activeTab === "headers" && (
-            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
-              {renderSectionLoader("headers")}
-              <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
+        {/* ==================== 1. OVERVIEW TAB ==================== */}
+        {activeTab === "overview" && (
+          <div className="space-y-6 animate-fadeIn text-left">
+            {isFirewallProtected && (
+              <Card className="p-5 bg-gradient-to-r from-warning/10 to-warning/5 border border-warning/20 rounded-2xl flex gap-4 text-left items-start shadow-lg">
+                <AlertOctagon className="h-5.5 w-5.5 text-warning shrink-0 mt-0.5 animate-pulse" />
                 <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">HTTP Security Headers</h2>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans font-medium">Verify standard security response headers configured on the remote server.</p>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-warning font-mono">
+                    Active Bot Mitigation Firewall Detected
+                  </h4>
+                  <p className="text-[10.5px] text-text-dim leading-relaxed">
+                    The target endpoint responded with an HTTP status of <strong>{statusCode || 403} Forbidden</strong>. 
+                    A Web Application Firewall (WAF) or bot blocker (e.g. Vercel Security Checkpoint, Cloudflare) intercepted the scanning process.
+                    Some headers and security results represent the edge firewall config, not the origin codebase environment.
+                  </p>
                 </div>
-                {!localResult?.isPublicScan && (
-                  <Button
-                    onClick={() => handleRefreshSection("headers")}
-                    disabled={!!refreshingSection}
-                    variant="outline"
-                    size="sm"
-                    icon={RefreshCw}
-                    className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                  >
-                    Refresh Headers
-                  </Button>
-                )}
-              </div>
+              </Card>
+            )}
 
-              {/* Filtering Controls */}
-              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-surface/20 border border-white/[0.04] p-3 rounded-2xl">
-                <div className="relative w-full sm:max-w-xs flex items-center">
-                  <Search className="absolute left-3 text-text-muted h-3.5 w-3.5" />
-                  <input
-                    type="text"
-                    placeholder="Search response headers..."
-                    value={headersSearch}
-                    onChange={(e) => setHeadersSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-bg/50 border border-white/[0.05] focus:border-accent/40 rounded-xl text-xs text-text outline-none transition-all font-mono"
-                  />
-                </div>
-
-                <div className="flex gap-2 w-full sm:w-auto text-[10.5px]">
-                  <select
-                    value={headersFilter}
-                    onChange={(e) => setHeadersFilter(e.target.value)}
-                    className="bg-bg/50 border border-white/[0.05] text-text-dim rounded-xl px-3.5 py-2 font-mono outline-none cursor-pointer focus:border-accent/40 w-full sm:w-auto"
-                  >
-                    <option value="all">All States</option>
-                    <option value="present">Present (Passed)</option>
-                    <option value="weak">Weak configuration</option>
-                    <option value="missing">Missing header</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Headers List */}
-              <div className="space-y-4">
-                {filteredHeaders.length === 0 ? (
-                  <div className="text-center py-12 text-text-dim italic text-xs font-mono">
-                    No headers match the selected search or state filters.
-                  </div>
-                ) : (
-                  filteredHeaders.map((header) => {
-                    const isExpanded = expandedHeaders.includes(header.name);
-                    const isPresent = header.status === "present";
-                    const isWeak = header.status === "weak";
-                    const isMissing = header.status === "missing";
-                    const badgeVariant = isPresent ? "success" : isWeak ? "warning" : "danger";
-
-                    return (
-                      <Card key={header.name} className="border border-white/[0.04] bg-surface/30 rounded-2xl overflow-hidden hover:border-white/10 transition-all duration-300">
-                        <div
-                          onClick={() => toggleHeaderExpand(header.name)}
-                          className="flex justify-between items-center p-4.5 cursor-pointer hover:bg-white/[0.01] gap-4"
-                        >
-                          <div className="min-w-0 text-left font-mono">
-                            <span className="font-bold text-text block text-xs tracking-tight">{header.name}</span>
-                            <span className="text-[10px] text-text-dim truncate block max-w-lg mt-0.5" title={header.value || "Header omitted in response."}>
-                              {header.value || <span className="italic text-text-muted">Header Omitted</span>}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 shrink-0">
-                            <Badge variant={badgeVariant} className="text-[8px] py-0.5 tracking-wider font-mono select-none">
-                              {header.status.toUpperCase()}
-                            </Badge>
-                            {isExpanded ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
-                          </div>
-                        </div>
-
-                        {isExpanded && (
-                          <div className="p-5 border-t border-white/[0.03] space-y-4 bg-bg/25 text-xs font-sans">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="space-y-1">
-                                <span className="text-[8px] font-bold text-text-dim uppercase tracking-wider block font-mono">Direct Risk Impact</span>
-                                <p className="text-text-dim leading-relaxed">{header.description || "Omission of this header leaves clients vulnerable to framing, script injection, or context leakage."}</p>
-                              </div>
-                              {header.recommendation && (
-                                <div className="space-y-1">
-                                  <span className="text-[8px] font-bold text-success uppercase tracking-wider block font-mono">Recommended Formatting</span>
-                                  <code className="bg-bg border border-white/[0.05] p-2 rounded block text-[9.5px] text-accent-light font-mono select-all select-text">{header.recommendation}</code>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })
-                )}
-              </div>
+            <div className="border-b border-white/[0.05] pb-3">
+              <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Executive Posture Dashboard</h2>
+              <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Posture scores, risk severity metrics, and category diagnostic charts.</p>
             </div>
-          )}
 
-          {/* ==================== 3. SSL/TLS TAB ==================== */}
-          {activeTab === "ssl" && ssl && (
-            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
-              {renderSectionLoader("ssl")}
-              <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">SSL/TLS Certificates</h2>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Inspect encryption keys validation, trusted CA issuers, and validity schedules.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* Domain Card */}
+              <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg rounded-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="relative z-10">
+                  <span className="text-[8px] font-black text-text-muted uppercase tracking-widest font-mono">Domain Identifier</span>
+                  <h3 className="text-lg font-bold font-mono tracking-tight text-accent mt-2 truncate select-all">
+                    {domain}
+                  </h3>
                 </div>
-                {!localResult?.isPublicScan && (
-                  <Button
-                    onClick={() => handleRefreshSection("ssl")}
-                    disabled={!!refreshingSection}
-                    variant="outline"
-                    size="sm"
-                    icon={RefreshCw}
-                    className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                  >
-                    Refresh SSL
-                  </Button>
-                )}
-              </div>
+                <div className="flex gap-2 items-center mt-3 pt-3 border-t border-white/[0.04] relative z-10 text-[10px] text-text-dim font-mono uppercase font-bold">
+                  <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                  <span>HTTP Response: <strong className="text-text font-black">{statusCode || 200}</strong></span>
+                </div>
+              </Card>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <Key className="h-4 w-4 text-accent" /> Certificate Summary
-                  </h3>
-                  <div className="space-y-3.5 font-mono text-xs">
-                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                      <span className="text-text-dim">Trusted Authority (CA)</span>
-                      <span className="font-bold text-text truncate max-w-[200px]" title={ssl.issuer}>{ssl.issuer || "Unknown"}</span>
+              {/* Score Card */}
+              <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 border border-white/[0.04] flex items-center justify-between min-h-[140px] shadow-lg rounded-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="space-y-2 relative z-10">
+                  <span className="text-[8px] font-black text-text-muted uppercase tracking-widest font-mono">Posture Score</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-black font-mono text-accent">{score}</span>
+                    <span className="text-text-dim text-[11px] font-mono">/100</span>
+                  </div>
+                  <Badge variant={posture.badge} className="text-[8px] uppercase tracking-wider font-black py-0.5 px-2">
+                    {posture.text}
+                  </Badge>
+                </div>
+                <div className="relative flex items-center justify-center h-20 w-20 flex-shrink-0 z-10 transition-transform duration-300 group-hover:scale-105 select-none">
+                  <svg className="absolute inset-0 transform -rotate-90 w-full h-full">
+                    <circle cx="40" cy="40" r="34" className="stroke-white/[0.04] fill-none" strokeWidth="5" />
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="34"
+                      className={`fill-none transition-all duration-1000 ${
+                        score >= 80 ? "stroke-success" : score >= 60 ? "stroke-warning" : "stroke-danger"
+                      }`}
+                      strokeWidth="5"
+                      strokeDasharray={`${2 * Math.PI * 34}`}
+                      strokeDashoffset={`${2 * Math.PI * 34 * (1 - score / 100)}`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <span className="text-sm font-black font-mono text-text">{grade}</span>
+                </div>
+              </Card>
+
+              {/* Findings */}
+              <Card className="p-5 bg-gradient-to-br from-surface/60 to-surface/20 border border-white/[0.04] flex flex-col justify-between min-h-[140px] shadow-lg rounded-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="relative z-10 w-full">
+                  <span className="text-[8px] font-black text-text-muted uppercase tracking-widest font-mono">Audits Checklist Status</span>
+                  <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs font-mono">
+                    <div className="bg-success/5 border border-success/15 p-2 rounded-xl text-success hover:bg-success/10 transition-all duration-300">
+                      <div className="font-extrabold text-sm">{passedCount}</div>
+                      <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Pass</div>
                     </div>
-                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                      <span className="text-text-dim">TLS Version Handshake</span>
-                      <span className="font-bold text-accent">{ssl.tlsVersion || "TLSv1.3"}</span>
+                    <div className="bg-warning/5 border border-warning/15 p-2 rounded-xl text-warning hover:bg-warning/10 transition-all duration-300">
+                      <div className="font-extrabold text-sm">{warningCount}</div>
+                      <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Warn</div>
                     </div>
-                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                      <span className="text-text-dim">Certificate Valid</span>
-                      <Badge variant={ssl.valid ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                        {ssl.valid ? "VALID" : "INVALID / EXPIRED"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-dim">Remaining Validity</span>
-                      <span className={`font-bold ${ssl.daysRemaining < 30 ? "text-danger animate-pulse" : "text-success"}`}>
-                        {ssl.daysRemaining ?? "N/A"} Days
-                      </span>
+                    <div className="bg-danger/5 border border-danger/15 p-2 rounded-xl text-danger hover:bg-danger/10 transition-all duration-300">
+                      <div className="font-extrabold text-sm">{failedCount}</div>
+                      <div className="text-[7.5px] text-text-dim font-bold uppercase tracking-wider mt-0.5">Fail</div>
                     </div>
                   </div>
-                </Card>
-
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-accent" /> Key Parameters
-                  </h3>
-                  <div className="space-y-3.5 font-mono text-xs">
-                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                      <span className="text-text-dim">Asymmetric Signature</span>
-                      <span className="font-bold text-text">{ssl.keyType || "RSA"} ({ssl.keyLength || "2048"} bits)</span>
-                    </div>
-                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                      <span className="text-text-dim">HSTS Preload Status</span>
-                      <Badge variant={ssl.hstsPreload ? "success" : "warning"} className="text-[7.5px] py-0.5">
-                        {ssl.hstsPreload ? "PRELOADED" : "NO PRELOAD"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                      <span className="text-text-dim">OCSP Stapling Status</span>
-                      <span className="font-bold text-text">{ssl.ocspStatus || "Good"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-dim">Wildcard Certificate</span>
-                      <span className="font-bold text-text">{ssl.wildcard ? "Yes" : "No"}</span>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              {ssl.supportedVersions && ssl.supportedVersions.length > 0 && (
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
-                    Supported Protocol Negotiation
-                  </h3>
-                  <div className="flex flex-wrap gap-2 pt-1.5 font-mono">
-                    {ssl.supportedVersions.map((ver, idx) => (
-                      <span
-                        key={idx}
-                        className={`text-[9.5px] font-bold px-2.5 py-1 rounded-lg border ${ver.includes("1.3") ? "border-success/30 bg-success/5 text-success" :
-                          ver.includes("1.2") ? "border-accent/30 bg-accent/5 text-accent" :
-                            "border-danger/30 bg-danger/5 text-danger font-line-through"
-                          }`}
-                      >
-                        {ver}
-                      </span>
-                    ))}
-                  </div>
-                </Card>
-              )}
-
-              {ssl.sans && ssl.sans.length > 0 && (
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
-                    Subject Alternative Names (SANs) ({ssl.sans.length})
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 font-mono text-[10px] max-h-48 overflow-y-auto pr-1">
-                    {ssl.sans.map((san, idx) => (
-                                            <div key={idx} className="bg-surface/40 border border-white/[0.02] px-2.5 py-1.5 rounded-lg select-all truncate" title={san}>
-                        {san}
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
+                </div>
+              </Card>
             </div>
-          )}
 
-          {/* ==================== 4. DNS SECURITY TAB ==================== */}
-          {activeTab === "dns" && dns && (
-            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
-              {renderSectionLoader("dns")}
-              <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">DNS &amp; Domain Records</h2>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Active DNS server zones lookup and validation check summaries.</p>
-                </div>
-                {!localResult?.isPublicScan && (
-                  <Button
-                    onClick={() => handleRefreshSection("dns")}
-                    disabled={!!refreshingSection}
-                    variant="outline"
-                    size="sm"
-                    icon={RefreshCw}
-                    className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                  >
-                    Refresh DNS
-                  </Button>
-                )}
-              </div>
-
-              {/* SPF, DMARC, MTA-STS email integrity cards */}
-              {emailSecurity && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
-                      Sender Policy Framework (SPF)
-                    </h3>
-                    <div className="space-y-3 font-mono text-xs">
-                      <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                        <span>Record Present</span>
-                        <Badge variant={emailSecurity.spfPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                          {emailSecurity.spfPresent ? "PASSED" : "FAILED"}
-                        </Badge>
-                      </div>
-                      {dns.spf?.value && (
-                        <div className="space-y-1">
-                          <span className="text-[8px] text-text-muted uppercase">TXT Payload</span>
-                          <code className="bg-bg border border-white/[0.05] p-2 rounded block text-[9.5px] break-all select-all font-mono">{dns.spf.value}</code>
-                        </div>
-                      )}
-                      {dns.spf?.error && (
-                        <div className="p-2.5 bg-danger/5 border border-danger/10 rounded-lg text-[10px] text-danger font-sans leading-relaxed">
-                          ⚠️ {dns.spf.error}
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-
-                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
-                      Domain Mail Authentication (DMARC)
-                    </h3>
-                    <div className="space-y-3 font-mono text-xs">
-                      <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                        <span>Record Present</span>
-                        <Badge variant={emailSecurity.dmarcPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
-                          {emailSecurity.dmarcPresent ? "PASSED" : "FAILED"}
-                        </Badge>
-                      </div>
-                      {dns.dmarc?.value && (
-                        <div className="space-y-1">
-                          <span className="text-[8px] text-text-muted uppercase">TXT Payload</span>
-                          <code className="bg-bg border border-white/[0.05] p-2 rounded block text-[9.5px] break-all select-all font-mono">{dns.dmarc.value}</code>
-                        </div>
-                      )}
-                      {dns.dmarc?.error && (
-                        <div className="p-2.5 bg-danger/5 border border-danger/10 rounded-lg text-[10px] text-danger font-sans leading-relaxed">
-                          ⚠️ {dns.dmarc.error}
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                </div>
-              )}
-
-              {/* Crawler Files */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono text-xs text-left">
-                {robotsTxt && (
-                  <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[130px]">
-                    <div>
-                      <span className="text-[9px] text-text-muted uppercase font-bold">robots.txt</span>
-                      <span className="font-bold text-text text-[11px] block mt-1">{robotsTxt.exists ? "Active Policy" : "Omitted"}</span>
-                    </div>
-                    {robotsTxt.exists && (
-                      <p className={`text-[9.5px] font-bold ${robotsTxt.sensitiveExposed ? "text-danger animate-pulse" : "text-success"}`}>
-                        {robotsTxt.sensitiveExposed ? "⚠️ Sensitive Paths Listed" : "✓ Safe Paths Indexing"}
-                      </p>
-                    )}
-                    <Badge variant={robotsTxt.exists ? "success" : "warning"} className="text-[7.5px] py-0.5 w-max">
-                      {robotsTxt.exists ? "RESOLVED" : "ADVISORY"}
-                    </Badge>
-                  </Card>
-                )}
-
-                {sitemapXml && (
-                  <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[130px]">
-                    <div>
-                      <span className="text-[9px] text-text-muted uppercase font-bold">sitemap.xml</span>
-                      <span className="font-bold text-text text-[11px] block mt-1">{sitemapXml.exists ? `${sitemapXml.urlCount ?? 0} URLs Listed` : "Omitted"}</span>
-                    </div>
-                    {sitemapXml.exists && sitemapXml.lastModified && (
-                      <span className="text-[9.5px] text-text-dim">Last modified: {new Date(sitemapXml.lastModified).toLocaleDateString()}</span>
-                    )}
-                    <Badge variant={sitemapXml.exists ? "success" : "warning"} className="text-[7.5px] py-0.5 w-max">
-                      {sitemapXml.exists ? "RESOLVED" : "ADVISORY"}
-                    </Badge>
-                  </Card>
-                )}
-
-                {securityTxt && (
-                  <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[130px]">
-                    <div>
-                      <span className="text-[9px] text-text-muted uppercase font-bold">security.txt</span>
-                      <span className="font-bold text-text text-[11px] block mt-1">{securityTxt.exists ? "Disclosure Active" : "Omitted"}</span>
-                    </div>
-                    {securityTxt.exists && securityTxt.contact && (
-                      <span className="text-[9.5px] text-text-dim truncate font-mono" title={securityTxt.contact}>{securityTxt.contact}</span>
-                    )}
-                    <Badge variant={securityTxt.exists ? "success" : "warning"} className="text-[7.5px] py-0.5 w-max">
-                      {securityTxt.exists ? "RESOLVED" : "ADVISORY"}
-                    </Badge>
-                  </Card>
-                )}
-              </div>
-
-              {/* Records Explorer */}
-              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              
+              {/* Risk Distribution Chart */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] rounded-2xl">
                 <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-accent" /> Published Zone Records
+                  <Activity className="h-4 w-4 text-accent" /> Audited Risk Metrics
                 </h3>
-                <div className="space-y-3 font-mono text-xs">
-                  {dns.a && dns.a.length > 0 && (
-                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                      <span className="text-[9px] font-bold text-text-muted block uppercase mb-1">A Address Mappings</span>
-                      <div className="flex flex-wrap gap-2">
-                        {dns.a.map((ip, idx) => (
-                          <span key={idx} className="bg-surface border border-white/[0.04] px-2.5 py-1.5 rounded-lg text-[10px] text-accent-light font-bold select-all">{ip}</span>
-                        ))}
+                <div className="h-48 w-full mt-4 flex items-center justify-between gap-4">
+                  <div className="space-y-1.5 text-[9.5px] font-bold font-mono flex-grow">
+                    {[
+                      { name: "Verify Passed", value: passedCount, color: "#10b981" },
+                      { name: "Hardening Alerts", value: warningCount, color: "#f59e0b" },
+                      { name: "Vulnerabilities Found", value: failedCount, color: "#ef4444" }
+                    ].map((d, i) => (
+                      <div key={i} className="flex justify-between items-center p-2 rounded-xl bg-bg/50 border border-white/[0.02]">
+                        <span className="flex items-center gap-1.5" style={{ color: d.color }}>
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
+                          {d.name}
+                        </span>
+                        <span className="font-extrabold text-text">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {mounted && (
+                    <div className="h-32 w-32 flex-shrink-0 relative select-none">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: "Passed", value: passedCount, color: "#10b981" },
+                              { name: "Warning", value: warningCount, color: "#f59e0b" },
+                              { name: "Failed", value: failedCount, color: "#ef4444" }
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={28}
+                            outerRadius={40}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {[
+                              { color: "#10b981" },
+                              { color: "#f59e0b" },
+                              { color: "#ef4444" }
+                            ].map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
+                        <span className="text-sm font-black text-text">{passedCount + warningCount + failedCount}</span>
+                        <span className="text-[7.5px] text-text-muted uppercase tracking-wider">Total</span>
                       </div>
                     </div>
                   )}
+                </div>
+              </Card>
 
-                  {dns.aaaa && dns.aaaa.length > 0 && (
-                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                      <span className="text-[9px] font-bold text-text-muted block uppercase mb-1">AAAA (IPv6) Address Mappings</span>
-                      <div className="flex flex-wrap gap-2">
-                        {dns.aaaa.map((ip, idx) => (
-                          <span key={idx} className="bg-surface border border-white/[0.04] px-2.5 py-1.5 rounded-lg text-[10px] text-accent-light font-bold select-all">{ip}</span>
-                        ))}
-                      </div>
-                    </div>
+              {/* Severity Bar Chart */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-accent" /> Severity Posture Checklist
+                </h3>
+                <div className="h-48 w-full mt-4 select-none">
+                  {mounted && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[
+                        { name: "Critical", value: severityCounts.critical, fill: "#ef4444" },
+                        { name: "High", value: severityCounts.high, fill: "#f97316" },
+                        { name: "Medium", value: severityCounts.medium, fill: "#f59e0b" },
+                        { name: "Low", value: severityCounts.low, fill: "#3b82f6" },
+                        { name: "Info", value: severityCounts.info, fill: "#10b981" }
+                      ]} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={8} tickLine={false} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ background: "#0b0f19", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", fontSize: "10px" }}
+                          itemStyle={{ color: "#f3f4f6" }}
+                        />
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                          {[
+                            { fill: "#ef4444" },
+                            { fill: "#f97316" },
+                            { fill: "#f59e0b" },
+                            { fill: "#3b82f6" },
+                            { fill: "#10b981" }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   )}
+                </div>
+              </Card>
 
-                  {dns.mx && dns.mx.length > 0 && (
-                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                      <span className="text-[9px] font-bold text-text-muted block uppercase mb-1.5">MX Mail Servers</span>
-                      <div className="space-y-1">
-                        {dns.mx.map((m, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-[10px] bg-surface/50 p-2 rounded-lg select-all">{m}</div>
-                        ))}
-                      </div>
-                    </div>
+              {/* Radar Chart */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-accent" /> Category Analysis Radar
+                </h3>
+                <div className="h-48 w-full mt-4 flex items-center justify-center select-none">
+                  {mounted && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart cx="50%" cy="50%" outerRadius="68%" data={[
+                        { subject: "Headers", score: computedScores.headers },
+                        { subject: "SSL/TLS", score: computedScores.ssl },
+                        { subject: "DNS", score: computedScores.dns },
+                        { subject: "Cookies", score: computedScores.cookies },
+                        { subject: "Exposure", score: computedScores.attackSurface },
+                        { subject: "Compliance", score: computedScores.compliance }
+                      ]}>
+                        <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                        <PolarAngleAxis dataKey="subject" stroke="#9ca3af" fontSize={8} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#6b7280" fontSize={7} />
+                        <Radar name="Category Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
+                      </RadarChart>
+                    </ResponsiveContainer>
                   )}
+                </div>
+              </Card>
 
-                  {dns.txt && dns.txt.length > 0 && (
-                    <div className="bg-bg/40 p-3 rounded-xl border border-white/[0.02]">
-                      <span className="text-[9px] font-bold text-text-muted block uppercase mb-1.5">TXT Records</span>
-                      <div className="space-y-1.5">
-                        {dns.txt.map((t, idx) => (
-                          <div key={idx} className="bg-surface/50 p-2.5 rounded-lg text-[10px] text-text-dim select-all break-all leading-normal">{t}</div>
-                        ))}
+              {/* Headers Status pie */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-accent" /> Response Headers Checklist
+                </h3>
+                <div className="h-48 w-full mt-4 flex items-center justify-between gap-4">
+                  <div className="space-y-1.5 text-[9.5px] font-bold font-mono flex-grow">
+                    {[
+                      { name: "Present (Passed)", value: headers.filter(h => h.status === "present").length, color: "#10b981" },
+                      { name: "Weak Configuration", value: headers.filter(h => h.status === "weak").length, color: "#f59e0b" },
+                      { name: "Missing Headers", value: headers.filter(h => h.status === "missing").length, color: "#ef4444" }
+                    ].map((d, i) => (
+                      <div key={i} className="flex justify-between items-center p-2 rounded-xl bg-bg/50 border border-white/[0.02]">
+                        <span className="flex items-center gap-1.5" style={{ color: d.color }}>
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: d.color }} />
+                          {d.name}
+                        </span>
+                        <span className="font-extrabold text-text">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {mounted && (
+                    <div className="h-32 w-32 flex-shrink-0 relative select-none">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: "Present", value: headers.filter(h => h.status === "present").length, color: "#10b981" },
+                              { name: "Weak", value: headers.filter(h => h.status === "weak").length, color: "#f59e0b" },
+                              { name: "Missing", value: headers.filter(h => h.status === "missing").length, color: "#ef4444" }
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={28}
+                            outerRadius={40}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {[
+                              { color: "#10b981" },
+                              { color: "#f59e0b" },
+                              { color: "#ef4444" }
+                            ].map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center font-mono">
+                        <span className="text-sm font-black text-text">{headers.length}</span>
+                        <span className="text-[7.5px] text-text-muted uppercase tracking-wider">Headers</span>
                       </div>
                     </div>
                   )}
                 </div>
               </Card>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ==================== 5. OPEN PORTS TAB ==================== */}
-          {activeTab === "ports" && exposedServices && exposedServices.length > 0 && (
-            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
-              {renderSectionLoader("ports")}
-              <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Open Application Ports</h2>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Active port state mapping and service listening daemons scans.</p>
-                </div>
+        {/* ==================== 2. SECURITY HEADERS TAB ==================== */}
+        {activeTab === "headers" && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("headers")}
+            <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Response Headers Security</h2>
+                <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Standard security headers configuration verification</p>
+              </div>
+              {!localResult?.isPublicScan && (
                 <Button
-                  onClick={() => handleRefreshSection("ports")}
+                  onClick={() => handleRefreshSection("headers")}
                   disabled={!!refreshingSection}
                   variant="outline"
                   size="sm"
                   icon={RefreshCw}
-                  className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
+                  className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider"
                 >
-                  Refresh Ports
+                  Sync Headers
                 </Button>
+              )}
+            </div>
+
+            {/* Filter controls */}
+            <div className="flex flex-col sm:flex-row gap-3.5 items-center justify-between bg-surface/30 border border-white/[0.04] p-3.5 rounded-2xl">
+              <div className="relative w-full sm:max-w-xs flex items-center">
+                <Search className="absolute left-3.5 text-text-muted h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Filter response headers..."
+                  value={headersSearch}
+                  onChange={(e) => setHeadersSearch(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-bg border border-white/[0.05] focus:border-accent/40 rounded-xl text-xs text-text outline-none transition-all font-mono"
+                />
               </div>
 
-              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                  <Terminal className="h-4 w-4 text-accent" /> Port Scans Checklist
+              <div className="flex gap-2 w-full sm:w-auto text-[10.5px]">
+                <select
+                  value={headersFilter}
+                  onChange={(e) => setHeadersFilter(e.target.value)}
+                  className="bg-bg border border-white/[0.05] text-text-dim rounded-xl px-4 py-2.5 font-mono outline-none cursor-pointer focus:border-accent/40 w-full sm:w-auto font-bold uppercase tracking-wider"
+                >
+                  <option value="all">All States</option>
+                  <option value="present">Present (Passed)</option>
+                  <option value="weak">Weak Config</option>
+                  <option value="missing">Missing Headers</option>
+                </select>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="space-y-3.5">
+              {filteredHeaders.length === 0 ? (
+                <div className="text-center py-14 text-text-dim italic text-xs font-mono uppercase tracking-wider">
+                  No headers match current selection query criteria.
+                </div>
+              ) : (
+                filteredHeaders.map((header) => {
+                  const isExpanded = expandedHeaders.includes(header.name);
+                  const isPresent = header.status === "present";
+                  const isWeak = header.status === "weak";
+                  const badgeVariant = isPresent ? "success" : isWeak ? "warning" : "danger";
+
+                  return (
+                    <Card key={header.name} className="border border-white/[0.04] bg-surface/30 rounded-2xl overflow-hidden hover:border-white/10 transition-all duration-300 p-0 sm:p-0">
+                      <div
+                        onClick={() => toggleHeaderExpand(header.name)}
+                        className="flex justify-between items-center p-4.5 cursor-pointer hover:bg-white/[0.01] gap-4"
+                      >
+                        <div className="min-w-0 text-left font-mono">
+                          <span className="font-extrabold text-text block text-xs tracking-tight">{header.name}</span>
+                          <span className="text-[10px] text-text-dim truncate block max-w-lg mt-1 font-bold" title={header.value || "Header omitted in response."}>
+                            {header.value || <span className="italic text-text-muted">Header Omitted</span>}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0 select-none">
+                          <Badge variant={badgeVariant} className="text-[8px] py-0.5 px-2 tracking-wider font-mono">
+                            {header.status.toUpperCase()}
+                          </Badge>
+                          {isExpanded ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="p-5 border-t border-white/[0.03] space-y-4 bg-black/15 text-xs font-sans">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black text-text-dim uppercase tracking-wider block font-mono">Vulnerability Risk</span>
+                              <p className="text-text-dim leading-relaxed text-[11px] font-medium">{header.description || "Omission of this header leaves client interfaces vulnerable to framing, script injection, or cookie leaks."}</p>
+                            </div>
+                            {header.recommendation && (
+                              <div className="space-y-1">
+                                <span className="text-[8px] font-black text-success uppercase tracking-wider block font-mono">Remediation Guideline</span>
+                                <code className="bg-bg border border-white/[0.05] p-2.5 rounded-lg block text-[9.5px] text-accent-light font-mono select-all select-text leading-normal font-bold">{header.recommendation}</code>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ==================== 3. SSL/TLS CERTIFICATE TAB ==================== */}
+        {activeTab === "ssl" && ssl && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("ssl")}
+            <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">SSL/TLS Handshake &amp; Cert</h2>
+                <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Trusted Certificate Authority validation and protocol checks</p>
+              </div>
+              {!localResult?.isPublicScan && (
+                <Button
+                  onClick={() => handleRefreshSection("ssl")}
+                  disabled={!!refreshingSection}
+                  variant="outline"
+                  size="sm"
+                  icon={RefreshCw}
+                  className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider"
+                >
+                  Sync SSL
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Key className="h-4 w-4 text-accent" /> Encryption Summary
                 </h3>
-                <p className="text-xs text-text-dim font-sans leading-relaxed">
-                  The following active TCP listening ports were detected on target host interfaces. Administrative interfaces (SSH, SQL, FTP) should always be closed to the public.
-                </p>
-                <div className="flex flex-wrap gap-2.5 pt-2">
-                  {exposedServices.map((srv, idx) => (
+                <div className="space-y-3.5 font-mono text-xs">
+                  <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                    <span className="text-text-dim">Trusted Authority (CA)</span>
+                    <span className="font-extrabold text-text truncate max-w-[200px]" title={ssl.issuer}>{ssl.issuer || "Unknown"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                    <span className="text-text-dim">TLS Protocol Version</span>
+                    <span className="font-extrabold text-accent">{ssl.tlsVersion || "TLSv1.3"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                    <span className="text-text-dim">Certificate Valid</span>
+                    <Badge variant={ssl.valid ? "success" : "danger"} className="text-[7.5px] py-0.5">
+                      {ssl.valid ? "VALID" : "INVALID"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-text-dim">Remaining Lifespan</span>
+                    <span className={`font-extrabold ${ssl.daysRemaining < 30 ? "text-danger animate-pulse" : "text-success"}`}>
+                      {ssl.daysRemaining ?? "N/A"} Days
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-accent" /> Key Parameters
+                </h3>
+                <div className="space-y-3.5 font-mono text-xs">
+                  <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                    <span className="text-text-dim">Signature Algorithm</span>
+                    <span className="font-extrabold text-text">{ssl.keyType || "RSA"} ({ssl.keyLength || "2048"} bits)</span>
+                  </div>
+                  <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                    <span className="text-text-dim">HSTS Preload Status</span>
+                    <Badge variant={ssl.hstsPreload ? "success" : "warning"} className="text-[7.5px] py-0.5">
+                      {ssl.hstsPreload ? "ACTIVE" : "NO PRELOAD"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                    <span className="text-text-dim">OCSP Stapling Status</span>
+                    <span className="font-extrabold text-text">{ssl.ocspStatus || "Good"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-text-dim">Wildcard Domain Cert</span>
+                    <span className="font-extrabold text-text">{ssl.wildcard ? "Yes" : "No"}</span>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {ssl.supportedVersions && ssl.supportedVersions.length > 0 && (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
+                  Supported Cipher Protocols
+                </h3>
+                <div className="flex flex-wrap gap-2 pt-1 font-mono select-none">
+                  {ssl.supportedVersions.map((ver, idx) => (
+                    <span
+                      key={idx}
+                      className={`text-[9px] font-extrabold px-2.5 py-1 rounded-lg border ${
+                        ver.includes("1.3") ? "border-success/30 bg-success/5 text-success" :
+                        ver.includes("1.2") ? "border-accent/30 bg-accent/5 text-accent" :
+                        "border-danger/30 bg-danger/5 text-danger line-through"
+                      }`}
+                    >
+                      {ver}
+                    </span>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {ssl.sans && ssl.sans.length > 0 && (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
+                  Subject Alternative Names (SANs) ({ssl.sans.length})
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 font-mono text-[9.5px] max-h-48 overflow-y-auto pr-1">
+                  {ssl.sans.map((san, idx) => (
+                    <div key={idx} className="bg-surface/40 border border-white/[0.02] px-2.5 py-1.5 rounded-lg select-all truncate font-bold hover:border-white/10 transition-colors" title={san}>
+                      {san}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ==================== 4. DNS SECURITY TAB ==================== */}
+        {activeTab === "dns" && dns && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("dns")}
+            <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">DNS Records &amp; Zones</h2>
+                <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Mail authentication policies and domain zone configuration records</p>
+              </div>
+              {!localResult?.isPublicScan && (
+                <Button
+                  onClick={() => handleRefreshSection("dns")}
+                  disabled={!!refreshingSection}
+                  variant="outline"
+                  size="sm"
+                  icon={RefreshCw}
+                  className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider"
+                >
+                  Sync DNS
+                </Button>
+              )}
+            </div>
+
+            {/* SPF / DMARC */}
+            {emailSecurity && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
+                    Sender Policy Framework (SPF)
+                  </h3>
+                  <div className="space-y-3.5 font-mono text-xs">
+                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                      <span>SPF Record Present</span>
+                      <Badge variant={emailSecurity.spfPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
+                        {emailSecurity.spfPresent ? "PASSED" : "FAILED"}
+                      </Badge>
+                    </div>
+                    {dns.spf?.value && (
+                      <div className="space-y-1">
+                        <span className="text-[8px] text-text-muted uppercase">Record Content</span>
+                        <code className="bg-bg border border-white/[0.05] p-2.5 rounded-lg block text-[9.5px] break-all select-all font-mono font-bold leading-normal">{dns.spf.value}</code>
+                      </div>
+                    )}
+                    {dns.spf?.error && (
+                      <div className="p-3 bg-danger/5 border border-danger/10 rounded-xl text-[10px] text-danger font-sans leading-relaxed">
+                        ⚠️ {dns.spf.error}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
+                    Domain Message Authentication (DMARC)
+                  </h3>
+                  <div className="space-y-3.5 font-mono text-xs">
+                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                      <span>DMARC Record Present</span>
+                      <Badge variant={emailSecurity.dmarcPresent ? "success" : "danger"} className="text-[7.5px] py-0.5">
+                        {emailSecurity.dmarcPresent ? "PASSED" : "FAILED"}
+                      </Badge>
+                    </div>
+                    {dns.dmarc?.value && (
+                      <div className="space-y-1">
+                        <span className="text-[8px] text-text-muted uppercase">Record Content</span>
+                        <code className="bg-bg border border-white/[0.05] p-2.5 rounded-lg block text-[9.5px] break-all select-all font-mono font-bold leading-normal">{dns.dmarc.value}</code>
+                      </div>
+                    )}
+                    {dns.dmarc?.error && (
+                      <div className="p-3 bg-danger/5 border border-danger/10 rounded-xl text-[10px] text-danger font-sans leading-relaxed">
+                        ⚠️ {dns.dmarc.error}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* Sitemap/robots list */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono text-xs text-left">
+              {robotsTxt && (
+                <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[130px] rounded-2xl">
+                  <div>
+                    <span className="text-[8px] text-text-muted uppercase font-bold">robots.txt</span>
+                    <span className="font-extrabold text-text text-[11px] block mt-1">{robotsTxt.exists ? "Active Indexing Policy" : "Missing / Omitted"}</span>
+                  </div>
+                  {robotsTxt.exists && (
+                    <p className={`text-[9px] font-bold ${robotsTxt.sensitiveExposed ? "text-danger" : "text-success"}`}>
+                      {robotsTxt.sensitiveExposed ? "⚠️ Sensitive paths exposed" : "✓ Public paths protected"}
+                    </p>
+                  )}
+                  <Badge variant={robotsTxt.exists ? "success" : "warning"} className="text-[7px] py-0.5 w-max">
+                    {robotsTxt.exists ? "RESOLVED" : "ADVISORY"}
+                  </Badge>
+                </Card>
+              )}
+
+              {sitemapXml && (
+                <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[130px] rounded-2xl">
+                  <div>
+                    <span className="text-[8px] text-text-muted uppercase font-bold">sitemap.xml</span>
+                    <span className="font-extrabold text-text text-[11px] block mt-1">{sitemapXml.exists ? `${sitemapXml.urlCount ?? 0} links found` : "Missing / Omitted"}</span>
+                  </div>
+                  {sitemapXml.exists && sitemapXml.lastModified && (
+                    <span className="text-[9px] text-text-dim">Modified: {new Date(sitemapXml.lastModified).toLocaleDateString()}</span>
+                  )}
+                  <Badge variant={sitemapXml.exists ? "success" : "warning"} className="text-[7px] py-0.5 w-max">
+                    {sitemapXml.exists ? "RESOLVED" : "ADVISORY"}
+                  </Badge>
+                </Card>
+              )}
+
+              {securityTxt && (
+                <Card className="p-4 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[130px] rounded-2xl">
+                  <div>
+                    <span className="text-[8px] text-text-muted uppercase font-bold">security.txt</span>
+                    <span className="font-extrabold text-text text-[11px] block mt-1">{securityTxt.exists ? "Disclosure Active" : "Missing / Omitted"}</span>
+                  </div>
+                  {securityTxt.exists && securityTxt.contact && (
+                    <span className="text-[9px] text-text-dim truncate font-mono block max-w-full" title={securityTxt.contact}>{securityTxt.contact}</span>
+                  )}
+                  <Badge variant={securityTxt.exists ? "success" : "warning"} className="text-[7px] py-0.5 w-max">
+                    {securityTxt.exists ? "RESOLVED" : "ADVISORY"}
+                  </Badge>
+                </Card>
+              )}
+            </div>
+
+            {/* Published Zone Records */}
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+              <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                <Globe className="h-4 w-4 text-accent" /> Domain Zone Records
+              </h3>
+              <div className="space-y-4 font-mono text-xs">
+                {dns.a && dns.a.length > 0 && (
+                  <div className="bg-bg/40 p-3.5 rounded-2xl border border-white/[0.02]">
+                    <span className="text-[8px] font-bold text-text-muted block uppercase mb-1.5">A Record Mappings (IPv4)</span>
+                    <div className="flex flex-wrap gap-2">
+                      {dns.a.map((ip, idx) => (
+                        <span key={idx} className="bg-surface border border-white/[0.04] px-2.5 py-1.5 rounded-lg text-[9.5px] text-accent-light font-bold select-all">{ip}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dns.aaaa && dns.aaaa.length > 0 && (
+                  <div className="bg-bg/40 p-3.5 rounded-2xl border border-white/[0.02]">
+                    <span className="text-[8px] font-bold text-text-muted block uppercase mb-1.5">AAAA Record Mappings (IPv6)</span>
+                    <div className="flex flex-wrap gap-2">
+                      {dns.aaaa.map((ip, idx) => (
+                        <span key={idx} className="bg-surface border border-white/[0.04] px-2.5 py-1.5 rounded-lg text-[9.5px] text-accent-light font-bold select-all">{ip}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dns.mx && dns.mx.length > 0 && (
+                  <div className="bg-bg/40 p-3.5 rounded-2xl border border-white/[0.02]">
+                    <span className="text-[8px] font-bold text-text-muted block uppercase mb-2">MX Records (Mail Handlers)</span>
+                    <div className="space-y-1.5">
+                      {dns.mx.map((m, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[10px] bg-surface/50 p-2.5 rounded-lg select-all border border-white/[0.02] font-bold text-text">{m}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dns.txt && dns.txt.length > 0 && (
+                  <div className="bg-bg/40 p-3.5 rounded-2xl border border-white/[0.02]">
+                    <span className="text-[8px] font-bold text-text-muted block uppercase mb-2">TXT Records</span>
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                      {dns.txt.map((t, idx) => (
+                        <div key={idx} className="bg-surface/50 p-2.5 rounded-lg text-[10px] text-text-dim select-all break-all leading-normal border border-white/[0.02] font-bold">{t}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ==================== 5. OPEN PORTS TAB ==================== */}
+        {activeTab === "ports" && exposedServices && exposedServices.length > 0 && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("ports")}
+            <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Open Application Interfaces</h2>
+                <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Active TCP port status and listening services mapping</p>
+              </div>
+              <Button
+                onClick={() => handleRefreshSection("ports")}
+                disabled={!!refreshingSection}
+                variant="outline"
+                size="sm"
+                icon={RefreshCw}
+                className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider"
+              >
+                Sync Ports
+              </Button>
+            </div>
+
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+              <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                <Terminal className="h-4 w-4 text-accent" /> Scan Port Results
+              </h3>
+              <p className="text-xs text-text-dim font-sans leading-relaxed">
+                The following TCP listening ports were detected on target host public interfaces. Exposed administrative ports (SSH, SQL, FTP, RDP) represent high-value hijack vectors.
+              </p>
+              <div className="flex flex-wrap gap-2.5 pt-2">
+                {exposedServices.map((srv, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedPort(srv)}
+                    className="flex items-center gap-2 bg-bg/50 hover:bg-bg border border-white/[0.04] hover:border-accent/30 px-4 py-2.5 rounded-xl text-xs font-mono transition-all text-left group"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-danger animate-pulse shrink-0" />
+                    <span className="font-extrabold text-text">Port {srv.port}</span>
+                    <span className="text-text-muted">/ {srv.service}</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-text-dim group-hover:translate-x-0.5 transition-transform ml-1" />
+                  </button>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ==================== 6. SUBDOMAINS TAB ==================== */}
+        {activeTab === "subdomains" && subdomains && subdomains.length > 0 && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("subdomains")}
+            <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Discovered Domain Assets</h2>
+                <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Subdomains validated via DNS resolving and Certificate Transparency logs</p>
+              </div>
+              <Button onClick={() => handleRefreshSection("subdomains")} disabled={!!refreshingSection} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider">
+                Sync Assets
+              </Button>
+            </div>
+
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+              <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                <Layers className="h-4 w-4 text-accent" /> Active Subdomains ({subdomains.length})
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[480px] overflow-y-auto pr-1">
+                {subdomains.map((sub, idx) => {
+                  const subName = sub.subdomain || sub;
+                  const sourceLabel = sub.source?.includes("ssl-cert") ? "SSL Cert" : "DNS Probe";
+                  return (
+                    <div key={idx} className="bg-surface/50 border border-white/[0.05] p-3.5 rounded-2xl space-y-3 hover:border-accent/20 transition-all">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="truncate font-bold text-[11.5px] text-text font-mono select-all block" title={subName}>{subName}</span>
+                        <Badge variant={sub.severity === "medium" ? "warning" : "info"} className="text-[7.5px] py-0.5 shrink-0">{sub.severity?.toUpperCase() || "INFO"}</Badge>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {sub.ip && <span className="text-[9px] text-text-dim font-mono bg-bg/40 px-2 py-0.5 rounded-md font-bold">{sub.ip}</span>}
+                        <span className="text-[9px] text-accent font-mono bg-accent/5 border border-accent/20 px-2 py-0.5 rounded-md font-bold">{sourceLabel}</span>
+                      </div>
+                      {sub.evidence && <p className="text-[9.5px] text-text-dim font-sans leading-normal">{sub.evidence}</p>}
+                      <Button onClick={() => handleScanSubdomain(subName)} variant="secondary" size="sm" className="py-1 text-[9.5px] w-full mt-1.5" icon={RefreshCw}>
+                        Audit Asset
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ==================== 7. PUBLIC PAGES TAB ==================== */}
+        {activeTab === "pages" && publicPages && publicPages.length > 0 && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("pages")}
+            <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Discovered Public Pages</h2>
+                <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Internal hyperlinks extracted and verified via home page crawling</p>
+              </div>
+              <Button onClick={() => handleRefreshSection("pages")} disabled={!!refreshingSection} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider">
+                Sync Pages
+              </Button>
+            </div>
+
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-accent" /> Indexable Pages ({publicPages.length})
+                </h3>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(publicPages.map(p => p.url || p.path).join("\n")); toast.success("Paths copied to clipboard"); }}
+                  className="flex items-center gap-1.5 text-[9px] font-bold text-text-dim hover:text-accent transition-all font-mono px-2.5 py-1.5 rounded-lg hover:bg-accent/8 border border-transparent hover:border-accent/20 uppercase"
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copy List
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[500px] overflow-y-auto pr-1 font-mono text-[11px]">
+                {publicPages.map((page, idx) => {
+                  const statusColor = !page.status ? "text-text-dim" :
+                    page.status < 300 ? "text-success" :
+                    page.status < 400 ? "text-warning" : "text-danger";
+                  return (
+                    <div key={idx} className="flex items-center gap-3 bg-surface/50 border border-white/[0.03] px-3.5 py-2.5 rounded-xl hover:border-white/[0.08] transition-all group justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`text-[9px] font-black w-8 text-center shrink-0 font-mono ${statusColor}`}>{page.status || "—"}</span>
+                        <span className="truncate text-text select-all font-bold" title={page.path || page.url}>{page.path || page.url}</span>
+                      </div>
+                      <a href={page.url} target="_blank" rel="noopener noreferrer" className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-text-dim hover:text-accent p-1">
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ==================== 8. ATTACK SURFACE TAB ==================== */}
+        {activeTab === "attack-surface" && (
+          <div className="space-y-6 animate-fadeIn text-left">
+            <div className="border-b border-white/[0.05] pb-3">
+              <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Exposed Directories &amp; Panels</h2>
+              <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Unauthenticated admin consoles or configuration backups audits</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Exposed files */}
+              {sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <FileText className="h-4.5 w-4.5 text-accent" /> Leaked Code / Env Backups ({sensitiveFiles.filter(f => f.exists).length})
+                  </h3>
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
+                    {sensitiveFiles.filter(f => f.exists).map((file, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
+                        <div className="min-w-0 pr-2">
+                          <span className="font-bold text-text select-all block truncate" title={file.path}>{file.path}</span>
+                          <span className="text-[9px] text-text-muted mt-0.5 block font-bold">Status: HTTP {file.status || 200}</span>
+                        </div>
+                        <Badge variant="danger" className="text-[7px] py-0.5 shrink-0 font-sans">EXPOSED</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Login interfaces */}
+              {loginSurfaces && loginSurfaces.length > 0 && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                    <Lock className="h-4.5 w-4.5 text-accent" /> Administrative Portal Entries ({loginSurfaces.length})
+                  </h3>
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
+                    {loginSurfaces.map((login, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
+                        <div className="min-w-0 pr-2">
+                          <span className="font-bold text-text select-all block truncate" title={login.path}>{login.path}</span>
+                        </div>
+                        <Badge variant="warning" className="text-[7px] py-0.5 shrink-0 font-sans">ACCESSIBLE</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ==================== 9. SEO OPTIMIZATION TAB ==================== */}
+        {activeTab === "seo" && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("seo")}
+            <div className="border-b border-white/[0.05] pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1 flex items-center gap-3">
+                {seoData.favicon && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={seoData.favicon} 
+                    alt="Favicon" 
+                    className="h-5 w-5 rounded bg-white/10 p-0.5 object-contain"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                )}
+                <div>
+                  <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">SEO Optimization &amp; Metadata</h2>
+                  <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Crawler directives, metadata validation, and page audits</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 shrink-0">
+                {seoData.title && (
+                  <div className="hidden lg:flex items-center gap-2 bg-white/[0.02] border border-white/[0.05] py-1.5 px-3 rounded-xl max-w-[200px] truncate text-[9px] font-mono text-text-dim">
+                    <span className="text-[7.5px] uppercase tracking-wider text-accent font-bold">Title:</span>
+                    <span className="truncate select-all font-bold" title={seoData.title}>{seoData.title}</span>
+                  </div>
+                )}
+                <Button
+                  onClick={() => handleRefreshSection("seo")}
+                  disabled={!!refreshingSection}
+                  variant="outline"
+                  size="sm"
+                  icon={RefreshCw}
+                  className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider"
+                >
+                  Sync SEO
+                </Button>
+              </div>
+            </div>
+
+            {!seo || (!seoData.title && !seoData.description && seoData.imageCount === 0 && seoData.h1Count === 0) ? (
+              <Card className="p-8 border border-warning/20 bg-warning/5 text-center space-y-4 font-sans max-w-lg mx-auto rounded-3xl shadow-xl my-6">
+                <div className="flex justify-center">
+                  <div className="p-3.5 bg-warning/10 border border-warning/20 rounded-full text-warning">
+                    <AlertTriangle className="h-8 w-8 animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-text font-mono">SEO Analytics Unavailable</h3>
+                  <p className="text-xs text-text-dim leading-relaxed">
+                    We were unable to extract the HTML structure of the target page during this scan.
+                  </p>
+                </div>
+                <ul className="text-[10px] text-text-dim list-disc list-inside space-y-1.5 max-w-xs mx-auto text-left font-mono bg-black/20 p-3.5 rounded-xl border border-white/[0.03]">
+                  <li>Target blocks requests (e.g. Cloudflare / WAF)</li>
+                  <li>HTTP timeout error during scan</li>
+                </ul>
+              </Card>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                    <Search className="h-4.5 w-4.5 text-accent" /> Meta Content Tags
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 font-mono text-xs">
+                    <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 rounded-2xl">
+                      <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
+                        <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">Page Title</span>
+                        {(() => {
+                          const len = (seoData.title || "").length;
+                          if (len === 0) return <Badge variant="danger" className="text-[7.5px] py-0.5">MISSING</Badge>;
+                          if (len >= 50 && len <= 60) return <Badge variant="success" className="text-[7.5px] py-0.5">OPTIMAL</Badge>;
+                          return <Badge variant="warning" className="text-[7.5px] py-0.5">UNHARMONIOUS</Badge>;
+                        })()}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="bg-bg/40 p-2.5 rounded-xl border border-white/[0.02] text-xs font-sans text-text select-all leading-normal font-bold">
+                          {seoData.title || <span className="italic text-text-muted font-mono">No Title Element</span>}
+                        </div>
+                        <div className="flex justify-between text-[9.5px] text-text-dim">
+                          <span>Characters:</span>
+                          <span className="font-bold text-text">{(seoData.title || "").length} / 60 max (ideal: 50-60)</span>
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 rounded-2xl">
+                      <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
+                        <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">Description</span>
+                        {(() => {
+                          const len = (seoData.description || "").length;
+                          if (len === 0) return <Badge variant="danger" className="text-[7.5px] py-0.5">MISSING</Badge>;
+                          if (len >= 120 && len <= 160) return <Badge variant="success" className="text-[7.5px] py-0.5">OPTIMAL</Badge>;
+                          return <Badge variant="warning" className="text-[7.5px] py-0.5">UNHARMONIOUS</Badge>;
+                        })()}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="bg-bg/40 p-2.5 rounded-xl border border-white/[0.02] text-xs font-sans text-text select-all leading-normal font-bold">
+                          {seoData.description || <span className="italic text-text-muted font-mono">No Meta Description</span>}
+                        </div>
+                        <div className="flex justify-between text-[9.5px] text-text-dim">
+                          <span>Characters:</span>
+                          <span className="font-bold text-text">{(seoData.description || "").length} / 160 max (ideal: 120-160)</span>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                    <Activity className="h-4.5 w-4.5 text-accent" /> Page Semantics &amp; Alt Tags
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 font-mono text-xs">
+                    <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                      <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
+                        <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">Image Alt Checklist</span>
+                        {(() => {
+                          const count = seoData.imageCount || 0;
+                          const alt = seoData.imageAltCount || 0;
+                          if (count === 0) return <Badge variant="success" className="text-[7.5px] py-0.5">NO IMAGES</Badge>;
+                          if (count === alt) return <Badge variant="success" className="text-[7.5px] py-0.5">WCAG PASS</Badge>;
+                          return <Badge variant="warning" className="text-[7.5px] py-0.5">ALT INCOMPLETE</Badge>;
+                        })()}
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
+                          <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-xl">
+                            <div className="font-bold text-text">{seoData.imageCount ?? 0}</div>
+                            <div className="text-[7.5px] text-text-muted uppercase mt-0.5 font-bold">Total</div>
+                          </div>
+                          <div className="bg-success/5 border border-success/15 p-2.5 rounded-xl text-success">
+                            <div className="font-bold">{seoData.imageAltCount ?? 0}</div>
+                            <div className="text-[7.5px] text-text-muted uppercase mt-0.5 font-bold">With Alt</div>
+                          </div>
+                          <div className="bg-danger/5 border border-danger/15 p-2.5 rounded-xl text-danger">
+                            <div className="font-bold">{Math.max(0, (seoData.imageCount ?? 0) - (seoData.imageAltCount ?? 0))}</div>
+                            <div className="text-[7.5px] text-text-muted uppercase mt-0.5 font-bold font-mono">Missing</div>
+                          </div>
+                        </div>
+
+                        {(() => {
+                          const count = seoData.imageCount || 0;
+                          const alt = seoData.imageAltCount || 0;
+                          const percentage = count > 0 ? Math.round((alt / count) * 100) : 100;
+                          return (
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[10px] text-text-dim uppercase font-bold">
+                                <span>Alt compliance:</span>
+                                <span>{percentage}%</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-white/[0.03] rounded-full overflow-hidden">
+                                <div className="h-full bg-accent rounded-full" style={{ width: `${percentage}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </Card>
+
+                    <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                      <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
+                        <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">Heading hierarchy</span>
+                        {seoData.h1Count === 1 ? <Badge variant="success" className="text-[7.5px] py-0.5">OPTIMAL</Badge> : <Badge variant="danger" className="text-[7.5px] py-0.5">SUBOPTIMAL</Badge>}
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3.5 text-center font-mono text-xs">
+                          <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-xl">
+                            <div className="text-[8px] text-text-muted uppercase mb-0.5 font-bold">&lt;h1&gt; Count</div>
+                            <div className={`text-xl font-bold font-mono ${seoData.h1Count === 1 ? "text-success" : "text-danger"}`}>
+                              {seoData.h1Count ?? 0}
+                            </div>
+                          </div>
+                          <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-xl">
+                            <div className="text-[8px] text-text-muted uppercase mb-0.5 font-bold">&lt;h2&gt; Count</div>
+                            <div className="text-xl font-bold font-mono text-accent">
+                              {seoData.h2Count ?? 0}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-text-muted leading-relaxed font-sans mt-1">
+                          Standard search bots require exactly one &lt;h1&gt; node to index pages cleanly.
+                        </p>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs font-mono">
+                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3.5 text-[10.5px] rounded-2xl">
+                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                      <Layers className="h-4.5 w-4.5 text-accent" /> Crawler Directives
+                    </h3>
+                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                      <span className="text-text-dim">Search Engine Indexable</span>
+                      <Badge variant={seoData.isIndexable ? "success" : "warning"} className="text-[7.5px] py-0.5 font-sans">
+                        {seoData.isIndexable ? "INDEXABLE" : "NOINDEX"}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-text-dim text-[8px] uppercase font-mono block">robots Directive</span>
+                      <code className="bg-bg border border-white/[0.05] p-2.5 rounded-lg block text-[9.5px] truncate select-all font-bold">{seoData.metaRobots || "Omitted"}</code>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-text-dim text-[8px] uppercase font-mono block">Canonical URL Path</span>
+                      <code className="bg-bg border border-white/[0.05] p-2.5 rounded-lg block text-[9.5px] truncate select-all font-bold">{seoData.canonicalUrl || "Omitted"}</code>
+                    </div>
+                  </Card>
+
+                  {seoData.twitterCard && (
+                    <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3.5 rounded-2xl">
+                      <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                        <Code className="h-4 w-4 text-accent" /> Twitter Social Metadata
+                      </h3>
+                      <div className="space-y-2 text-[10px]">
+                        <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                          <span className="text-text-dim uppercase text-[8px] font-mono">twitter:card</span>
+                          <span className="font-bold text-text">{seoData.twitterCard.card || "summary"}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                          <span className="text-text-dim uppercase text-[8px] font-mono">twitter:site</span>
+                          <span className="font-bold text-text">{seoData.twitterCard.site || "N/A"}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-text-dim uppercase text-[8px] font-mono block">twitter:title</span>
+                          <p className="text-text truncate select-all font-sans font-bold leading-normal">{seoData.twitterCard.title || "N/A"}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  )}
+                </div>
+
+                {seoData.openGraph && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {seoData.openGraph.image && (
+                      <div className="space-y-3">
+                        <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                          <Globe className="h-4.5 w-4.5 text-accent" /> OpenGraph Social Embed Preview
+                        </h3>
+                        <Card className="bg-[#0b0f19] border border-white/[0.06] rounded-2xl overflow-hidden hover:border-white/10 transition-all duration-300 p-0 sm:p-0">
+                          <div className="relative aspect-video bg-bg/50 border-b border-white/[0.04] overflow-hidden flex items-center justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={seoData.openGraph.image}
+                              alt="Social Preview"
+                              className="object-cover w-full h-full"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          </div>
+                          <div className="p-4.5 space-y-1 text-left font-sans">
+                            <span className="text-[9px] font-black text-accent uppercase tracking-wider font-mono">{domain}</span>
+                            <h4 className="text-xs sm:text-sm font-bold text-text line-clamp-1">{seoData.openGraph.title || seoData.title || "No Title"}</h4>
+                            <p className="text-[11px] text-text-dim line-clamp-2 leading-relaxed">{seoData.openGraph.description || seoData.description || "No description tags available."}</p>
+                          </div>
+                        </Card>
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                        <Link2 className="h-4.5 w-4.5 text-accent" /> OpenGraph Social Tags
+                      </h3>
+                      <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3.5 font-mono text-xs rounded-2xl">
+                        <div className="space-y-1">
+                          <span className="text-text-dim uppercase text-[8px] font-mono block">og:title</span>
+                          <div className="bg-bg/40 p-2.5 rounded-lg text-text border border-white/[0.02] font-sans font-bold select-all truncate">{seoData.openGraph.title || "N/A"}</div>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-text-dim uppercase text-[8px] font-mono block">og:type</span>
+                          <div className="bg-bg/40 p-2.5 rounded-lg text-text border border-white/[0.02] select-all truncate font-bold">{seoData.openGraph.type || "website"}</div>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-text-dim uppercase text-[8px] font-mono block">og:url</span>
+                          <div className="bg-bg/40 p-2.5 rounded-lg text-accent-light border border-white/[0.02] select-all truncate font-bold">{seoData.openGraph.url || "N/A"}</div>
+                        </div>
+                      </Card>
+                    </div>
+                  </div>
+                )}
+
+                {seoData.detectedImages && seoData.detectedImages.length > 0 && (
+                  <div className="space-y-4 mt-6">
+                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                      <Globe className="h-4.5 w-4.5 text-accent" /> Brand Assets &amp; Images ({seoData.detectedImages.length})
+                    </h3>
+                    <Card className="p-5 bg-surface/30 border border-white/[0.04] rounded-2xl">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        {seoData.detectedImages.map((img, idx) => (
+                          <div key={idx} className="bg-[#0b0f19] border border-white/[0.05] rounded-xl overflow-hidden hover:border-accent/30 transition-all duration-300 flex flex-col justify-between">
+                            <div className="relative aspect-square bg-white/[0.02] border-b border-white/[0.04] p-3.5 flex items-center justify-center group overflow-hidden select-none">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={img.src}
+                                alt={img.alt}
+                                className="object-contain max-h-full max-w-full rounded transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            </div>
+                            <div className="p-2 space-y-1.5 font-mono text-[9px] text-left">
+                              <p className="font-bold text-text truncate select-all block" title={img.alt}>{img.alt}</p>
+                              <div className="flex justify-between items-center text-text-dim text-[8px]">
+                                <span className="uppercase font-bold text-accent">{img.type || "asset"}</span>
+                                <a href={img.src} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline hover:text-accent-light font-bold">
+                                  View
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ==================== 10. PERFORMANCE TAB ==================== */}
+        {activeTab === "performance" && performance && (
+          <div className="space-y-6 animate-fadeIn text-left">
+            <div className="border-b border-white/[0.05] pb-3">
+              <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Response Speed Latency</h2>
+              <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Active network latency times and socket handshake durations</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 font-mono text-xs">
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Activity className="h-4.5 w-4.5 text-accent" /> Latency Timers Checklist
+                </h3>
+
+                <div className="space-y-4">
+                  {[
+                    { label: "DNS Lookup Latency", value: performance.dnsLookup || 45, max: 200, unit: "ms" },
+                    { label: "TLS Handshake Cryptography", value: performance.tlsHandshake || 110, max: 500, unit: "ms" },
+                    { label: "Time to First Byte (TTFB)", value: performance.ttfb || 230, max: 1000, unit: "ms" },
+                    { label: "Total Server Response", value: performance.responseTime || scanDuration || 350, max: 1500, unit: "ms" }
+                  ].map((metric, i) => {
+                    const percentage = Math.min(100, Math.round((metric.value / metric.max) * 100));
+                    const isSlow = metric.value > (metric.max * 0.7);
+
+                    return (
+                      <div key={i} className="space-y-1">
+                        <div className="flex justify-between text-[10.5px]">
+                          <span className="text-text-dim font-bold">{metric.label}</span>
+                          <span className="font-extrabold text-text">{metric.value} {metric.unit}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-surface border border-white/[0.02] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${isSlow ? "bg-danger" : "bg-accent"}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[220px] rounded-2xl">
+                <div>
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                    <Clock className="h-4.5 w-4.5 text-accent" /> Latency Diagnostics
+                  </h3>
+                  <p className="text-xs text-text-dim font-sans leading-relaxed mt-2.5">
+                    Fast response times reduce visitor drop rates and safeguard systems from connection exhaustion. Long DNS lookup times or slow TLS handshakes indicate a need for CDN integrations or DNSSEC caching rule modifications.
+                  </p>
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t border-white/[0.03] uppercase">
+                  <span className="text-text-muted text-[9px] font-bold tracking-wider">Evaluation Speed</span>
+                  <Badge variant={(performance.responseTime || 350) < 500 ? "success" : "warning"} className="text-[7.5px] py-0.5">
+                    {(performance.responseTime || 350) < 500 ? "OPTIMAL SPEED" : "LATENCY ALERT"}
+                  </Badge>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== 11. TECHNOLOGIES TAB ==================== */}
+        {activeTab === "tech" && techStack && techStack.length > 0 && (
+          <div className="space-y-6 animate-fadeIn text-left">
+            <div className="border-b border-white/[0.05] pb-3">
+              <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Detected Technology Footprint</h2>
+              <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Active system stack components profile identified from server response</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono text-xs">
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] md:col-span-2 space-y-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                  <Cpu className="h-4.5 w-4.5 text-accent" /> Stack Components ({techStack.length})
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                  {techStack.map((tech, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setSelectedPort(srv)}
-                      className="flex items-center gap-2 bg-bg/60 hover:bg-bg border border-white/[0.05] px-4 py-2.5 rounded-xl text-xs font-mono transition-all text-left group"
+                      type="button"
+                      onClick={() => setSelectedTech(tech)}
+                      className="bg-bg/40 border border-white/[0.04] hover:border-accent/20 p-3.5 rounded-2xl text-left space-y-1.5 transition-all group flex flex-col justify-between min-h-[85px]"
                     >
-                      <span className="h-1.5 w-1.5 rounded-full bg-danger animate-pulse" />
-                      <span className="font-bold text-text">Port {srv.port}</span>
-                      <span className="text-text-muted font-normal">/ {srv.service}</span>
-                      <ChevronRight className="h-3 w-3 text-text-dim group-hover:translate-x-0.5 transition-transform ml-1" />
+                      <span className="text-[8px] text-text-muted block uppercase tracking-widest font-black">{tech.category || "Stack Element"}</span>
+                      <div className="flex justify-between items-center gap-2 w-full">
+                        <span className="font-extrabold text-text block truncate text-xs">{tech.name}</span>
+                        <ChevronRight className="h-4 w-4 text-text-dim group-hover:translate-x-0.5 transition-transform shrink-0" />
+                      </div>
                     </button>
                   ))}
                 </div>
               </Card>
-            </div>
-          )}
 
-
-          {/* ==================== 6. SUBDOMAINS TAB ==================== */}
-          {activeTab === "subdomains" && subdomains && subdomains.length > 0 && (
-            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
-              {renderSectionLoader("subdomains")}
-              <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Subdomain Discovery</h2>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Real subdomains discovered via DNS A-record probing and SSL certificate SANs. No guessing — validated live results only.</p>
-                </div>
-                <Button onClick={() => handleRefreshSection("subdomains")} disabled={!!refreshingSection} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5">
-                  Refresh
-                </Button>
-              </div>
-              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-accent" /> Active Subdomains ({subdomains.length})
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[480px] overflow-y-auto pr-1">
-                  {subdomains.map((sub, idx) => {
-                    const subName = sub.subdomain || sub;
-                    const sourceLabel = sub.source?.includes("ssl-cert") ? "SSL Cert" : "DNS Probe";
-                    return (
-                      <div key={idx} className="bg-surface/50 border border-white/[0.05] p-3.5 rounded-xl space-y-2 hover:border-accent/20 transition-all">
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="truncate font-bold text-[11px] text-text font-mono select-all" title={subName}>{subName}</span>
-                          <Badge variant={sub.severity === "medium" ? "warning" : "info"} className="text-[7px] py-0.5 shrink-0">{sub.severity?.toUpperCase() || "INFO"}</Badge>
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                          {sub.ip && <span className="text-[9px] text-text-dim font-mono bg-bg/40 px-2 py-0.5 rounded-md">{sub.ip}</span>}
-                          <span className="text-[9px] text-accent font-mono bg-accent/5 border border-accent/20 px-2 py-0.5 rounded-md">{sourceLabel}</span>
-                        </div>
-                        {sub.evidence && <p className="text-[9px] text-text-dim font-sans leading-relaxed">{sub.evidence}</p>}
-                        <Button onClick={() => handleScanSubdomain(subName)} variant="secondary" size="sm" className="py-1 text-[9.5px] w-full" icon={RefreshCw}>
-                          Audit This Subdomain
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            </div>
-          )}
-
-          {/* ==================== 6b. PUBLIC PAGES TAB ==================== */}
-          {activeTab === "pages" && publicPages && publicPages.length > 0 && (
-            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
-              {renderSectionLoader("pages")}
-              <div className="border-b border-white/[0.05] pb-4 flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Public Page Discovery</h2>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Internal links extracted from the target homepage HTML — real crawled paths only, no guessing.</p>
-                </div>
-                <Button onClick={() => handleRefreshSection("pages")} disabled={!!refreshingSection} variant="outline" size="sm" icon={RefreshCw} className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5">
-                  Refresh
-                </Button>
-              </div>
-              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                    <Link2 className="h-4 w-4 text-accent" /> Discovered Pages ({publicPages.length})
+              {infrastructure && (
+                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
+                    <Server className="h-4.5 w-4.5 text-accent" /> Server Hosting
                   </h3>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(publicPages.map(p => p.url || p.path).join("\n")); toast.success("Paths copied to clipboard"); }}
-                    className="flex items-center gap-1.5 text-[9px] font-bold text-text-dim hover:text-accent transition-colors font-mono px-2.5 py-1 rounded-lg hover:bg-accent/5 border border-transparent hover:border-accent/20"
-                  >
-                    <Copy className="h-3 w-3" /> Copy All
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[500px] overflow-y-auto pr-1 font-mono text-[11px]">
-                  {publicPages.map((page, idx) => {
-                    const statusColor = !page.status ? "text-text-dim" :
-                      page.status < 300 ? "text-success" :
-                      page.status < 400 ? "text-warning" : "text-danger";
-                    return (
-                      <div key={idx} className="flex items-center gap-3 bg-surface/50 border border-white/[0.03] px-3 py-2.5 rounded-xl hover:border-white/[0.08] transition-all group">
-                        <span className={`text-[9px] font-black w-8 text-center shrink-0 ${statusColor}`}>{page.status || "—"}</span>
-                        <span className="truncate text-text select-all" title={page.path || page.url}>{page.path || page.url}</span>
-                        <a href={page.url} target="_blank" rel="noopener noreferrer" className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-text-dim hover:text-accent">
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            </div>
-          )}
 
-          {/* ==================== 7. ATTACK SURFACE TAB ==================== */}
-
-          {activeTab === "attack-surface" && (
-            <div className="space-y-6 animate-fadeIn text-left">
-              <div className="border-b border-white/[0.05] pb-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Attack Surface Exposure</h2>
-                <p className="text-[10px] text-text-dim mt-0.5 font-sans font-medium">Verify publicly accessible administration directories and environment variable logs.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Exposed Paths */}
-                {sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0 && (
-                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                      <FileText className="h-4.5 w-4.5 text-accent" /> Leaked Environment / git Files ({sensitiveFiles.filter(f => f.exists).length})
-                    </h3>
-                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
-                      {sensitiveFiles.filter(f => f.exists).map((file, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
-                          <div className="min-w-0 pr-2">
-                            <span className="font-bold text-text select-all block truncate" title={file.path}>{file.path}</span>
-                            <span className="text-[9px] text-text-muted mt-0.5 block">Response code: HTTP {file.status || 200}</span>
-                          </div>
-                          <Badge variant="danger" className="text-[7.5px] py-0.5 shrink-0">EXPOSED</Badge>
-                        </div>
-                      ))}
+                  <div className="space-y-3.5 font-mono text-[11px]">
+                    <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                      <span className="text-text-dim uppercase text-[8px] block font-bold">Server Engine</span>
+                      <span className="font-bold text-text truncate max-w-[120px]">{infrastructure.cdn || infrastructure.reverseProxy || "Nginx"}</span>
                     </div>
-                  </Card>
-                )}
-
-                {/* Login surfaces */}
-                {loginSurfaces && loginSurfaces.length > 0 && (
-                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                      <Lock className="h-4.5 w-4.5 text-accent" /> Administrative Portal Links ({loginSurfaces.length})
-                    </h3>
-                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
-                      {loginSurfaces.map((login, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
-                          <div className="min-w-0 pr-2">
-                            <span className="font-bold text-text select-all block truncate" title={login.path}>{login.path}</span>
-                          </div>
-                          <Badge variant="warning" className="text-[7.5px] py-0.5 shrink-0">ACCESSIBLE</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ==================== 8. SEO TAB ==================== */}
-          {activeTab === "seo" && (
-            <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
-              {renderSectionLoader("seo")}
-              <div className="border-b border-white/[0.05] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2.5">
-                    {seoData.favicon && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img 
-                        src={seoData.favicon} 
-                        alt="Target Website Icon Logo" 
-                        className="h-5 w-5 rounded bg-white/10 p-0.5 object-contain"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    )}
-                    <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">SEO Optimization &amp; Crawling</h2>
-                  </div>
-                  <p className="text-[10px] text-text-dim mt-0.5 font-sans">Analyze search crawler indexing, title & description tags, HTML heading structures, image alt compliance, and OpenGraph social shares.</p>
-                </div>
-                
-                <div className="flex items-center gap-3 shrink-0">
-                  {seoData.title && (
-                    <div className="hidden lg:flex items-center gap-2 bg-white/[0.02] border border-white/[0.05] py-1.5 px-3 rounded-xl max-w-[200px] truncate text-[9px] font-mono text-text-dim">
-                      <span className="text-[7.5px] uppercase tracking-wider text-accent font-bold">Site Title:</span>
-                      <span className="truncate select-all" title={seoData.title}>{seoData.title}</span>
-                    </div>
-                  )}
-                  <Button
-                    onClick={() => handleRefreshSection("seo")}
-                    disabled={!!refreshingSection}
-                    variant="outline"
-                    size="sm"
-                    icon={RefreshCw}
-                    className="hover:border-accent/40 hover:text-accent font-bold text-[10px] py-1.5"
-                  >
-                    Refresh SEO
-                  </Button>
-                </div>
-              </div>
-
-              {!seo || (!seoData.title && !seoData.description && seoData.imageCount === 0 && seoData.h1Count === 0) ? (
-                <Card className="p-8 border border-warning/20 bg-warning/5 text-center space-y-4 font-sans max-w-lg mx-auto rounded-2xl shadow-xl my-6">
-                  <div className="flex justify-center">
-                    <div className="p-3.5 bg-warning/10 border border-warning/20 rounded-full">
-                      <AlertTriangle className="h-8 w-8 text-warning animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-black uppercase tracking-wider text-text font-mono">SEO Content Diagnostics Unavailable</h3>
-                    <p className="text-xs text-text-dim leading-relaxed">
-                      We were unable to crawl or retrieve the HTML structure of the target page for this scan. This occurs when:
-                    </p>
-                  </div>
-                  <ul className="text-[11px] text-text-dim list-disc list-inside space-y-1.5 max-w-xs mx-auto text-left font-mono bg-black/20 p-3.5 rounded-xl border border-white/[0.03]">
-                    <li>The target server blocks crawler requests (e.g. Cloudflare / WAF rules)</li>
-                    <li>Network timeouts occurred during scanning</li>
-                    <li>This is an older scan record stored before SEO features were introduced</li>
-                  </ul>
-                  <p className="text-[10px] text-text-muted">
-                    Try running a new scan or check if the domain is fully public and reachable.
-                  </p>
-                </Card>
-              ) : (
-                <>
-                  {/* SECTION: HTML Meta Audits */}
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                      <Search className="h-4.5 w-4.5 text-accent" /> Meta Content Tags Audit
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 font-mono text-xs">
-                      {/* Title Audit Card */}
-                      <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3">
-                        <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
-                          <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">HTML Page Title</span>
-                          {(() => {
-                            const len = (seoData.title || "").length;
-                            if (len === 0) return <Badge variant="danger" className="text-[7.5px] py-0.5">CRITICAL MISSING</Badge>;
-                            if (len >= 50 && len <= 60) return <Badge variant="success" className="text-[7.5px] py-0.5">OPTIMAL LENGTH</Badge>;
-                            return <Badge variant="warning" className="text-[7.5px] py-0.5">{len < 50 ? "SHORT" : "TOO LONG"}</Badge>;
-                          })()}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="bg-bg/40 p-2.5 rounded-lg border border-white/[0.02] text-xs font-sans text-text select-all leading-normal">
-                            {seoData.title || <span className="italic text-text-muted font-mono">Omitted (No Title Element Detected)</span>}
-                          </div>
-                          <div className="flex justify-between text-[10px] text-text-dim">
-                            <span>Character Count:</span>
-                            <span className="font-bold text-text">{(seoData.title || "").length} / 60 max (ideal: 50-60)</span>
-                          </div>
-                        </div>
-                      </Card>
-
-                      {/* Description Audit Card */}
-                      <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3">
-                        <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
-                          <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">Meta Description</span>
-                          {(() => {
-                            const len = (seoData.description || "").length;
-                            if (len === 0) return <Badge variant="danger" className="text-[7.5px] py-0.5">CRITICAL MISSING</Badge>;
-                            if (len >= 120 && len <= 160) return <Badge variant="success" className="text-[7.5px] py-0.5">OPTIMAL LENGTH</Badge>;
-                            return <Badge variant="warning" className="text-[7.5px] py-0.5">{len < 120 ? "SHORT" : "TOO LONG"}</Badge>;
-                          })()}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="bg-bg/40 p-2.5 rounded-lg border border-white/[0.02] text-xs font-sans text-text select-all leading-normal">
-                            {seoData.description || <span className="italic text-text-muted font-mono">Omitted (No Meta Description Detected)</span>}
-                          </div>
-                          <div className="flex justify-between text-[10px] text-text-dim">
-                            <span>Character Count:</span>
-                            <span className="font-bold text-text">{(seoData.description || "").length} / 160 max (ideal: 120-160)</span>
-                          </div>
-                        </div>
-                      </Card>
-                    </div>
-                  </div>
-
-                  {/* SECTION: Accessibility & Heading Structure */}
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                      <Activity className="h-4.5 w-4.5 text-accent" /> Page Accessibility &amp; Structure
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 font-mono text-xs">
-                      {/* Image Alt Compliance Card */}
-                      <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                        <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
-                          <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">Image Alt Tags Audit</span>
-                          {(() => {
-                            const count = seoData.imageCount || 0;
-                            const alt = seoData.imageAltCount || 0;
-                            if (count === 0) return <Badge variant="success" className="text-[7.5px] py-0.5">NO IMAGES</Badge>;
-                            if (count === alt) return <Badge variant="success" className="text-[7.5px] py-0.5">WCAG COMPLIANT</Badge>;
-                            return <Badge variant="warning" className="text-[7.5px] py-0.5">ALT TEXT MISSING</Badge>;
-                          })()}
-                        </div>
-                        
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
-                            <div className="bg-bg/40 border border-white/[0.02] p-2 rounded-lg">
-                              <div className="font-bold text-text">{seoData.imageCount ?? 0}</div>
-                              <div className="text-[7px] text-text-muted uppercase mt-0.5">Total Imgs</div>
-                            </div>
-                            <div className="bg-success/5 border border-success/15 p-2 rounded-lg text-success">
-                              <div className="font-bold">{seoData.imageAltCount ?? 0}</div>
-                              <div className="text-[7px] text-text-muted uppercase mt-0.5">With Alt</div>
-                            </div>
-                            <div className="bg-danger/5 border border-danger/15 p-2 rounded-lg text-danger">
-                              <div className="font-bold">{Math.max(0, (seoData.imageCount ?? 0) - (seoData.imageAltCount ?? 0))}</div>
-                              <div className="text-[7px] text-text-muted uppercase mt-0.5">Missing Alt</div>
-                            </div>
-                          </div>
-
-                          {/* Compliance Progress Bar */}
-                          {(() => {
-                            const count = seoData.imageCount || 0;
-                            const alt = seoData.imageAltCount || 0;
-                            const percentage = count > 0 ? Math.round((alt / count) * 100) : 100;
-                            const isOptimal = percentage === 100;
-                            const isPoor = percentage < 50;
-                            return (
-                              <div className="space-y-1">
-                                <div className="flex justify-between text-[10px] text-text-dim">
-                                  <span>Alt Attribute Compliance Rate:</span>
-                                  <span className={`font-bold ${isOptimal ? "text-success" : isPoor ? "text-danger" : "text-warning"}`}>{percentage}%</span>
-                                </div>
-                                <div className="h-1.5 w-full bg-white/[0.03] rounded-full overflow-hidden">
-                                  <div 
-                                    className={`h-full rounded-full ${isOptimal ? "bg-success" : isPoor ? "bg-danger" : "bg-warning"}`} 
-                                    style={{ width: `${percentage}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </Card>
-
-                      {/* Heading Tag Distribution Card */}
-                      <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                        <div className="flex justify-between items-center border-b border-white/[0.05] pb-2">
-                          <span className="font-bold text-text uppercase text-[10px] tracking-wider font-mono">Headings Structure</span>
-                          {(() => {
-                            const h1 = seoData.h1Count || 0;
-                            if (h1 === 1) return <Badge variant="success" className="text-[7.5px] py-0.5">OPTIMAL HIERARCHY</Badge>;
-                            if (h1 > 1) return <Badge variant="warning" className="text-[7.5px] py-0.5">MULTIPLE H1 TAGS</Badge>;
-                            return <Badge variant="danger" className="text-[7.5px] py-0.5">MISSING H1 TAG</Badge>;
-                          })()}
-                        </div>
-
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-2 gap-3 text-center font-mono text-xs">
-                            <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                              <div className="text-[8px] text-text-muted uppercase mb-0.5">&lt;h1&gt; Tag Count</div>
-                              <div className={`text-xl font-bold font-mono ${seoData.h1Count === 1 ? "text-success" : seoData.h1Count > 1 ? "text-warning" : "text-danger"}`}>
-                                {seoData.h1Count ?? 0}
-                              </div>
-                            </div>
-                            <div className="bg-bg/40 border border-white/[0.02] p-2.5 rounded-lg">
-                              <div className="text-[8px] text-text-muted uppercase mb-0.5">&lt;h2&gt; Tag Count</div>
-                              <div className="text-xl font-bold font-mono text-accent">
-                                {seoData.h2Count ?? 0}
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-[9.5px] text-text-muted leading-relaxed font-sans mt-1">
-                            Search bots prioritize the &lt;h1&gt; element to establish focus. Exactly one &lt;h1&gt; tag must exist per page, followed by structured &lt;h2&gt; subheadings.
-                          </p>
-                        </div>
-                      </Card>
-                    </div>
-                  </div>
-
-                  {/* SECTION: Social Preview & Metadata details */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs font-mono">
-                    {/* Global Crawl Parameters */}
-                    <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3.5 text-[10.5px]">
-                      <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                        <Layers className="h-4.5 w-4.5 text-accent" /> Crawler Indexing Directives
-                      </h3>
+                    {infrastructure.hosting && (
                       <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                        <span className="text-text-dim">Search Engine Indexable</span>
-                        <Badge variant={seoData.isIndexable ? "success" : "warning"} className="text-[7.5px] py-0.5 font-sans">
-                          {seoData.isIndexable ? "INDEXABLE" : "NOINDEX"}
-                        </Badge>
+                        <span className="text-text-dim uppercase text-[8px] block font-bold">Cloud Network</span>
+                        <span className="font-bold text-text truncate max-w-[120px]">{infrastructure.hosting}</span>
                       </div>
-                      <div className="space-y-1">
-                        <span className="text-text-dim text-[9px] uppercase font-mono">Crawler Directives (meta name="robots")</span>
-                        <code className="bg-bg border border-white/[0.05] p-2 rounded block text-[9.5px] truncate select-all">{seoData.metaRobots || "Omitted"}</code>
+                    )}
+                    {infrastructure.asn && (
+                      <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+                        <span className="text-text-dim uppercase text-[8px] block font-bold">Network ASN</span>
+                        <span className="font-bold text-text select-all">{infrastructure.asn}</span>
                       </div>
-                      <div className="space-y-1">
-                        <span className="text-text-dim text-[9px] uppercase font-mono">Canonical Link Configuration</span>
-                        <code className="bg-bg border border-white/[0.05] p-2 rounded block text-[9.5px] truncate select-all">{seoData.canonicalUrl || "Omitted"}</code>
+                    )}
+                    {infrastructure.isp && (
+                      <div className="flex justify-between">
+                        <span className="text-text-dim uppercase text-[8px] block font-bold">ISP Provider</span>
+                        <span className="font-bold text-text truncate max-w-[120px]" title={infrastructure.isp}>{infrastructure.isp}</span>
                       </div>
-                    </Card>
-
-                    {/* Twitter Cards Metadata Table */}
-                    {seoData.twitterCard && (
-                      <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3">
-                        <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                          <Code className="h-4 w-4 text-accent" /> Twitter Cards Raw Metadata
-                        </h3>
-                        <div className="space-y-2 text-[10px]">
-                          <div className="flex justify-between border-b border-white/[0.02] pb-1">
-                            <span className="text-text-dim uppercase text-[8px] font-mono">twitter:card</span>
-                            <span className="font-bold text-text">{seoData.twitterCard.card || "summary"}</span>
-                          </div>
-                          <div className="flex justify-between border-b border-white/[0.02] pb-1">
-                            <span className="text-text-dim uppercase text-[8px] font-mono">twitter:site</span>
-                            <span className="font-bold text-text">{seoData.twitterCard.site || "N/A"}</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-text-dim uppercase text-[8px] font-mono block">twitter:title</span>
-                            <p className="text-text truncate select-all font-sans font-semibold">{seoData.twitterCard.title || "N/A"}</p>
-                          </div>
-                        </div>
-                      </Card>
                     )}
                   </div>
-
-                  {/* Social Media Link Embed Preview Card (Visualizing og:image) */}
-                  {seoData.openGraph && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {/* Visual Social Card Preview */}
-                      {seoData.openGraph.image && (
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                            <Globe className="h-4.5 w-4.5 text-accent" /> Social Media Embed Card Preview
-                          </h3>
-                          <Card className="bg-[#0b0f19] border border-white/[0.06] rounded-xl overflow-hidden hover:border-white/10 transition-all duration-300">
-                            <div className="relative aspect-video bg-bg/50 border-b border-white/[0.04] overflow-hidden flex items-center justify-center">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={seoData.openGraph.image}
-                                alt="OpenGraph Sharing Preview"
-                                className="object-cover w-full h-full"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                }}
-                              />
-                            </div>
-                            <div className="p-4 space-y-1 text-left font-sans">
-                              <span className="text-[9px] font-bold text-accent uppercase tracking-wider font-mono">{domain}</span>
-                              <h4 className="text-xs sm:text-sm font-bold text-text line-clamp-1">{seoData.openGraph.title || seoData.title || "No Title Defined"}</h4>
-                              <p className="text-[11px] text-text-dim line-clamp-2 leading-relaxed">{seoData.openGraph.description || seoData.description || "No description tags available to preview."}</p>
-                            </div>
-                          </Card>
-                        </div>
-                      )}
-
-                      {/* OpenGraph Raw Fields */}
-                      <div className="space-y-3">
-                        <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                          <Link2 className="h-4.5 w-4.5 text-accent" /> OpenGraph Social Metadata
-                        </h3>
-                        <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-3 font-mono text-xs">
-                          <div className="space-y-1.5">
-                            <span className="text-text-dim uppercase text-[8px] font-mono block">og:title</span>
-                            <div className="bg-bg/40 p-2.5 rounded-lg text-text border border-white/[0.02] font-sans font-semibold select-all truncate">{seoData.openGraph.title || "N/A"}</div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="text-text-dim uppercase text-[8px] font-mono block">og:type</span>
-                            <div className="bg-bg/40 p-2.5 rounded-lg text-text border border-white/[0.02] select-all truncate">{seoData.openGraph.type || "website"}</div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="text-text-dim uppercase text-[8px] font-mono block">og:url</span>
-                            <div className="bg-bg/40 p-2.5 rounded-lg text-accent-light border border-white/[0.02] select-all truncate">{seoData.openGraph.url || "N/A"}</div>
-                          </div>
-                        </Card>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Discovered Brand Images & Logos */}
-                  {seoData.detectedImages && seoData.detectedImages.length > 0 && (
-                    <div className="space-y-3 mt-6">
-                      <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                        <Globe className="h-4.5 w-4.5 text-accent" /> Discovered Brand Images &amp; Logos ({seoData.detectedImages.length})
-                      </h3>
-                      <Card className="p-5 bg-surface/30 border border-white/[0.04]">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                          {seoData.detectedImages.map((img, idx) => (
-                            <div key={idx} className="bg-[#0b0f19] border border-white/[0.05] rounded-xl overflow-hidden hover:border-accent/30 transition-all duration-300 flex flex-col justify-between">
-                              <div className="relative aspect-square bg-white/[0.02] border-b border-white/[0.04] p-3 flex items-center justify-center group overflow-hidden">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={img.src}
-                                  alt={img.alt}
-                                  className="object-contain max-h-full max-w-full rounded transition-transform duration-300 group-hover:scale-105"
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                              <div className="p-2 space-y-1 font-mono text-[9px]">
-                                <p className="font-bold text-text truncate select-all" title={img.alt}>{img.alt}</p>
-                                <div className="flex justify-between items-center text-text-dim text-[8px]">
-                                  <span className="uppercase font-semibold text-accent">{img.type || "asset"}</span>
-                                  <a 
-                                    href={img.src} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="text-accent hover:underline hover:text-accent-light"
-                                  >
-                                    View
-                                  </a>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
-                    </div>
-                  )}
-                </>
+                </Card>
               )}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ==================== 9. PERFORMANCE TAB ==================== */}
-          {activeTab === "performance" && performance && (
-            <div className="space-y-6 animate-fadeIn text-left">
-              <div className="border-b border-white/[0.05] pb-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Performance Timing Latencies</h2>
-                <p className="text-[10px] text-text-dim mt-0.5 font-sans">Active network response latencies, TLS handshake, and DNS lookups durations.</p>
+        {/* ==================== 12. RECOMMENDATIONS TAB ==================== */}
+        {activeTab === "recommendations" && (
+          <div className="space-y-6 animate-fadeIn text-left">
+            <div className="border-b border-white/[0.05] pb-3">
+              <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Action Guidelines &amp; Hardening</h2>
+              <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Actionable checklists, server directives, and configuration guidelines</p>
+            </div>
+
+            {/* Filter controls */}
+            <div className="flex flex-col sm:flex-row gap-3.5 items-center justify-between bg-surface/30 border border-white/[0.04] p-3.5 rounded-2xl">
+              <div className="relative w-full sm:max-w-xs flex items-center">
+                <Search className="absolute left-3.5 text-text-muted h-4 w-4" />
+                <input
+                  type="text"
+                  placeholder="Filter security checks..."
+                  value={globalSearch}
+                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-bg border border-white/[0.05] focus:border-accent/40 rounded-xl text-xs text-text outline-none transition-all font-mono"
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 font-mono text-xs">
-                {/* Speed Gauges */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <Activity className="h-4.5 w-4.5 text-accent" /> Network Response Durations
-                  </h3>
-
-                  <div className="space-y-4">
-                    {[
-                      { label: "DNS Lookup Latency", value: performance.dnsLookup || 45, max: 200, unit: "ms" },
-                      { label: "TLS Handshake Cryptography", value: performance.tlsHandshake || 110, max: 500, unit: "ms" },
-                      { label: "Time to First Byte (TTFB)", value: performance.ttfb || 230, max: 1000, unit: "ms" },
-                      { label: "Total Server Response", value: performance.responseTime || scanDuration || 350, max: 1500, unit: "ms" }
-                    ].map((metric, i) => {
-                      const percentage = Math.min(100, Math.round((metric.value / metric.max) * 100));
-                      const isSlow = metric.value > (metric.max * 0.7);
-
-                      return (
-                        <div key={i} className="space-y-1">
-                          <div className="flex justify-between text-[10.5px]">
-                            <span className="text-text-dim">{metric.label}</span>
-                            <span className="font-bold text-text">{metric.value} {metric.unit}</span>
-                          </div>
-                          <div className="h-1.5 w-full bg-surface border border-white/[0.02] rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${isSlow ? "bg-danger" : "bg-accent"}`}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-
-                {/* Score Summary */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] flex flex-col justify-between min-h-[220px]">
-                  <div>
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                      <Clock className="h-4.5 w-4.5 text-accent" /> Performance Health Metrics
-                    </h3>
-                    <p className="text-xs text-text-dim font-sans leading-relaxed mt-2.5">
-                      Fast response times are vital for both SEO search rankings and reducing client connection time windows. Long TTFB or Handshake latency can reveal firewall throttles or poor CDN routes.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-4 border-t border-white/[0.03]">
-                    <span className="text-text-muted text-[10px] uppercase font-bold tracking-wider">Evaluation Speed</span>
-                    <Badge variant={(performance.responseTime || 350) < 500 ? "success" : "warning"} className="text-[7.5px] py-0.5">
-                      {(performance.responseTime || 350) < 500 ? "OPTIMAL RESPONSE" : "LATENCY DETECTED"}
-                    </Badge>
-                  </div>
-                </Card>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto text-[10.5px]">
+                <select
+                  value={severityFilter}
+                  onChange={(e) => setSeverityFilter(e.target.value)}
+                  className="bg-bg border border-white/[0.05] text-text-dim rounded-xl px-4 py-2.5 font-mono outline-none cursor-pointer focus:border-accent/40 w-full sm:w-auto font-bold uppercase tracking-wider"
+                >
+                  <option value="all">All Severities</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                  <option value="info">Info/Pass</option>
+                </select>
               </div>
             </div>
-          )}
 
-          {/* ==================== 10. TECHNOLOGIES TAB ==================== */}
-          {activeTab === "tech" && techStack && techStack.length > 0 && (
-            <div className="space-y-6 animate-fadeIn text-left">
-              <div className="border-b border-white/[0.05] pb-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Observed Technology Stack</h2>
-                <p className="text-[10px] text-text-dim mt-0.5 font-sans">Observed system headers footprints. Hiding detailed versions reduces vulnerability profiling options.</p>
-              </div>
+            {/* List */}
+            <div className="space-y-3.5 font-mono text-xs">
+              {filteredFindings.filter(f => f.status !== "passed").length === 0 ? (
+                <div className="text-center py-14 text-success font-bold font-mono text-xs space-y-3 border border-white/[0.03] rounded-3xl bg-surface/20 p-6 shadow-inner">
+                  <CheckCircle2 className="h-10 w-10 text-success mx-auto animate-pulse" />
+                  <p className="uppercase tracking-widest text-[10px]">ALL VERIFICATION AUDITS SUCCESSFULLY PASSED</p>
+                </div>
+              ) : (
+                filteredFindings.filter(f => f.status !== "passed").map((finding, idx) => {
+                  const isOpen = expandedFindings[idx];
+                  const badgeVariant = finding.severity === "critical" || finding.severity === "high" ? "danger" : finding.severity === "medium" ? "warning" : "info";
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono text-xs">
-                {/* Stack Grid */}
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] md:col-span-2 space-y-4">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                    <Cpu className="h-4.5 w-4.5 text-accent" /> Technology Components ({techStack.length})
-                  </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                    {techStack.map((tech, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedTech(tech)}
-                        className="bg-bg/40 border border-white/[0.04] hover:border-white/[0.12] p-3 rounded-xl text-left space-y-1.5 transition-all group flex flex-col justify-between min-h-[80px]"
+                  return (
+                    <div key={idx} className="border border-white/[0.04] rounded-2xl bg-surface/30 overflow-hidden hover:border-white/10 transition-all duration-300">
+                      <div
+                        onClick={() => toggleFindingExpand(idx)}
+                        className="flex justify-between items-center p-4.5 cursor-pointer hover:bg-white/[0.01] gap-4"
                       >
-                        <span className="text-[8px] text-text-muted block uppercase tracking-wider font-bold">{tech.category}</span>
-                        <div className="flex justify-between items-center gap-2 w-full">
-                          <span className="font-bold text-text block truncate text-xs">{tech.name}</span>
-                          <ChevronRight className="h-3 w-3 text-text-dim group-hover:translate-x-0.5 transition-transform shrink-0" />
+                        <div className="flex items-center gap-2.5 min-w-0 font-sans text-left">
+                          <span className={`h-2 w-2 rounded-full shrink-0 ${finding.severity === "critical" || finding.severity === "high" ? "bg-danger" : "bg-warning"}`} />
+                          <span className="font-bold text-text text-xs font-mono truncate">{finding.title}</span>
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                </Card>
 
-                {/* Infrastructure Details */}
-                {infrastructure && (
-                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4">
-                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 flex items-center gap-2">
-                      <Server className="h-4.5 w-4.5 text-accent" /> Server Hosting
-                    </h3>
-
-                    <div className="space-y-3 font-mono text-[11px]">
-                      <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                        <span className="text-text-dim uppercase text-[8px] block">Web Server</span>
-                        <span className="font-bold text-text truncate max-w-[120px]">{infrastructure.cdn || infrastructure.reverseProxy || "Nginx"}</span>
+                        <div className="flex items-center gap-3 shrink-0 select-none">
+                          <Badge variant={badgeVariant} className="text-[8px] py-0.5 px-2 tracking-wider uppercase font-mono">{finding.severity}</Badge>
+                          {isOpen ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
+                        </div>
                       </div>
-                      {infrastructure.hosting && (
-                        <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                          <span className="text-text-dim uppercase text-[8px] block">Cloud Host</span>
-                          <span className="font-bold text-text truncate max-w-[120px]">{infrastructure.hosting}</span>
-                        </div>
-                      )}
-                      {infrastructure.asn && (
-                        <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                          <span className="text-text-dim uppercase text-[8px] block">ASN Network</span>
-                          <span className="font-bold text-text select-all">{infrastructure.asn}</span>
-                        </div>
-                      )}
-                      {infrastructure.isp && (
-                        <div className="flex justify-between">
-                          <span className="text-text-dim uppercase text-[8px] block">ISP Provider</span>
-                          <span className="font-bold text-text truncate max-w-[120px]" title={infrastructure.isp}>{infrastructure.isp}</span>
+
+                      {isOpen && (
+                        <div className="p-5 border-t border-white/[0.03] space-y-4 bg-black/15 text-xs font-sans text-left">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black text-text-dim uppercase tracking-wider block font-mono">Diagnostics</span>
+                              <p className="text-text-dim leading-relaxed font-sans text-[11px] font-medium">{finding.description}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black text-warning uppercase tracking-wider block font-mono">Vulnerability Risk</span>
+                              <p className="text-text-dim leading-relaxed font-sans text-[11px] font-medium">{finding.impact}</p>
+                            </div>
+                          </div>
+
+                          {finding.evidence && (
+                            <div className="space-y-1.5 font-mono">
+                              <span className="text-[8px] font-black text-accent-light uppercase tracking-wider block">Audited Evidence</span>
+                              <pre className="bg-bg border border-white/[0.05] p-3 rounded-lg text-[9.5px] text-accent-light break-all select-all font-mono select-text whitespace-pre-wrap font-bold leading-normal">{finding.evidence}</pre>
+                            </div>
+                          )}
+
+                          {finding.recommendation && (
+                            <div className="p-4 bg-indigo-500/[0.01] border border-indigo-500/10 rounded-2xl space-y-1.5 font-mono">
+                              <span className="text-[8.5px] font-black text-accent uppercase tracking-wider block">Remediation Snippet</span>
+                              <code className="text-text select-all block text-[9.5px] break-all select-text font-bold leading-normal">{finding.recommendation}</code>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  </Card>
-                )}
-              </div>
+                  );
+                })
+              )}
             </div>
-          )}
 
-          {/* ==================== 11. RECOMMENDATIONS TAB ==================== */}
-          {activeTab === "recommendations" && (
-            <div className="space-y-6 animate-fadeIn text-left">
-              <div className="border-b border-white/[0.05] pb-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Failed Checks &amp; AI Recommendations</h2>
-                <p className="text-[10px] text-text-dim mt-0.5 font-sans">Actionable mitigation steps, web server configuration formatting, and AI diagnostics analysis.</p>
-              </div>
+            {/* Hardening Header config code panels */}
+            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 text-left rounded-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/[0.05] pb-3.5 gap-3">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                  <Code className="h-4.5 w-4.5 text-accent" /> Config Templates
+                </h3>
 
-              {/* Filtering for Failed Checks */}
-              <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-surface/20 border border-white/[0.04] p-3 rounded-2xl">
-                <div className="relative w-full sm:max-w-xs flex items-center">
-                  <Search className="absolute left-3 text-text-muted h-3.5 w-3.5" />
-                  <input
-                    type="text"
-                    placeholder="Search failed checks..."
-                    value={globalSearch}
-                    onChange={(e) => setGlobalSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-bg/50 border border-white/[0.05] focus:border-accent/40 rounded-xl text-xs text-text outline-none transition-all font-mono"
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2 w-full sm:w-auto text-[10.5px]">
-                  <select
-                    value={severityFilter}
-                    onChange={(e) => setSeverityFilter(e.target.value)}
-                    className="bg-bg/50 border border-white/[0.05] text-text-dim rounded-xl px-3 py-2 font-mono outline-none cursor-pointer focus:border-accent/40 w-full sm:w-auto"
-                  >
-                    <option value="all">All Severities</option>
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                    <option value="info">Info/Pass</option>
-                  </select>
+                <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/[0.04] text-[9.5px] font-mono select-none">
+                  {["nginx", "apache", "iis"].map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setRemediationTab(tab)}
+                      className={`px-3.5 py-1 rounded-md transition-colors uppercase font-bold tracking-wider ${
+                        remediationTab === tab ? "bg-accent text-bg" : "text-text-dim hover:text-text"
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Failed checklist cards */}
-              <div className="space-y-4 font-mono text-xs">
-                {filteredFindings.filter(f => f.status !== "passed").length === 0 ? (
-                  <div className="text-center py-8 text-success font-bold font-mono text-xs space-y-2 border border-white/[0.03] rounded-2xl bg-surface/25 p-5">
-                    <CheckCircle2 className="h-10 w-10 text-success mx-auto animate-pulse" />
-                    <p>ALL CHECKS PASSED: NO SECURITY DEFICIENCIES DETECTED</p>
-                  </div>
-                ) : (
-                  filteredFindings.filter(f => f.status !== "passed").map((finding, idx) => {
-                    const isOpen = expandedFindings[idx];
-                    const badgeVariant = finding.severity === "critical" || finding.severity === "high" ? "danger" : finding.severity === "medium" ? "warning" : "info";
-
-                    return (
-                      <div key={idx} className="border border-white/[0.04] rounded-2xl bg-surface/30 overflow-hidden hover:border-white/10 transition-all duration-300">
-                        <div
-                          onClick={() => toggleFindingExpand(idx)}
-                          className="flex justify-between items-center p-4.5 cursor-pointer hover:bg-white/[0.01] gap-4"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 font-sans text-left">
-                            <span className={`h-2 w-2 rounded-full shrink-0 ${finding.severity === "critical" || finding.severity === "high" ? "bg-danger" : "bg-warning"}`} />
-                            <span className="font-bold text-text text-xs font-mono truncate">{finding.title}</span>
-                          </div>
-
-                          <div className="flex items-center gap-3 shrink-0">
-                            <Badge variant={badgeVariant} className="text-[8px] py-0.5 tracking-wider uppercase font-mono">{finding.severity}</Badge>
-                            {isOpen ? <ChevronUp className="h-4 w-4 text-text-dim" /> : <ChevronDown className="h-4 w-4 text-text-dim" />}
-                          </div>
-                        </div>
-
-                        {isOpen && (
-                          <div className="p-5 border-t border-white/[0.03] space-y-4 bg-bg/25 text-xs font-sans text-left">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="space-y-1">
-                                <span className="text-[8px] font-bold text-text-dim uppercase tracking-wider block font-mono">Description Check</span>
-                                <p className="text-text-dim leading-relaxed font-sans">{finding.description}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <span className="text-[8px] font-bold text-warning uppercase tracking-wider block font-mono">Security Vulnerability Risk</span>
-                                <p className="text-text-dim leading-relaxed font-sans">{finding.impact}</p>
-                              </div>
-                            </div>
-
-                            {finding.evidence && (
-                              <div className="space-y-1.5 font-mono">
-                                <span className="text-[8px] font-black text-accent-light uppercase tracking-wider block">Audited Evidence</span>
-                                <pre className="bg-bg border border-white/[0.05] p-3 rounded-lg text-[9.5px] text-accent-light break-all select-all font-mono select-text whitespace-pre-wrap">{finding.evidence}</pre>
-                              </div>
-                            )}
-
-                            {finding.recommendation && (
-                              <div className="p-4 bg-indigo-500/[0.01] border border-indigo-500/10 rounded-xl space-y-1.5 font-mono">
-                                <span className="text-[8.5px] font-black text-accent uppercase tracking-wider block">Remediation Action Required</span>
-                                <code className="text-text select-all block text-[9.5px] break-all select-text">{finding.recommendation}</code>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Webserver Directives Config Tabs */}
-              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 text-left">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/[0.05] pb-3.5 gap-3">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                    <Code className="h-4.5 w-4.5 text-accent" /> Hardening Header Configs
-                  </h3>
-
-                  <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/[0.04] text-[9px] font-mono select-none">
-                    {["nginx", "apache", "iis"].map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setRemediationTab(tab)}
-                        className={`px-3 py-1 rounded transition-colors uppercase font-bold tracking-wider ${remediationTab === tab ? "bg-accent text-bg" : "text-text-dim hover:text-text"
-                          }`}
-                      >
-                        {tab}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="relative rounded-xl bg-black/50 border border-white/[0.04] p-4 font-mono text-[10px] leading-relaxed text-accent-light overflow-x-auto min-h-[120px]">
-                  {remediationTab === "nginx" && (
-                    <pre className="whitespace-pre">
-                      {`# Add directives inside http, server, or location context block
+              <div className="relative rounded-xl bg-black/50 border border-white/[0.04] p-4.5 font-mono text-[10px] leading-relaxed text-accent-light overflow-x-auto min-h-[120px]">
+                {remediationTab === "nginx" && (
+                  <pre className="whitespace-pre">
+{`# Add directives inside http, server, or location context block
 add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 add_header X-Frame-Options "SAMEORIGIN" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "no-referrer-when-downgrade" always;
 add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;`}
-                    </pre>
-                  )}
-                  {remediationTab === "apache" && (
-                    <pre className="whitespace-pre">
-                      {`# Add directives in httpd.conf or .htaccess file
+                  </pre>
+                )}
+                {remediationTab === "apache" && (
+                  <pre className="whitespace-pre">
+{`# Add directives in httpd.conf or .htaccess file
 Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
 Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 Header always set X-Frame-Options "SAMEORIGIN"
 Header always set X-Content-Type-Options "nosniff"
 Header always set Referrer-Policy "no-referrer-when-downgrade"
 Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`}
-                    </pre>
-                  )}
-                  {remediationTab === "iis" && (
-                    <pre className="whitespace-pre">
-                      {`<!-- Add inside web.config configuration tag -->
+                  </pre>
+                )}
+                {remediationTab === "iis" && (
+                  <pre className="whitespace-pre">
+{`<!-- Add inside web.config configuration tag -->
 <system.webServer>
   <httpProtocol>
     <customHeaders>
@@ -2556,123 +2543,125 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
     </customHeaders>
   </httpProtocol>
 </system.webServer>`}
-                    </pre>
-                  )}
+                  </pre>
+                )}
 
-                  <button
-                    onClick={() => {
-                      const codeText = remediationTab === "nginx" ? `add_header Content-Security-Policy "default-src 'self';" always;\nadd_header Strict-Transport-Security "max-age=31536000;" always;\nadd_header X-Frame-Options "SAMEORIGIN" always;` : remediationTab === "apache" ? `Header always set X-Frame-Options "SAMEORIGIN"` : `customHeaders`;
-                      handleCopy(codeText);
-                      toast.success("Configs template copied to clipboard!");
-                    }}
-                    className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/[0.03] border border-white/[0.04] hover:bg-white/[0.08] hover:border-white/[0.08] text-text-dim hover:text-text transition-all"
-                    title="Copy Configuration Snippet"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </Card>
-
-              {/* AI Expert recommendation */}
-              {aiAdvice && Array.isArray(aiAdvice) && aiAdvice.length > 0 && (
-                <div className="space-y-4">
-                  {aiAdvice.map((advice, i) => (
-                    <Card key={advice.key || i} className="p-5 bg-gradient-to-r from-accent/5 via-surface/60 to-accent/5 border border-white/[0.05] space-y-3">
-                      <div className="flex justify-between items-center border-b border-white/[0.04] pb-2">
-                        <h3 className="text-xs font-bold text-accent uppercase tracking-wider font-mono flex items-center gap-2">
-                          <Shield className="h-4 w-4 animate-pulse text-accent" /> AI Analyst: {advice.title}
-                        </h3>
-                        <Badge variant={advice.severity === "critical" || advice.severity === "high" ? "danger" : "warning"} className="text-[8px] uppercase tracking-wider font-mono py-0.5">
-                          {advice.severity}
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-sans">
-                        <div className="space-y-1">
-                          <span className="text-[8px] font-bold text-text-dim uppercase tracking-wider block font-mono">Analysis Description</span>
-                          <p className="text-text-dim leading-relaxed">{advice.description}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[8px] font-bold text-warning uppercase tracking-wider block font-mono">Impact Risk Level</span>
-                          <p className="text-text-dim leading-relaxed">{advice.businessImpact}</p>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-bg/50 border border-white/[0.03] rounded-xl text-xs font-mono">
-                        <span className="text-[8px] font-black text-accent uppercase tracking-wider block mb-1">Exploitation Scenario</span>
-                        <p className="text-text-dim leading-relaxed font-sans">{advice.exploitationRisk}</p>
-                        {advice.realWorldExample && (
-                          <p className="text-text-muted font-sans mt-2 italic text-[11px] border-t border-white/[0.03] pt-2">Real-world reference: {advice.realWorldExample}</p>
-                        )}
-                      </div>
-
-                      <div className="space-y-1.5 text-xs font-sans">
-                        <span className="text-[8px] font-bold text-success uppercase tracking-wider block font-mono">Remediation Guidelines</span>
-                        <p className="text-text-dim leading-relaxed whitespace-pre-line">{advice.remediationSteps}</p>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ==================== 12. RAW DATA TAB ==================== */}
-          {activeTab === "raw" && (
-            <div className="space-y-6 animate-fadeIn text-left">
-              <div className="border-b border-white/[0.05] pb-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-text-muted font-mono">Raw Scan Payload JSON</h2>
-                <p className="text-[10px] text-text-dim mt-0.5 font-sans">Full unstructured REST API JSON response payload object.</p>
-              </div>
-
-              <Card className="p-4 bg-black/60 border border-white/[0.04] relative font-mono text-[9.5px] leading-relaxed text-accent-light">
                 <button
+                  type="button"
                   onClick={() => {
-                    handleCopy(JSON.stringify(localResult, null, 2));
-                    toast.success("Raw JSON payload copied to clipboard!");
+                    const codeText = remediationTab === "nginx" ? `add_header Content-Security-Policy "default-src 'self';" always;\nadd_header Strict-Transport-Security "max-age=31536000;" always;\nadd_header X-Frame-Options "SAMEORIGIN" always;` : remediationTab === "apache" ? `Header always set X-Frame-Options "SAMEORIGIN"` : `customHeaders`;
+                    handleCopy(codeText);
+                    toast.success("Configuration configs template copied to clipboard!");
                   }}
-                  className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.08] text-text-dim hover:text-text transition-all"
-                  title="Copy Raw JSON"
+                  className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/[0.03] border border-white/[0.04] hover:bg-white/[0.08] hover:border-white/[0.08] text-text-dim hover:text-text transition-all"
+                  title="Copy Configuration Template"
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </button>
-                <pre className="max-h-[500px] overflow-y-auto pr-2 scrollbar-thin select-text whitespace-pre-wrap">{JSON.stringify(localResult, null, 2)}</pre>
-              </Card>
-            </div>
-          )}
+              </div>
+            </Card>
 
-        </main>
+            {/* AI Advisor Panel */}
+            {aiAdvice && Array.isArray(aiAdvice) && aiAdvice.length > 0 && (
+              <div className="space-y-4">
+                {aiAdvice.map((advice, i) => (
+                  <Card key={advice.key || i} className="p-5 sm:p-6 bg-gradient-to-r from-accent/5 via-surface/60 to-accent/5 border border-white/[0.05] space-y-3.5 rounded-2xl text-left">
+                    <div className="flex justify-between items-center border-b border-white/[0.04] pb-2.5">
+                      <h3 className="text-xs font-bold text-accent uppercase tracking-wider font-mono flex items-center gap-2">
+                        <Shield className="h-4.5 w-4.5 text-accent" /> Security Analyst Advice: {advice.title}
+                      </h3>
+                      <Badge variant={advice.severity === "critical" || advice.severity === "high" ? "danger" : "warning"} className="text-[8px] uppercase tracking-wider font-mono py-0.5 px-2.5">
+                        {advice.severity}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs font-sans">
+                      <div className="space-y-1">
+                        <span className="text-[8px] font-black text-text-dim uppercase tracking-wider block font-mono font-bold">Analysis Description</span>
+                        <p className="text-text-dim leading-relaxed text-[11px] font-medium">{advice.description}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[8px] font-black text-warning uppercase tracking-wider block font-mono font-bold">Impact Severity Level</span>
+                        <p className="text-text-dim leading-relaxed text-[11px] font-medium">{advice.businessImpact}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-bg/50 border border-white/[0.03] rounded-xl text-xs font-mono">
+                      <span className="text-[8px] font-black text-accent uppercase tracking-wider block mb-1">Risk Exploitation Scenario</span>
+                      <p className="text-text-dim leading-relaxed font-sans text-[11px] font-medium">{advice.exploitationRisk}</p>
+                      {advice.realWorldExample && (
+                        <p className="text-text-muted font-sans mt-2.5 italic text-[10.5px] border-t border-white/[0.03] pt-2 font-medium">Real-world reference: {advice.realWorldExample}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5 text-xs font-sans">
+                      <span className="text-[8px] font-black text-success uppercase tracking-wider block font-mono">Remediation Guidelines</span>
+                      <p className="text-text-dim leading-relaxed whitespace-pre-line text-[11px] font-medium">{advice.remediationSteps}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================== 13. RAW PAYLOAD JSON TAB ==================== */}
+        {activeTab === "raw" && (
+          <div className="space-y-6 animate-fadeIn text-left">
+            <div className="border-b border-white/[0.05] pb-3">
+              <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Raw Scan Payload JSON</h2>
+              <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Full REST API response JSON payload structure details</p>
+            </div>
+
+            <Card className="p-4 bg-black/60 border border-white/[0.04] relative font-mono text-[9.5px] leading-relaxed text-accent-light rounded-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopy(JSON.stringify(localResult, null, 2));
+                  toast.success("Raw JSON payload copied to clipboard!");
+                }}
+                className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.08] text-text-dim hover:text-text transition-all"
+                title="Copy JSON Payload"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+              <pre className="max-h-[500px] overflow-y-auto pr-2 select-text whitespace-pre-wrap font-bold leading-normal">{JSON.stringify(localResult, null, 2)}</pre>
+            </Card>
+          </div>
+        )}
+
+      </main>
 
       {/* ==================== MODALS & POPUPS ==================== */}
 
-      {/* Email PDF Modal */}
+      {/* Email Share PDF report Modal */}
       {emailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-fadeIn" style={{ backgroundColor: 'rgba(3, 7, 18, 0.85)' }}>
-          <Card className="w-full max-w-sm border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left">
+          <Card className="w-full max-w-sm border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left rounded-3xl">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
               <div className="flex items-center gap-2">
                 <Mail className="text-accent h-4.5 w-4.5" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-text font-mono">
-                  Email Security Report
+                  Email Audit Report
                 </h3>
               </div>
-              <button onClick={() => setEmailModalOpen(false)} className="text-text-dim hover:text-text text-lg">×</button>
+              <button type="button" onClick={() => setEmailModalOpen(false)} className="text-text-dim hover:text-text text-lg">×</button>
             </div>
 
             <form onSubmit={handleSendEmailSubmit} className="space-y-4">
               <div className="space-y-1.5 font-mono text-xs">
-                <label className="text-[9px] text-text-muted font-bold uppercase tracking-wider block font-sans">Recipient Email Address</label>
+                <label className="text-[8px] text-text-muted font-bold uppercase tracking-wider block font-sans">Recipient Email Address</label>
                 <input
                   type="email"
                   required
                   placeholder="name@company.com"
                   value={recipientEmail}
                   onChange={(e) => setRecipientEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-bg border border-white/[0.06] focus:border-accent/40 rounded-lg text-xs text-text outline-none transition-all font-mono"
+                  className="w-full px-3.5 py-2.5 bg-bg border border-white/[0.06] focus:border-accent/40 rounded-xl text-xs text-text outline-none transition-all font-mono"
                 />
               </div>
               <p className="text-[10px] text-text-dim leading-relaxed font-sans">
-                Send security header audit reports for <span className="font-mono font-bold text-text">{domain}</span> (Score: {score}/100, Grade: {grade}) directly to this address.
+                Share security posture report for <span className="font-mono font-bold text-text">{domain}</span> (Score: {score}/100, Grade: {grade}) directly with this address.
               </p>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setEmailModalOpen(false)}>Cancel</Button>
@@ -2685,10 +2674,10 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
         </div>
       )}
 
-      {/* Share Modal */}
+      {/* Public Share Token Modal */}
       {shareModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-fadeIn" style={{ backgroundColor: 'rgba(3, 7, 18, 0.85)' }}>
-          <Card className="w-full max-w-md border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left">
+          <Card className="w-full max-w-md border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left rounded-3xl">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
               <div className="flex items-center gap-2">
                 <Share2 className="text-accent h-4.5 w-4.5" />
@@ -2696,58 +2685,62 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
                   Share Security Report
                 </h3>
               </div>
-              <button onClick={() => setShareModalOpen(false)} className="text-text-dim hover:text-text text-lg">×</button>
+              <button type="button" onClick={() => setShareModalOpen(false)} className="text-text-dim hover:text-text text-lg">×</button>
             </div>
 
             <div className="space-y-4">
               {isOwnerOrAdmin ? (
-                <div className="flex items-center justify-between p-3 rounded-xl bg-bg/50 border border-white/[0.03]">
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-bg/50 border border-white/[0.03]">
                   <div>
                     <h4 className="text-xs font-bold text-text">Public URL Sharing</h4>
                     <p className="text-[10px] text-text-dim mt-0.5 font-sans">Enable public URL access to share this report with anyone.</p>
                   </div>
                   <button
+                    type="button"
                     onClick={handleTogglePublic}
-                    className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${localResult.isPublic ? "bg-accent" : "bg-white/10"
-                      }`}
+                    className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-300 ${
+                      localResult.isPublic ? "bg-accent" : "bg-white/10"
+                    }`}
                     aria-label="Toggle public access"
                   >
                     <div
-                      className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${localResult.isPublic ? "translate-x-5" : "translate-x-0"
-                        }`}
+                      className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
+                        localResult.isPublic ? "translate-x-5" : "translate-x-0"
+                      }`}
                     />
                   </button>
                 </div>
               ) : (
-                <div className="p-3 rounded-xl bg-bg/40 border border-white/[0.03] text-[10px] text-text-dim">
+                <div className="p-3.5 rounded-2xl bg-bg/40 border border-white/[0.03] text-[10px] text-text-dim font-bold font-mono">
                   🛡️ Public Sharing status is managed by the audit owner or administrators.
                 </div>
               )}
 
               {(!isOwnerOrAdmin || localResult.isPublic) ? (
                 <div className="space-y-1.5 font-mono">
-                  <label className="text-[9px] text-text-muted font-bold uppercase tracking-wider block font-sans">Public Shareable Link</label>
+                  <label className="text-[8px] text-text-muted font-bold uppercase tracking-wider block font-sans">Public Shareable Link</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
                       value={localResult.shareToken ? `${window.location.origin}/shared/scan/${localResult.shareToken}` : `${window.location.origin}/shared/scan/${localResult._id || localResult.scanId}`}
-                      className="flex-grow bg-bg border border-white/[0.06] rounded-lg px-3 py-2 text-[10px] text-accent-light outline-none truncate select-all"
+                      className="flex-grow bg-bg border border-white/[0.06] rounded-xl px-3.5 py-2.5 text-[10px] text-accent-light outline-none truncate select-all font-bold"
                     />
                     <button
+                      type="button"
                       onClick={() => handleCopy(localResult.shareToken ? `${window.location.origin}/shared/scan/${localResult.shareToken}` : `${window.location.origin}/shared/scan/${localResult._id || localResult.scanId}`)}
-                      className="text-[10px] font-bold border border-white/[0.06] rounded-md px-3 py-2 bg-surface hover:text-accent hover:border-accent/40 transition-all font-sans"
+                      className="text-[10px] font-bold border border-white/[0.06] rounded-xl px-4 py-2.5 bg-surface hover:text-accent hover:border-accent/40 transition-all font-sans uppercase tracking-wider"
                     >
                       Copy
                     </button>
                   </div>
-                  <p className="text-[9.5px] text-text-dim leading-relaxed pt-1.5 font-sans">
-                    Anyone with this link will be able to view the posture score, resolved headers checklist, and recommendations without logging in.
+                  <p className="text-[10px] text-text-dim leading-relaxed pt-1.5 font-sans">
+                    Anyone with this link can view the posture score, resolved headers checklist, and recommendations.
                   </p>
                 </div>
               ) : (
-                <div className="text-center py-6 text-text-dim text-[10.5px] italic">
-                  Report is currently private. Enable Public URL Sharing above to generate a shareable link.
+                <div className="text-center py-6 text-text-dim text-[10.5px] italic uppercase font-bold tracking-wider font-mono">
+                  Report is currently private. Enable Public Sharing above to generate a shareable link.
                 </div>
               )}
 
@@ -2762,7 +2755,7 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
       {/* Port Details Modal */}
       {selectedPort && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-fadeIn" style={{ backgroundColor: 'rgba(3, 7, 18, 0.85)' }}>
-          <Card className="w-full max-w-sm border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left font-sans">
+          <Card className="w-full max-w-sm border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left font-sans rounded-3xl">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
               <div className="flex items-center gap-2">
                 <Terminal className="text-accent h-4.5 w-4.5" />
@@ -2770,19 +2763,19 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
                   Port Exposure Details
                 </h3>
               </div>
-              <button onClick={() => setSelectedPort(null)} className="text-text-dim hover:text-text text-lg">×</button>
+              <button type="button" onClick={() => setSelectedPort(null)} className="text-text-dim hover:text-text text-lg">×</button>
             </div>
 
             <div className="space-y-3 font-mono text-xs">
-              <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+              <div className="flex justify-between border-b border-white/[0.02] pb-1.5 font-bold">
                 <span className="text-text-dim">Port Number</span>
-                <span className="font-bold text-accent">{selectedPort.port}</span>
+                <span className="font-extrabold text-accent">{selectedPort.port}</span>
               </div>
-              <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                <span className="text-text-dim">Listening Protocol</span>
-                <span className="font-bold text-text uppercase">{selectedPort.service}</span>
+              <div className="flex justify-between border-b border-white/[0.02] pb-1.5 font-bold">
+                <span className="text-text-dim">Protocol Name</span>
+                <span className="font-extrabold text-text uppercase">{selectedPort.service}</span>
               </div>
-              <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+              <div className="flex justify-between border-b border-white/[0.02] pb-1.5 font-bold">
                 <span className="text-text-dim">Port Status</span>
                 <Badge variant={selectedPort.status === "open" ? "danger" : "success"} className="text-[7px] py-0.5 uppercase">
                   {selectedPort.status}
@@ -2791,12 +2784,12 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
 
               <div className="pt-2 font-sans text-xs text-text-dim leading-relaxed">
                 <span className="font-bold text-text block mb-1">Risk Summary:</span>
-                An open port exposes a socket connection directly to the web. Outdated services or unhardened daemons listening on this port can let attackers run unauthorized execution exploits. Close or restrict this port via firewall.
+                An open listening socket can allow public networks to communicate directly with backend services. Limit or firewall administrative ports.
               </div>
             </div>
 
             <div className="flex justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedPort(null)}>Close Details</Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedPort(null)}>Close</Button>
             </div>
           </Card>
         </div>
@@ -2805,7 +2798,7 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
       {/* Technology Details Modal */}
       {selectedTech && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-fadeIn" style={{ backgroundColor: 'rgba(3, 7, 18, 0.85)' }}>
-          <Card className="w-full max-w-sm border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left font-sans">
+          <Card className="w-full max-w-sm border border-white/[0.08] bg-panel shadow-2xl p-6 space-y-4 animate-fadeInUp text-left font-sans rounded-3xl">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
               <div className="flex items-center gap-2">
                 <Cpu className="text-accent h-4.5 w-4.5" />
@@ -2813,33 +2806,33 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
                   Stack Component Details
                 </h3>
               </div>
-              <button onClick={() => setSelectedTech(null)} className="text-text-dim hover:text-text text-lg">×</button>
+              <button type="button" onClick={() => setSelectedTech(null)} className="text-text-dim hover:text-text text-lg">×</button>
             </div>
 
             <div className="space-y-3 font-mono text-xs">
-              <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+              <div className="flex justify-between border-b border-white/[0.02] pb-1.5 font-bold">
                 <span className="text-text-dim">Component Name</span>
-                <span className="font-bold text-accent">{selectedTech.name}</span>
+                <span className="font-extrabold text-accent">{selectedTech.name}</span>
               </div>
-              <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
-                <span className="text-text-dim">Component Category</span>
-                <span className="font-bold text-text uppercase">{selectedTech.category || "General Stack"}</span>
+              <div className="flex justify-between border-b border-white/[0.02] pb-1.5 font-bold">
+                <span className="text-text-dim">Category</span>
+                <span className="font-extrabold text-text uppercase">{selectedTech.category || "General Stack"}</span>
               </div>
-              <div className="flex justify-between border-b border-white/[0.02] pb-1.5">
+              <div className="flex justify-between border-b border-white/[0.02] pb-1.5 font-bold">
                 <span className="text-text-dim">Version Parameter</span>
-                <span className="font-bold text-text">{selectedTech.version || "Not Disclosed (Secure)"}</span>
+                <span className="font-extrabold text-text">{selectedTech.version || "Not Disclosed (Secure)"}</span>
               </div>
 
               {selectedTech.version && (
-                <div className="p-3 bg-danger/5 border border-danger/10 rounded-xl text-[10.5px] text-text-dim leading-relaxed font-sans space-y-1">
-                  <span className="text-danger font-bold block font-mono">Vulnerability Risks Disclosed</span>
-                  <span>Exposing version parameters simplifies exploit payload building by attackers. Disable server tokens and configure server headers to hide version details.</span>
+                <div className="p-3 bg-danger/5 border border-danger/10 rounded-xl text-[10px] text-text-dim leading-relaxed font-sans space-y-1">
+                  <span className="text-danger font-bold block font-mono uppercase tracking-wider text-[9px]">Vulnerability Risks Disclosed</span>
+                  <span>Exposing version parameters simplifies exploit profiling. Configure response headers to hide server engine versions.</span>
                 </div>
               )}
             </div>
 
             <div className="flex justify-end pt-2">
-              <Button variant="outline" size="sm" onClick={() => setSelectedTech(null)}>Close Details</Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedTech(null)}>Close</Button>
             </div>
           </Card>
         </div>
