@@ -3,7 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Navbar from "@/components/layout/Navbar";
 import Loading from "@/components/common/Loading";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -67,8 +66,7 @@ function CompareContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex flex-col font-sans text-text">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center">
           <Loading message="Correlating security profiles..." />
         </main>
       </div>
@@ -78,8 +76,7 @@ function CompareContent() {
   if (error || !scan1 || !scan2) {
     return (
       <div className="min-h-screen bg-bg flex flex-col font-sans text-text">
-        <Navbar />
-        <main className="max-w-md w-full mx-auto px-4 py-20">
+                <main className="max-w-md w-full mx-auto px-4 py-20">
           <Card className="border border-danger/30 bg-danger/5 text-center p-6 space-y-4">
             <AlertTriangle className="h-10 w-10 text-danger mx-auto animate-pulse" />
             <h2 className="text-sm font-bold uppercase tracking-wider">Comparison Failed</h2>
@@ -136,8 +133,7 @@ function CompareContent() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text">
-      <Navbar />
-
+      
       <main className="max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* Back */}
         <Link
@@ -311,8 +307,7 @@ export default function ComparePage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-bg flex flex-col font-sans text-text">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center">
           <Loading message="Resolving secure connection..." />
         </main>
       </div>

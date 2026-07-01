@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Navbar from "@/components/layout/Navbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -168,8 +167,7 @@ export default function AdminDemoPage() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text flex flex-col">
-      <Navbar />
-
+      
       {/* Demo Announcement Banner */}
       <div className="bg-warning/15 border-b border-warning/20 px-4 py-2.5 text-center text-xs font-mono tracking-wide text-warning z-20">
         🛡️ <strong>Demo Control Panel:</strong> You are browsing as a mock <strong>Administrator</strong>. Access management and configuration options are simulated.

@@ -17,7 +17,6 @@ import {
   Skull,
   Swords,
 } from "lucide-react";
-import Navbar from "@/components/layout/Navbar";
 import Loading from "@/components/common/Loading";
 
 function gradeColor(grade) {
@@ -86,8 +85,7 @@ function ScoreExplanationContent() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text">
-      <Navbar />
-
+      
       <main className="max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-10">
         {/* Back */}
         <Link

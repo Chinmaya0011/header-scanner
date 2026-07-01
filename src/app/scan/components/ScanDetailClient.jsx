@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
 import ScanResults from "@/components/ui/ScanResults";
 import Loading from "@/components/common/Loading";
 import Button from "@/components/ui/Button";
@@ -290,8 +289,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex flex-col font-sans">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center">
           <Loading message="Loading audit metrics..." />
         </main>
       </div>
@@ -301,8 +299,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
   if (error) {
     return (
       <div className="min-h-screen bg-bg flex flex-col font-sans">
-        <Navbar />
-        <main className="mx-auto max-w-3xl w-full px-4 sm:px-6 py-20 flex justify-center">
+                <main className="mx-auto max-w-3xl w-full px-4 sm:px-6 py-20 flex justify-center">
           <Card className="border border-danger/30 bg-danger/5 text-center max-w-md w-full p-8">
             <AlertTriangle className="h-12 w-12 text-danger mx-auto mb-3 animate-pulse" />
             <h2 className="text-lg font-bold text-text mb-2">Audit Load Failed</h2>
@@ -329,8 +326,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text">
-      <Navbar />
-
+      
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 space-y-4">
         {/* Sleek Breadcrumb / Back Navigation */}
         <div className="flex items-center gap-2 text-xs text-text-dim">

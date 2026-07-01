@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Navbar from "@/components/layout/Navbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -47,8 +46,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text flex flex-col">
-      <Navbar />
-
+      
       {/* Hero Section */}
       <section className="relative mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-24 text-center space-y-8 select-none z-10">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-accent/5 rounded-full blur-[80px] pointer-events-none" />

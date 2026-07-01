@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Navbar from "@/components/layout/Navbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -174,8 +173,7 @@ export default function UserDemoPage() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text flex flex-col">
-      <Navbar />
-
+      
       {/* Demo Announcement Banner */}
       <div className="bg-accent/15 border-b border-accent/20 px-4 py-2.5 text-center text-xs font-mono tracking-wide text-accent z-20">
         🚀 <strong>Demo Environment:</strong> You are browsing as a mock <strong>Developer User</strong>. Operations are simulated client-side.

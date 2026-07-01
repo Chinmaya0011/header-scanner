@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import ScanResults from "@/components/ui/ScanResults";
-import Navbar from "@/components/layout/Navbar";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { ArrowLeft, Clock } from "lucide-react";
@@ -54,8 +53,7 @@ export default async function SharedScanPage({ params }) {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text">
-      <Navbar />
-
+      
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-border/60 pb-4">
           <div className="flex items-center gap-4">

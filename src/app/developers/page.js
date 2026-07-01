@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
 import { useToast } from "@/components/common/Toast";
 import Loading from "@/components/common/Loading";
 import Card from "@/components/ui/Card";
@@ -251,8 +250,7 @@ export default function DevelopersPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex flex-col font-sans text-text">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center">
           <Loading message="Establishing secure API console session..." />
         </main>
       </div>
@@ -339,8 +337,7 @@ export default function DevelopersPage() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text flex flex-col">
-      <Navbar />
-
+      
       <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 py-8 w-full">
         <div className="flex flex-col gap-6">
           {/* Header Banner */}

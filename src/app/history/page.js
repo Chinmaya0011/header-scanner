@@ -1,4 +1,3 @@
-import Navbar from "@/components/layout/Navbar";
 import HistoryTable from "@/components/tables/HistoryTable";
 import { History } from "lucide-react";
 import connectDB from "@/lib/mongodb";
@@ -53,8 +52,7 @@ export default async function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-bg">
-      <Navbar />
-
+      
       <main className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
         <div className="flex items-center gap-3 mb-8">
           <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-accent/10 border border-accent/30">
