@@ -16,6 +16,7 @@ import { scanSSL } from "@/lib/scanners/sslScanner";
 import { scanDNS } from "@/lib/scanners/dnsScanner";
 import { scanInfraAndTech } from "@/lib/scanners/infraTechScanner";
 import { scanPaths, checkExposedServices, checkSubdomains, discoverPublicPages } from "@/lib/scanners/networkScanner";
+import { scanWhois } from "@/lib/scanners/whoisScanner";
 import { generateAIAdvice } from "@/lib/aiAssistant";
 
 // In-memory rate limit store: { ip -> { count, resetAt } }
@@ -628,17 +629,19 @@ export async function POST(request) {
     let exposedServices = [];
     let subdomains = [];
     let publicPages = [];
+    let whois = null;
 
     const perfStart = Date.now();
     try {
       dns = await scanDNS(url);
-      const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult, publicPagesResult] = await Promise.all([
+      const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult, publicPagesResult, whoisResult] = await Promise.all([
         scanSSL(url),
         scanInfraAndTech(url, dns, headersObj),
         scanPaths(url),
         checkExposedServices(url),
         checkSubdomains(url),
-        discoverPublicPages(url)
+        discoverPublicPages(url),
+        scanWhois(url)
       ]);
 
       ssl = sslResult;
@@ -647,6 +650,7 @@ export async function POST(request) {
       exposedServices = servicesResult;
       subdomains = subdomainsResult;
       publicPages = publicPagesResult;
+      whois = whoisResult;
     } catch (err) {
       console.error("[Public scan EASM subprocess failed]", err);
     }
@@ -818,6 +822,7 @@ export async function POST(request) {
       exposedServices,
       loginSurfaces: paths ? paths.loginSurfaces : [],
       benchmarks: null,
+      whois,
       categoryScores,
       aiAdvice,
       metadata: {

@@ -20,6 +20,7 @@ import { scanSSL } from "@/lib/scanners/sslScanner";
 import { scanDNS } from "@/lib/scanners/dnsScanner";
 import { scanInfraAndTech } from "@/lib/scanners/infraTechScanner";
 import { scanPaths, checkExposedServices, checkSubdomains, discoverPublicPages } from "@/lib/scanners/networkScanner";
+import { scanWhois } from "@/lib/scanners/whoisScanner";
 import { generateAIAdvice } from "@/lib/aiAssistant";
 
 // Configuration constants
@@ -418,19 +419,21 @@ export async function POST(request) {
     let exposedServices = prevScan ? prevScan.exposedServices : [];
     let subdomains = prevScan ? (prevScan.subdomains || []) : [];
     let publicPages = prevScan ? (prevScan.publicPages || []) : [];
+    let whois = prevScan ? prevScan.whois : null;
 
     const perfStart = Date.now();
     try {
       if (section === "all" || !prevScan) {
         // Run all checks in parallel
         dns = await scanDNS(url);
-        const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult, publicPagesResult] = await Promise.all([
+        const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult, publicPagesResult, whoisResult] = await Promise.all([
           scanSSL(url),
           scanInfraAndTech(url, dns, headersObj),
           scanPaths(url),
           checkExposedServices(url),
           checkSubdomains(url),
-          discoverPublicPages(url)
+          discoverPublicPages(url),
+          scanWhois(url)
         ]);
 
         ssl = sslResult;
@@ -439,6 +442,7 @@ export async function POST(request) {
         exposedServices = servicesResult;
         subdomains = subdomainsResult;
         publicPages = publicPagesResult;
+        whois = whoisResult;
       } else {
         // Selective scan runs
         if (section === "dns") {
@@ -453,6 +457,8 @@ export async function POST(request) {
           subdomains = await checkSubdomains(url);
         } else if (section === "pages") {
           publicPages = await discoverPublicPages(url);
+        } else if (section === "whois") {
+          whois = await scanWhois(url);
         }
         
         // Always run infraTech if it wasn't cloned or if we scanned DNS
@@ -646,6 +652,7 @@ export async function POST(request) {
       exposedServices,
       loginSurfaces: paths ? paths.loginSurfaces : [],
       benchmarks: null,
+      whois,
       categoryScores
     });
 
@@ -758,6 +765,7 @@ export async function POST(request) {
       exposedServices,
       loginSurfaces: scan.loginSurfaces,
       benchmarks: scan.benchmarks,
+      whois,
       categoryScores,
       aiAdvice
     });
