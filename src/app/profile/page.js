@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
 import { useToast } from "@/components/common/Toast";
 import Loading from "@/components/common/Loading";
 import ChangePasswordForm from "@/components/forms/ChangePasswordForm";
@@ -115,8 +114,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex flex-col font-sans text-text">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center">
           <Loading message="Fetching user details..." />
         </main>
       </div>
@@ -125,8 +123,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text">
-      <Navbar />
-
+      
       <main className="mx-auto max-w-4xl px-4 sm:px-6 py-10">
         <div className="flex flex-col gap-8">
           {/* Header with subtle gradient underline */}

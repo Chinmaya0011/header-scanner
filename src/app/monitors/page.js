@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
 import { useToast } from "@/components/common/Toast";
 import Loading from "@/components/common/Loading";
 import Card from "@/components/ui/Card";
@@ -144,8 +143,7 @@ export default function MonitorsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex flex-col font-sans text-text">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center">
           <Loading message="Loading website monitoring dashboard..." />
         </main>
       </div>
@@ -154,8 +152,7 @@ export default function MonitorsPage() {
 
   return (
     <div className="min-h-screen bg-bg flex flex-col font-sans text-text">
-      <Navbar />
-
+      
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">

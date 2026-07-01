@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/common/Toast";
 import { Shield, Mail, Lock, AlertCircle, CheckCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginForm() {
   const router = useRouter();
   const toast = useToast();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,6 +45,9 @@ export default function LoginForm() {
 
       toast.success("Access granted. Redirecting to dashboard...");
       
+      if (data.user) {
+        login(data.user);
+      }
       router.push("/dashboard");
       router.refresh();
     } catch (err) {

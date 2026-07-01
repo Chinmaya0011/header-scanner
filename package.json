@@ -23,6 +23,7 @@
     "next": "^16.2.7",
     "nodemailer": "^9.0.1",
     "p-limit": "^7.3.0",
+    "port-numbers": "^8.0.32",
     "portscanner": "^2.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

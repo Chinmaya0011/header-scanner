@@ -43,7 +43,6 @@ import {
   ArrowUp,
   Cpu as CpuIcon
 } from "lucide-react";
-import Navbar from "@/components/layout/Navbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -236,8 +235,7 @@ export default function DocumentationPage() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-text select-none">
-      <Navbar />
-
+      
       {/* Main Container */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative items-start">

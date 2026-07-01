@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
 import { useToast } from "@/components/common/Toast";
 import Loading from "@/components/common/Loading";
 import AdminDashboard from "./components/AdminDashboard";
@@ -216,8 +215,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-bg flex flex-col text-text font-sans">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center">
           <Loading message="Decrypting secure console session..." />
         </main>
       </div>
@@ -252,8 +250,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-bg flex flex-col text-text font-sans">
-      <Navbar />
-
+      
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
         {isAdmin ? (
           <AdminDashboard

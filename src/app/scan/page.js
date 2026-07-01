@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Navbar from "@/components/layout/Navbar";
 import {
   Shield,
   Search,
@@ -121,8 +120,7 @@ export default function PublicScanPage() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-accent/5 rounded-full blur-[130px] pointer-events-none -z-10" />
       <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-success/5 rounded-full blur-[100px] pointer-events-none -z-10" />
 
-      <Navbar />
-
+      
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-12 relative z-10 animate-fadeInUp">
 
         {/* Hero */}

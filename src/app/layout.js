@@ -2,6 +2,8 @@ import { headers } from "next/headers";
 import { ToastProvider } from "@/components/common/Toast";
 import VisitTracker from "@/components/common/VisitTracker";
 import ActivityTimeoutListener from "@/components/common/ActivityTimeoutListener";
+import { AuthProvider } from "@/contexts/AuthContext";
+import Navbar from "@/components/layout/Navbar";
 import "./globals.css";
 
 export const metadata = {
@@ -164,9 +166,12 @@ export default async function RootLayout({ children }) {
         suppressHydrationWarning
       >
         <ToastProvider>
-          <VisitTracker />
-          <ActivityTimeoutListener />
-          {children}
+          <AuthProvider>
+            <VisitTracker />
+            <ActivityTimeoutListener />
+            <Navbar />
+            {children}
+          </AuthProvider>
         </ToastProvider>
       </body>
     </html>

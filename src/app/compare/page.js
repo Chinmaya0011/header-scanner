@@ -2,7 +2,6 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Navbar from "@/components/layout/Navbar";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -216,8 +215,7 @@ function CompareContent() {
 export default function ComparePage() {
   return (
     <div className="min-h-screen bg-bg font-sans text-text flex flex-col">
-      <Navbar />
-      <main className="flex-grow max-w-4xl w-full mx-auto px-4 sm:px-6 py-12">
+            <main className="flex-grow max-w-4xl w-full mx-auto px-4 sm:px-6 py-12">
         <Suspense fallback={<Loading message="Syncing differential scan buffers..." />}>
           <CompareContent />
         </Suspense>

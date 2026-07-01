@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/common/Toast";
 import { Shield, Mail, Lock, AlertCircle, Info } from "lucide-react";
 import Button from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function RegisterForm() {
   const router = useRouter();
   const toast = useToast();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -93,6 +95,9 @@ export default function RegisterForm() {
 
       toast.success("Account verified successfully! Welcome to HeaderGuard.");
       
+      if (data.user) {
+        login(data.user);
+      }
       router.push("/dashboard");
       router.refresh();
     } catch (err) {

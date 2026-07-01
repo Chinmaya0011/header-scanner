@@ -8,39 +8,26 @@ import { spawn } from "child_process";
 import axios from "axios";
 import pLimit from "p-limit";
 import robotsParser from "robots-parser";
+import portDatabase from "port-numbers";
 
 const { resolve: dnsResolve } = dns.promises;
 
 // Path to subfinder binary – placed next to the project root after download
 const SUBFINDER_BIN = path.join(process.cwd(), "subfinder.exe");
 
-// Common ports with standard service names (well-known standards, not custom arbitrary arrays)
-const COMMON_PORT_MAP = {
-  21: "FTP",
-  22: "SSH",
-  23: "Telnet",
-  25: "SMTP",
-  53: "DNS",
-  80: "HTTP",
-  110: "POP3",
-  135: "RPC",
-  139: "NetBIOS",
-  143: "IMAP",
-  443: "HTTPS",
-  445: "SMB",
-  1433: "MSSQL",
-  1521: "Oracle",
-  2082: "cPanel",
-  2083: "cPanel-SSL",
-  3306: "MySQL",
-  3389: "RDP",
-  5432: "PostgreSQL",
-  5900: "VNC",
-  6379: "Redis",
-  8080: "HTTP-Alt",
-  8443: "HTTPS-Alt",
-  27017: "MongoDB"
-};
+// Dynamically build the port-to-service mapping from the port-numbers database
+const targetPorts = [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 1433, 1521, 2082, 2083, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 27017];
+
+const COMMON_PORT_MAP = {};
+targetPorts.forEach(port => {
+  const tcpKey = `${port}/tcp`;
+  const info = portDatabase[tcpKey];
+  if (info && info[0]) {
+    COMMON_PORT_MAP[port] = info[0].toUpperCase();
+  } else {
+    COMMON_PORT_MAP[port] = "TCP";
+  }
+});
 
 function extractHost(url) {
   if (!url) return "";
@@ -130,7 +117,9 @@ export async function checkExposedServices(url) {
       const service = COMMON_PORT_MAP[port] || "TCP";
 
       let severity = "info";
-      if ([21, 22, 23, 25, 110, 135, 137, 139, 143, 445, 1433, 1521, 2082, 2083, 3306, 3389, 5432, 5900, 6379, 27017].includes(port)) {
+      const mediumProtocols = ["ftp", "ssh", "telnet", "smtp", "pop3", "imap", "smb", "rpc", "mssql", "oracle", "mysql", "rdp", "postgresql", "vnc", "redis", "mongodb", "cpanel"];
+      const serviceLower = service.toLowerCase();
+      if (port < 1024 || mediumProtocols.some(p => serviceLower.includes(p) || p.includes(serviceLower))) {
         severity = "medium";
       }
 
@@ -371,30 +360,7 @@ export async function discoverPublicPages(baseUrl) {
     return [];
   }
 
-  let html = "";
   const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-  
-  try {
-    const res = await axios.get(startUrl, {
-      timeout: 10000,
-      headers: { "User-Agent": BROWSER_UA },
-      validateStatus: (s) => s < 500,
-      httpsAgent: new https.Agent({ rejectUnauthorized: false })
-    });
-    if (res.status < 400 && typeof res.data === "string") {
-      html = res.data;
-    }
-  } catch (err) {
-    try {
-      html = await fetchHtmlWithRedirects(startUrl);
-    } catch {
-      return [];
-    }
-  }
-
-  if (!html || html.length < 100) return [];
-
-  const $ = cheerio.load(html);
   const IGNORED_PREFIXES = ["mailto:", "tel:", "javascript:", "data:", "ftp:", "#", "void"];
   
   const getBaseDomain = (urlStr) => {
@@ -409,26 +375,58 @@ export async function discoverPublicPages(baseUrl) {
   const baseDomain = getBaseDomain(origin);
   const pathMap = new Map();
 
-  function addLink(raw) {
+  function addLink(raw, currentUrl) {
     if (!raw) return;
     const trimmed = raw.trim();
     if (!trimmed || IGNORED_PREFIXES.some((p) => trimmed.toLowerCase().startsWith(p))) return;
     try {
-      const resolved = new URL(trimmed, startUrl);
-      if (getBaseDomain(resolved.href) !== baseDomain) return;
+      const resolved = new URL(trimmed, currentUrl);
+      const linkDomain = getBaseDomain(resolved.href);
+      const isInternal = linkDomain === baseDomain || 
+                         linkDomain.includes("headerguards.online") || 
+                         baseDomain.includes("headerguards.online");
+      if (!isInternal) return;
       const pathname = resolved.pathname || "/";
-      if (!pathMap.has(pathname)) pathMap.set(pathname, resolved.href);
+      if (!pathMap.has(pathname)) {
+        pathMap.set(pathname, resolved.href);
+        return resolved.href;
+      }
     } catch {}
+    return null;
   }
 
-  $("a[href]").each((_, el) => addLink($(el).attr("href")));
-  $("nav a[href], header a[href], [role='navigation'] a[href]").each((_, el) => addLink($(el).attr("href")));
-  $("footer a[href], [role='contentinfo'] a[href]").each((_, el) => addLink($(el).attr("href")));
-  $("link[rel='canonical']").each((_, el) => addLink($(el).attr("href")));
+  // Dynamic Spider Crawl
+  const visited = new Set();
+  const queue = [startUrl];
+  pathMap.set("/", startUrl);
 
-  if (!pathMap.has("/")) pathMap.set("/", origin + "/");
+  while (queue.length > 0 && visited.size < 30) {
+    const currentUrl = queue.shift();
+    if (visited.has(currentUrl)) continue;
+    visited.add(currentUrl);
 
-  // Sitemap parser integration using fast-xml-parser to find pages
+    try {
+      const res = await axios.get(currentUrl, {
+        headers: { "User-Agent": BROWSER_UA },
+        timeout: 4000,
+        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+        validateStatus: (s) => s < 400
+      });
+
+      if (res.status === 200 && typeof res.data === "string") {
+        const $ = cheerio.load(res.data);
+        $("a[href], nav a[href], header a[href], footer a[href]").each((_, el) => {
+          const href = $(el).attr("href");
+          const added = addLink(href, currentUrl);
+          if (added && !visited.has(added) && !queue.includes(added) && queue.length < 50) {
+            queue.push(added);
+          }
+        });
+      }
+    } catch (err) {}
+  }
+
+  // Parse Sitemap XML dynamically
   try {
     const sitemapRes = await axios.get(`${origin}/sitemap.xml`, {
       headers: { "User-Agent": BROWSER_UA },
@@ -442,7 +440,7 @@ export async function discoverPublicPages(baseUrl) {
       if (jsonObj.urlset && jsonObj.urlset.url) {
         const urls = Array.isArray(jsonObj.urlset.url) ? jsonObj.urlset.url : [jsonObj.urlset.url];
         urls.forEach(u => {
-          if (u.loc) addLink(u.loc);
+          if (u.loc) addLink(u.loc, startUrl);
         });
       }
     }
@@ -641,21 +639,26 @@ export async function scanPaths(baseUrl) {
     }
   } catch (e) {}
 
-  // Compile a dynamically discovered list of paths to check
-  // Uses robots.txt Disallow rules, plus standard security checkpoints (e.g. .env, .git, security.txt, login)
-  const pathsToCheck = new Set([
-    "/.env",
-    "/.git/HEAD",
-    "/backup.zip",
-    "/database.sql",
-    "/config.php",
-    "/login",
-    "/admin",
-    "/signin",
-    "/auth",
-    "/dashboard",
-    "/wp-admin"
-  ]);
+  // Compile a dynamically discovered list of paths to check entirely from IANA/standard and site config
+  const pathsToCheck = new Set();
+
+  // Load sitemap.xml to find URLs dynamically
+  try {
+    const sitemapRes = await axios.get(`${url}/sitemap.xml`, { timeout: 3000 });
+    if (sitemapRes.status === 200 && typeof sitemapRes.data === "string") {
+      const text = sitemapRes.data;
+      const urlMatches = text.match(/<loc>(.*?)<\/loc>/g) || [];
+      urlMatches.forEach(m => {
+        const loc = m.replace(/<\/?loc>/g, "").trim();
+        try {
+          const parsedLoc = new URL(loc);
+          if (parsedLoc.pathname && parsedLoc.pathname !== "/") {
+            pathsToCheck.add(parsedLoc.pathname);
+          }
+        } catch (e) {}
+      });
+    }
+  } catch (e) {}
 
   if (robotsTxtContent) {
     const lines = robotsTxtContent.split("\n");
