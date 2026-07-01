@@ -155,6 +155,7 @@ export default function ScanResults({ result }) {
     publicPages = [],
     exposedServices = [],
     loginSurfaces = [],
+    whois,
     categoryScores,
     seo,
     metadata
@@ -854,19 +855,20 @@ export default function ScanResults({ result }) {
     return [
       { id: "overview", label: "Overview", icon: Layout, show: true },
       { id: "headers", label: "Security Headers", icon: ShieldCheck, show: headers && headers.length > 0, count: headers.filter(h => h.status !== "present").length },
-      { id: "ssl", label: "SSL/TLS", icon: Lock, show: ssl && ssl.expirationDate !== null },
-      { id: "dns", label: "DNS Security", icon: Globe, show: dns && (dns.a?.length > 0 || dns.aaaa?.length > 0 || dns.mx?.length > 0 || dns.txt?.length > 0) },
-      { id: "ports", label: "Open Ports", icon: Terminal, show: exposedServices && exposedServices.length > 0, count: exposedServices.filter(s => s.status === "open").length },
-      { id: "subdomains", label: "Subdomains", icon: Layers, show: subdomains && subdomains.length > 0, count: subdomains.length },
-      { id: "pages", label: "Public Pages", icon: Link2, show: publicPages && publicPages.length > 0, count: publicPages.length },
-      { id: "attack-surface", label: "Attack Surface", icon: Fingerprint, show: (sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0) || (loginSurfaces && loginSurfaces.length > 0), count: (sensitiveFiles?.filter(f => f.exists).length || 0) + (loginSurfaces?.length || 0) },
+      { id: "ssl", label: "SSL/TLS", icon: Lock, show: true },
+      { id: "dns", label: "DNS Security", icon: Globe, show: true },
+      { id: "whois", label: "WHOIS / Domain", icon: Calendar, show: true },
+      { id: "ports", label: "Open Ports", icon: Terminal, show: true, count: exposedServices?.filter(s => s.status === "open").length || 0 },
+      { id: "subdomains", label: "Subdomains", icon: Layers, show: true, count: subdomains?.length || 0 },
+      { id: "pages", label: "Public Pages", icon: Link2, show: true, count: publicPages?.length || 0 },
+      { id: "attack-surface", label: "Attack Surface", icon: Fingerprint, show: true, count: (sensitiveFiles?.filter(f => f.exists).length || 0) + (loginSurfaces?.length || 0) },
       { id: "seo", label: "SEO Data", icon: Search, show: true },
-      { id: "performance", label: "Performance", icon: Activity, show: performance && (performance.responseTime !== undefined || performance.ttfb !== undefined) },
-      { id: "tech", label: "Tech Stack", icon: Cpu, show: techStack && techStack.length > 0 },
+      { id: "performance", label: "Performance", icon: Activity, show: true },
+      { id: "tech", label: "Tech Stack", icon: Cpu, show: true },
       { id: "recommendations", label: "Guidelines", icon: BookOpen, show: true, count: failedCount + warningCount },
       { id: "raw", label: "Raw JSON", icon: Code, show: true }
     ].filter(tab => tab.show);
-  }, [headers, ssl, dns, exposedServices, subdomains, publicPages, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount]);
+  }, [headers, ssl, dns, exposedServices, subdomains, publicPages, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount, whois]);
 
   const isFirewallProtected = localResult?.isFirewallProtected || localResult?.statusCode === 403 || localResult?.statusCode === 401;
 
@@ -1742,8 +1744,154 @@ export default function ScanResults({ result }) {
           </div>
         )}
 
+        {/* ==================== WHOIS / DOMAIN REGISTRY SECURITY TAB ==================== */}
+        {activeTab === "whois" && whois && (
+          <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
+            {renderSectionLoader("whois")}
+            <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-text-muted font-mono">Domain Registration &amp; Ownership</h2>
+                <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Domain registrar details, age checks, and expiry warnings</p>
+              </div>
+              {!localResult?.isPublicScan && (
+                <Button
+                  onClick={() => handleRefreshSection("whois")}
+                  disabled={!!refreshingSection}
+                  variant="outline"
+                  size="sm"
+                  icon={RefreshCw}
+                  className="hover:border-accent/40 hover:text-accent font-bold text-[9.5px] py-1.5 tracking-wider"
+                >
+                  Sync WHOIS
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Domain Age Status */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl flex flex-col justify-between">
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-black text-text-muted uppercase tracking-wider font-mono">
+                    Domain Trust &amp; Age
+                  </h3>
+                  <div className="flex items-baseline gap-2.5">
+                    <span className="text-3xl font-black font-mono tracking-tight text-accent">
+                      {whois.domainAgeDays !== null ? `${whois.domainAgeDays}` : "N/A"}
+                    </span>
+                    <span className="text-[10px] text-text-muted uppercase tracking-widest font-mono font-black">Days Old</span>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-white/[0.03]">
+                  {whois.isRecent ? (
+                    <div className="flex items-start gap-2 text-danger bg-danger/10 border border-danger/25 p-3 rounded-xl">
+                      <AlertTriangle className="h-4.5 w-4.5 shrink-0 mt-0.5" />
+                      <div className="text-[10px] font-bold font-sans leading-normal">
+                        <span className="block font-black uppercase tracking-wider">High Risk Alert</span>
+                        Domain was registered less than 30 days ago. Brand-new domains are highly correlated with phishing and social engineering campaigns.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-success bg-success/10 border border-success/20 px-3 py-2.5 rounded-xl text-[10px] font-bold font-sans">
+                      <ShieldCheck className="h-4.5 w-4.5 shrink-0 text-success" />
+                      <span>Domain is established and mature.</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {/* Expiry Warning Status */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl flex flex-col justify-between">
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-black text-text-muted uppercase tracking-wider font-mono">
+                    Downtime &amp; Expiry Risk
+                  </h3>
+                  <div className="flex items-baseline gap-2.5">
+                    <span className={`text-3xl font-black font-mono tracking-tight ${whois.isExpiringSoon ? "text-danger" : "text-success"}`}>
+                      {whois.daysToExpiry !== null ? `${whois.daysToExpiry}` : "N/A"}
+                    </span>
+                    <span className="text-[10px] text-text-muted uppercase tracking-widest font-mono font-black">Days to Expiry</span>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-white/[0.03]">
+                  {whois.isExpiringSoon ? (
+                    <div className="flex items-start gap-2 text-danger bg-danger/10 border border-danger/25 p-3 rounded-xl">
+                      <AlertOctagon className="h-4.5 w-4.5 shrink-0 mt-0.5" />
+                      <div className="text-[10px] font-bold font-sans leading-normal">
+                        <span className="block font-black uppercase tracking-wider">Critical Expiry Warning</span>
+                        Domain is expiring in less than 30 days! Ensure automatic renewal is enabled to prevent downtime, email loss, and hijack.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-success bg-success/10 border border-success/20 px-3 py-2.5 rounded-xl text-[10px] font-bold font-sans">
+                      <ShieldCheck className="h-4.5 w-4.5 shrink-0 text-success" />
+                      <span>Active registration validity window is secure.</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {/* Registrar Details */}
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <h3 className="text-[10px] font-black text-text-muted uppercase tracking-wider font-mono">
+                    Domain Registrar
+                  </h3>
+                  <p className="text-sm font-black font-mono text-text truncate">
+                    {whois.registrar || "Unknown Registrar"}
+                  </p>
+                </div>
+                <div className="pt-4 border-t border-white/[0.03] space-y-2">
+                  <div className="flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-text-muted">Registered</span>
+                    <span className="font-bold text-text">
+                      {whois.createdDate ? new Date(whois.createdDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-text-muted">Expires</span>
+                    <span className="font-bold text-text">
+                      {whois.expiryDate ? new Date(whois.expiryDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : "N/A"}
+                    </span>
+                  </div>
+                  {whois.updatedDate && (
+                    <div className="flex justify-between items-center text-[10px] font-mono">
+                      <span className="text-text-muted">Last Updated</span>
+                      <span className="font-bold text-text">
+                        {new Date(whois.updatedDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+
+            {/* Nameservers List */}
+            {whois.nameServers && whois.nameServers.length > 0 && (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono border-b border-white/[0.05] pb-2">
+                  Authoritative Name Servers
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  {whois.nameServers.map((ns, idx) => (
+                    <div key={idx} className="bg-bg/40 p-3 rounded-xl border border-white/[0.02] flex items-center justify-between gap-2 min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-7 w-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 text-xs font-bold font-mono">
+                          {idx + 1}
+                        </div>
+                        <span className="text-[10.5px] font-black font-mono text-text select-all truncate">
+                          {ns}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
         {/* ==================== 5. OPEN PORTS TAB ==================== */}
-        {activeTab === "ports" && exposedServices && exposedServices.length > 0 && (
+        {activeTab === "ports" && (
           <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
             {renderSectionLoader("ports")}
             <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
@@ -1763,34 +1911,44 @@ export default function ScanResults({ result }) {
               </Button>
             </div>
 
-            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
-              <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                <Terminal className="h-4 w-4 text-accent" /> Scan Port Results
-              </h3>
-              <p className="text-xs text-text-dim font-sans leading-relaxed">
-                The following TCP listening ports were detected on target host public interfaces. Exposed administrative ports (SSH, SQL, FTP, RDP) represent high-value hijack vectors.
-              </p>
-              <div className="flex flex-wrap gap-2.5 pt-2">
-                {exposedServices.map((srv, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setSelectedPort(srv)}
-                    className="flex items-center gap-2 bg-bg/50 hover:bg-bg border border-white/[0.04] hover:border-accent/30 px-4 py-2.5 rounded-xl text-xs font-mono transition-all text-left group"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-danger animate-pulse shrink-0" />
-                    <span className="font-extrabold text-text">Port {srv.port}</span>
-                    <span className="text-text-muted">/ {srv.service}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-text-dim group-hover:translate-x-0.5 transition-transform ml-1" />
-                  </button>
-                ))}
-              </div>
-            </Card>
+            {!exposedServices || exposedServices.length === 0 ? (
+              <Card className="p-8 text-center bg-surface/30 border border-white/[0.04] rounded-2xl">
+                <ShieldCheck className="h-10 w-10 text-success mx-auto mb-3 animate-pulse" />
+                <h3 className="text-sm font-bold text-text mb-1">All Ports Closed / Protected</h3>
+                <p className="text-xs text-text-dim max-w-md mx-auto">
+                  No exposed administrative TCP services (like SSH, MySQL, FTP, or RDP) were detected on public interfaces.
+                </p>
+              </Card>
+            ) : (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                  <Terminal className="h-4 w-4 text-accent" /> Scan Port Results
+                </h3>
+                <p className="text-xs text-text-dim font-sans leading-relaxed">
+                  The following TCP listening ports were detected on target host public interfaces. Exposed administrative ports (SSH, SQL, FTP, RDP) represent high-value hijack vectors.
+                </p>
+                <div className="flex flex-wrap gap-2.5 pt-2">
+                  {exposedServices.map((srv, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setSelectedPort(srv)}
+                      className="flex items-center gap-2 bg-bg/50 hover:bg-bg border border-white/[0.04] hover:border-accent/30 px-4 py-2.5 rounded-xl text-xs font-mono transition-all text-left group"
+                    >
+                      <span className="h-2 w-2 rounded-full bg-danger animate-pulse shrink-0" />
+                      <span className="font-extrabold text-text">Port {srv.port}</span>
+                      <span className="text-text-muted">/ {srv.service}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-text-dim group-hover:translate-x-0.5 transition-transform ml-1" />
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            )}
           </div>
         )}
 
         {/* ==================== 6. SUBDOMAINS TAB ==================== */}
-        {activeTab === "subdomains" && subdomains && subdomains.length > 0 && (
+        {activeTab === "subdomains" && (
           <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
             {renderSectionLoader("subdomains")}
             <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
@@ -1803,38 +1961,48 @@ export default function ScanResults({ result }) {
               </Button>
             </div>
 
-            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
-              <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                <Layers className="h-4 w-4 text-accent" /> Active Subdomains ({subdomains.length})
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[480px] overflow-y-auto pr-1">
-                {subdomains.map((sub, idx) => {
-                  const subName = sub.subdomain || sub;
-                  const sourceLabel = sub.source?.includes("ssl-cert") ? "SSL Cert" : "DNS Probe";
-                  return (
-                    <div key={idx} className="bg-surface/50 border border-white/[0.05] p-3.5 rounded-2xl space-y-3 hover:border-accent/20 transition-all">
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="truncate font-bold text-[11.5px] text-text font-mono select-all block" title={subName}>{subName}</span>
-                        <Badge variant={sub.severity === "medium" ? "warning" : "info"} className="text-[7.5px] py-0.5 shrink-0">{sub.severity?.toUpperCase() || "INFO"}</Badge>
+            {!subdomains || subdomains.length === 0 ? (
+              <Card className="p-8 text-center bg-surface/30 border border-white/[0.04] rounded-2xl">
+                <Layers className="h-10 w-10 text-text-muted mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-text mb-1">No Subdomains Discovered</h3>
+                <p className="text-xs text-text-dim max-w-md mx-auto">
+                  No other active subdomains were resolved for this domain through Certificate Transparency logs or DNS searches.
+                </p>
+              </Card>
+            ) : (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-accent" /> Active Subdomains ({subdomains.length})
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[480px] overflow-y-auto pr-1">
+                  {subdomains.map((sub, idx) => {
+                    const subName = sub.subdomain || sub;
+                    const sourceLabel = sub.source?.includes("ssl-cert") ? "SSL Cert" : "DNS Probe";
+                    return (
+                      <div key={idx} className="bg-surface/50 border border-white/[0.05] p-3.5 rounded-2xl space-y-3 hover:border-accent/20 transition-all">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="truncate font-bold text-[11.5px] text-text font-mono select-all block" title={subName}>{subName}</span>
+                          <Badge variant={sub.severity === "medium" ? "warning" : "info"} className="text-[7.5px] py-0.5 shrink-0">{sub.severity?.toUpperCase() || "INFO"}</Badge>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          {sub.ip && <span className="text-[9px] text-text-dim font-mono bg-bg/40 px-2 py-0.5 rounded-md font-bold">{sub.ip}</span>}
+                          <span className="text-[9px] text-accent font-mono bg-accent/5 border border-accent/20 px-2 py-0.5 rounded-md font-bold">{sourceLabel}</span>
+                        </div>
+                        {sub.evidence && <p className="text-[9.5px] text-text-dim font-sans leading-normal">{sub.evidence}</p>}
+                        <Button onClick={() => handleScanSubdomain(subName)} variant="secondary" size="sm" className="py-1 text-[9.5px] w-full mt-1.5" icon={RefreshCw}>
+                          Audit Asset
+                        </Button>
                       </div>
-                      <div className="flex gap-2 flex-wrap">
-                        {sub.ip && <span className="text-[9px] text-text-dim font-mono bg-bg/40 px-2 py-0.5 rounded-md font-bold">{sub.ip}</span>}
-                        <span className="text-[9px] text-accent font-mono bg-accent/5 border border-accent/20 px-2 py-0.5 rounded-md font-bold">{sourceLabel}</span>
-                      </div>
-                      {sub.evidence && <p className="text-[9.5px] text-text-dim font-sans leading-normal">{sub.evidence}</p>}
-                      <Button onClick={() => handleScanSubdomain(subName)} variant="secondary" size="sm" className="py-1 text-[9.5px] w-full mt-1.5" icon={RefreshCw}>
-                        Audit Asset
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
           </div>
         )}
 
         {/* ==================== 7. PUBLIC PAGES TAB ==================== */}
-        {activeTab === "pages" && publicPages && publicPages.length > 0 && (
+        {activeTab === "pages" && (
           <div className="space-y-6 animate-fadeIn text-left relative min-h-[300px]">
             {renderSectionLoader("pages")}
             <div className="border-b border-white/[0.05] pb-3 flex items-center justify-between gap-4">
@@ -1847,37 +2015,47 @@ export default function ScanResults({ result }) {
               </Button>
             </div>
 
-            <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
-                <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-accent" /> Indexable Pages ({publicPages.length})
-                </h3>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(publicPages.map(p => p.url || p.path).join("\n")); toast.success("Paths copied to clipboard"); }}
-                  className="flex items-center gap-1.5 text-[9px] font-bold text-text-dim hover:text-accent transition-all font-mono px-2.5 py-1.5 rounded-lg hover:bg-accent/8 border border-transparent hover:border-accent/20 uppercase"
-                >
-                  <Copy className="h-3.5 w-3.5" /> Copy List
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[500px] overflow-y-auto pr-1 font-mono text-[11px]">
-                {publicPages.map((page, idx) => {
-                  const statusColor = !page.status ? "text-text-dim" :
-                    page.status < 300 ? "text-success" :
-                    page.status < 400 ? "text-warning" : "text-danger";
-                  return (
-                    <div key={idx} className="flex items-center gap-3 bg-surface/50 border border-white/[0.03] px-3.5 py-2.5 rounded-xl hover:border-white/[0.08] transition-all group justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className={`text-[9px] font-black w-8 text-center shrink-0 font-mono ${statusColor}`}>{page.status || "—"}</span>
-                        <span className="truncate text-text select-all font-bold" title={page.path || page.url}>{page.path || page.url}</span>
+            {!publicPages || publicPages.length === 0 ? (
+              <Card className="p-8 text-center bg-surface/30 border border-white/[0.04] rounded-2xl">
+                <Link2 className="h-10 w-10 text-text-muted mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-text mb-1">No Pages Crawled</h3>
+                <p className="text-xs text-text-dim max-w-md mx-auto">
+                  No other active pages were discovered on the homepage crawled paths.
+                </p>
+              </Card>
+            ) : (
+              <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                  <h3 className="text-xs font-bold text-text uppercase tracking-wider font-mono flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-accent" /> Indexable Pages ({publicPages.length})
+                  </h3>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(publicPages.map(p => p.url || p.path).join("\n")); toast.success("Paths copied to clipboard"); }}
+                    className="flex items-center gap-1.5 text-[9px] font-bold text-text-dim hover:text-accent transition-all font-mono px-2.5 py-1.5 rounded-lg hover:bg-accent/8 border border-transparent hover:border-accent/20 uppercase"
+                  >
+                    <Copy className="h-3.5 w-3.5" /> Copy List
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[500px] overflow-y-auto pr-1 font-mono text-[11px]">
+                  {publicPages.map((page, idx) => {
+                    const statusColor = !page.status ? "text-text-dim" :
+                      page.status < 300 ? "text-success" :
+                      page.status < 400 ? "text-warning" : "text-danger";
+                    return (
+                      <div key={idx} className="flex items-center gap-3 bg-surface/50 border border-white/[0.03] px-3.5 py-2.5 rounded-xl hover:border-white/[0.08] transition-all group justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className={`text-[9px] font-black w-8 text-center shrink-0 font-mono ${statusColor}`}>{page.status || "—"}</span>
+                          <span className="truncate text-text select-all font-bold" title={page.path || page.url}>{page.path || page.url}</span>
+                        </div>
+                        <a href={page.url} target="_blank" rel="noopener noreferrer" className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-text-dim hover:text-accent p-1">
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
                       </div>
-                      <a href={page.url} target="_blank" rel="noopener noreferrer" className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-text-dim hover:text-accent p-1">
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
           </div>
         )}
 
@@ -1889,46 +2067,56 @@ export default function ScanResults({ result }) {
               <p className="text-[9.5px] text-text-dim mt-0.5 uppercase tracking-wider font-mono font-bold">Unauthenticated admin consoles or configuration backups audits</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Exposed files */}
-              {sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0 && (
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                    <FileText className="h-4.5 w-4.5 text-accent" /> Leaked Code / Env Backups ({sensitiveFiles.filter(f => f.exists).length})
-                  </h3>
-                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
-                    {sensitiveFiles.filter(f => f.exists).map((file, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
-                        <div className="min-w-0 pr-2">
-                          <span className="font-bold text-text select-all block truncate" title={file.path}>{file.path}</span>
-                          <span className="text-[9px] text-text-muted mt-0.5 block font-bold">Status: HTTP {file.status || 200}</span>
+            {((!sensitiveFiles || sensitiveFiles.filter(f => f.exists).length === 0) && (!loginSurfaces || loginSurfaces.length === 0)) ? (
+              <Card className="p-8 text-center bg-surface/30 border border-white/[0.04] rounded-2xl">
+                <ShieldCheck className="h-10 w-10 text-success mx-auto mb-3 animate-pulse" />
+                <h3 className="text-sm font-bold text-text mb-1">Attack Surface Secure</h3>
+                <p className="text-xs text-text-dim max-w-md mx-auto">
+                  No exposed code repository directories, environment file backups, or unauthenticated administrative panels were discovered.
+                </p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Exposed files */}
+                {sensitiveFiles && sensitiveFiles.filter(f => f.exists).length > 0 && (
+                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                      <FileText className="h-4.5 w-4.5 text-accent" /> Leaked Code / Env Backups ({sensitiveFiles.filter(f => f.exists).length})
+                    </h3>
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
+                      {sensitiveFiles.filter(f => f.exists).map((file, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
+                          <div className="min-w-0 pr-2">
+                            <span className="font-bold text-text select-all block truncate" title={file.path}>{file.path}</span>
+                            <span className="text-[9px] text-text-muted mt-0.5 block font-bold">Status: HTTP {file.status || 200}</span>
+                          </div>
+                          <Badge variant="danger" className="text-[7px] py-0.5 shrink-0 font-sans">EXPOSED</Badge>
                         </div>
-                        <Badge variant="danger" className="text-[7px] py-0.5 shrink-0 font-sans">EXPOSED</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
+                      ))}
+                    </div>
+                  </Card>
+                )}
 
-              {/* Login interfaces */}
-              {loginSurfaces && loginSurfaces.length > 0 && (
-                <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
-                  <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
-                    <Lock className="h-4.5 w-4.5 text-accent" /> Administrative Portal Entries ({loginSurfaces.length})
-                  </h3>
-                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
-                    {loginSurfaces.map((login, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
-                        <div className="min-w-0 pr-2">
-                          <span className="font-bold text-text select-all block truncate" title={login.path}>{login.path}</span>
+                {/* Login interfaces */}
+                {loginSurfaces && loginSurfaces.length > 0 && (
+                  <Card className="p-5 bg-surface/30 border border-white/[0.04] space-y-4 rounded-2xl">
+                    <h3 className="text-xs font-bold text-text uppercase tracking-wider border-b border-white/[0.05] pb-2 font-mono flex items-center gap-2">
+                      <Lock className="h-4.5 w-4.5 text-accent" /> Administrative Portal Entries ({loginSurfaces.length})
+                    </h3>
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 font-mono text-[11px]">
+                      {loginSurfaces.map((login, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-bg/40 border border-white/[0.03] p-3 rounded-xl">
+                          <div className="min-w-0 pr-2">
+                            <span className="font-bold text-text select-all block truncate" title={login.path}>{login.path}</span>
+                          </div>
+                          <Badge variant="warning" className="text-[7px] py-0.5 shrink-0 font-sans">ACCESSIBLE</Badge>
                         </div>
-                        <Badge variant="warning" className="text-[7px] py-0.5 shrink-0 font-sans">ACCESSIBLE</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              )}
-            </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
           </div>
         )}
 

@@ -209,6 +209,19 @@ const SeoDetailsSchema = new mongoose.Schema({
   detectedImages: mongoose.Schema.Types.Mixed
 });
 
+const WhoisDetailsSchema = new mongoose.Schema({
+  registrar: String,
+  createdDate: Date,
+  expiryDate: Date,
+  updatedDate: Date,
+  domainAgeDays: Number,
+  daysToExpiry: Number,
+  nameServers: [String],
+  isRecent: Boolean,
+  isExpiringSoon: Boolean,
+});
+
+
 const ScanSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
@@ -258,6 +271,8 @@ const ScanSchema = new mongoose.Schema(
     emailSecurity: EmailSecuritySchema,
     subdomains: [mongoose.Schema.Types.Mixed],
     publicPages: [mongoose.Schema.Types.Mixed],
+    whois: WhoisDetailsSchema,
+
 
     exposedServices: [mongoose.Schema.Types.Mixed],
     loginSurfaces: [mongoose.Schema.Types.Mixed],
