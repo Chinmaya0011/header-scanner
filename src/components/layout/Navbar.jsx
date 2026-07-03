@@ -51,7 +51,7 @@ function ThemeToggle() {
     <button
       onClick={toggleTheme}
       type="button"
-      className="p-2 rounded-lg bg-[#161a26] border border-[#1e2130] text-text-dim hover:text-text hover:bg-[#1c2133] transition-all duration-300 flex items-center justify-center"
+      className="p-2 rounded-lg bg-surface border border-border text-text-dim hover:text-text hover:bg-panel transition-all duration-300 flex items-center justify-center"
       aria-label="Toggle theme"
     >
       {theme === "dark" ? (
@@ -127,7 +127,7 @@ export default function Navbar() {
       ];
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#0a0c12] border-b border-[#1e2130] transition-all duration-300">
+    <nav className="sticky top-0 z-50 bg-bg border-b border-border transition-all duration-300">
       {/* Top micro-gradient indicator bar */}
       <div className="h-[2px] w-full bg-gradient-to-r from-accent/40 via-accent to-accent-light/40" />
       
@@ -195,7 +195,7 @@ export default function Navbar() {
                     <div className="relative" ref={notifRef}>
                       <button
                         onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
-                        className="relative p-2 text-text-dim hover:text-text hover:bg-[#1c2133] rounded-lg transition-all"
+                        className="relative p-2 text-text-dim hover:text-text hover:bg-panel rounded-lg transition-all"
                         aria-label="Notifications"
                       >
                         <Bell id="notif-bell-icon" className={`h-4.5 w-4.5 transition-colors duration-200 ${unreadCount > 0 ? "text-accent" : "text-text-dim"}`} />
@@ -207,9 +207,9 @@ export default function Navbar() {
                       </button>
 
                       {notifDropdownOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-80 md:w-96 bg-[#111420] border border-[#1e2130] rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp z-50">
+                        <div className="absolute right-0 top-full mt-2 w-80 md:w-96 bg-surface border border-border rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp z-50">
                           {/* Header */}
-                          <div className="flex items-center justify-between px-3 py-2 border-b border-[#1e2130] select-none text-left">
+                          <div className="flex items-center justify-between px-3 py-2 border-b border-border select-none text-left">
                             <div className="flex items-center gap-2">
                               <p className="text-xs font-bold text-text">Notifications</p>
                               {unreadCount > 0 && (
@@ -269,8 +269,8 @@ export default function Navbar() {
                                 return (
                                   <div
                                     key={notif._id}
-                                    className={`flex items-start gap-3 p-3 rounded-lg hover:bg-[#1c2133] transition-colors relative group ${
-                                      !notif.isRead ? "bg-[#161a26]" : ""
+                                    className={`flex items-start gap-3 p-3 rounded-lg hover:bg-panel transition-colors relative group ${
+                                      !notif.isRead ? "bg-surface" : ""
                                     }`}
                                   >
                                     {/* Icon */}
@@ -331,7 +331,7 @@ export default function Navbar() {
                     <div className="flex items-center gap-2 relative" ref={dropdownRef}>
                       <button
                         onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                        className="flex items-center gap-2 bg-[#161a26] hover:bg-[#1c2133] px-3 py-1.5 rounded-lg text-xs border border-[#1e2130] text-text font-medium transition-all shadow-sm"
+                        className="flex items-center gap-2 bg-surface hover:bg-panel px-3 py-1.5 rounded-lg text-xs border border-border text-text font-medium transition-all shadow-sm"
                       >
                         <div className="h-5 w-5 rounded-full bg-gradient-to-br from-accent to-accent-light flex items-center justify-center text-[10px] font-black text-white shadow-inner">
                           {user.email.substring(0, 2).toUpperCase()}
@@ -342,9 +342,9 @@ export default function Navbar() {
 
                       {/* Dropdown Menu */}
                       {profileDropdownOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-64 bg-[#111420] border border-[#1e2130] rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp">
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-surface border border-border rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp">
                           {/* User Info Header */}
-                          <div className="px-3 py-2.5 border-b border-[#1e2130] select-none text-left">
+                          <div className="px-3 py-2.5 border-b border-border select-none text-left">
                             <div className="flex items-center gap-2">
                               <div className="h-7 w-7 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center text-xs font-black text-accent">
                                 {user.email.substring(0, 2).toUpperCase()}
@@ -359,7 +359,7 @@ export default function Navbar() {
                           <Link
                             href="/developers"
                             onClick={() => setProfileDropdownOpen(false)}
-                            className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-text hover:bg-[#1c2133] rounded-lg transition-all text-left"
+                            className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-text hover:bg-panel rounded-lg transition-all text-left"
                           >
                             <Code className="h-4 w-4 text-accent" />
                             <div className="flex flex-col">
@@ -371,7 +371,7 @@ export default function Navbar() {
                           <Link
                             href="/profile"
                             onClick={() => setProfileDropdownOpen(false)}
-                            className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-text hover:bg-[#1c2133] rounded-lg transition-all text-left"
+                            className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-text hover:bg-panel rounded-lg transition-all text-left"
                           >
                             <Settings className="h-4 w-4 text-accent" />
                             <div className="flex flex-col">
@@ -384,7 +384,7 @@ export default function Navbar() {
                             <Link
                               href="/dashboard"
                               onClick={() => setProfileDropdownOpen(false)}
-                              className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-warning hover:bg-[#2a1f0a] rounded-lg transition-all border-t border-[#1e2130] pt-2 text-left"
+                            className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-warning hover:bg-warning/5 rounded-lg transition-all border-t border-border pt-2 text-left"
                             >
                               <LayoutDashboard className="h-4 w-4 text-warning" />
                               <div className="flex flex-col">
@@ -396,7 +396,7 @@ export default function Navbar() {
 
                           <button
                             onClick={handleLogout}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-danger hover:bg-[#200d0d] rounded-lg transition-all border-t border-[#1e2130] mt-1 text-left"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-danger hover:bg-danger/5 rounded-lg transition-all border-t border-border mt-1 text-left"
                           >
                             <LogOut className="h-4 w-4" />
                             <div className="flex flex-col">
@@ -447,7 +447,7 @@ export default function Navbar() {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-[#1e2130] bg-[#0a0c12] px-4 py-5 space-y-2.5 animate-fadeInUp shadow-inner">
+        <div className="md:hidden border-t border-border bg-bg px-4 py-5 space-y-2.5 animate-fadeInUp shadow-inner">
           <div className="flex justify-between items-center pb-2.5 border-b border-border/60 mb-2">
             <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider pl-1">Appearance</span>
             <ThemeToggle />
@@ -492,7 +492,7 @@ export default function Navbar() {
 
               {user ? (
                 <div className="pt-4 border-t border-border space-y-2">
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-[#161a26] rounded-lg border border-[#1e2130] shadow-inner">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-surface rounded-lg border border-border shadow-inner">
                     <div className="flex items-center gap-2 text-xs text-text truncate">
                       <div className="h-6 w-6 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-[9px] font-black text-accent">
                         {user.email.substring(0, 2).toUpperCase()}
@@ -511,7 +511,7 @@ export default function Navbar() {
                   <Link
                     href="/developers"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-text-dim hover:text-text hover:bg-[#1c2133] rounded-lg transition-all text-left"
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-text-dim hover:text-text hover:bg-panel rounded-lg transition-all text-left"
                   >
                     <Code className="h-4 w-4 text-accent" />
                     <span>Developer API Hub</span>
@@ -520,7 +520,7 @@ export default function Navbar() {
                   <Link
                     href="/profile"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-text-dim hover:text-text hover:bg-[#1c2133] rounded-lg transition-all text-left"
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-text-dim hover:text-text hover:bg-panel rounded-lg transition-all text-left"
                   >
                     <Settings className="h-4 w-4 text-accent" />
                     <span>Account Settings</span>
