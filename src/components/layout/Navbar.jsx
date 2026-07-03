@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { 
   Shield, 
   LogOut, 
-  User, 
   Menu, 
   X, 
   ChevronDown, 
@@ -17,7 +16,6 @@ import {
   BookOpen,
   History,
   Home,
-  Crown,
   Bell,
   Check,
   Trash2,
@@ -89,8 +87,6 @@ export default function Navbar() {
         { href: "/home", label: "Home", icon: Home },
         { href: "/scanner", label: "Scanner", icon: Shield },
         { href: "/docs", label: "Docs", icon: BookOpen },
-        { href: "/demo/user", label: "Demo User", icon: User },
-        { href: "/demo/admin", label: "Demo Admin", icon: Crown },
       ];
 
   return (

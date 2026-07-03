@@ -39,14 +39,9 @@ export default function ActivityTimeoutListener() {
       const params = new URLSearchParams(window.location.search);
       const timeoutType = params.get("timeout");
       
-      if (timeoutType === "inactivity" || timeoutType === "demo") {
+      if (timeoutType === "inactivity") {
         hasShownTimeoutToast.current = true;
-        
-        if (timeoutType === "inactivity") {
-          toast.warning("You have been automatically logged out due to 10 minutes of inactivity.");
-        } else if (timeoutType === "demo") {
-          toast.warning("Demo session ended due to 10 minutes of inactivity.");
-        }
+        toast.warning("You have been automatically logged out due to 10 minutes of inactivity.");
         
         // Clean URL params synchronously without triggering router reload loops
         const cleanUrl = window.location.pathname;
@@ -55,12 +50,7 @@ export default function ActivityTimeoutListener() {
     }
 
     async function checkSession() {
-      // Treat /demo/* routes as active simulated sessions
-      if (pathname && pathname.startsWith("/demo")) {
-        setIsSessionActive(true);
-        lastActivity.current = Date.now();
-        return;
-      }
+
 
       // Avoid session checks on login/register/home pages
       if (pathname === "/login" || pathname === "/register" || pathname === "/home" || pathname === "/") {
@@ -111,7 +101,7 @@ export default function ActivityTimeoutListener() {
       lastActivity.current = now;
 
       // Throttle cookie writes to once every 10 seconds to optimize performance
-      if (pathname && !pathname.startsWith("/demo") && now - lastCookieWrite.current > 10000) {
+      if (pathname && now - lastCookieWrite.current > 10000) {
         setCookie("lastActivityTime", now.toString(), 7 * 24 * 60 * 60);
         lastCookieWrite.current = now;
       }
@@ -131,7 +121,7 @@ export default function ActivityTimeoutListener() {
       let elapsed = now - lastActivity.current;
 
       // Sync with lastActivityTime cookie for real sessions
-      if (pathname && !pathname.startsWith("/demo")) {
+      if (pathname) {
         const cookieTime = getCookie("lastActivityTime");
         if (cookieTime) {
           const parsedCookieTime = parseInt(cookieTime);
@@ -146,21 +136,16 @@ export default function ActivityTimeoutListener() {
         intervalRef.current = null;
         
         // Log out user
-        if (pathname && pathname.startsWith("/demo")) {
-          router.push("/login?timeout=demo");
-          router.refresh();
-        } else {
-          try {
-            const logoutRes = await fetch("/api/auth/logout", { method: "POST" });
-            if (logoutRes.ok) {
-              router.push("/login?timeout=inactivity");
-              router.refresh();
-            }
-          } catch (err) {
-            console.error("Auto logout post failure:", err);
+        try {
+          const logoutRes = await fetch("/api/auth/logout", { method: "POST" });
+          if (logoutRes.ok) {
             router.push("/login?timeout=inactivity");
             router.refresh();
           }
+        } catch (err) {
+          console.error("Auto logout post failure:", err);
+          router.push("/login?timeout=inactivity");
+          router.refresh();
         }
       }
     }, 5000);

@@ -22,6 +22,7 @@ import { scanInfraAndTech } from "@/lib/scanners/infraTechScanner";
 import { scanPaths, checkExposedServices, checkSubdomains, discoverPublicPages } from "@/lib/scanners/networkScanner";
 import { scanWhois } from "@/lib/scanners/whoisScanner";
 import { generateAIAdvice } from "@/lib/aiAssistant";
+import { sendScanStatusToUser } from "@/server/socketServer";
 
 // Configuration constants
 const SCAN_CONFIG = {
@@ -363,12 +364,18 @@ export async function POST(request) {
 
     console.log(`[${requestId}] Starting scan for: ${domain}`);
 
+    // Broadcast queue & start
+    sendScanStatusToUser(user._id, { status: "queued", domain, progress: 0, message: "Scan queued for execution..." });
+    sendScanStatusToUser(user._id, { status: "started", domain, progress: 10, message: "Initiating connection handshake & checking address restrictions..." });
+
     // Fetch previous scan to use as fallback if running selective scan
     let prevScan = null;
     if (section && section !== "all") {
       await connectDB();
       prevScan = await Scan.findOne({ domain: cleanDomain, owner: user._id, isSuccess: true }).sort({ createdAt: -1 });
     }
+
+    sendScanStatusToUser(user._id, { status: "progress", domain, progress: 20, message: "Querying target server HTTP response headers..." });
 
     // Fetch headers
     let headersObj, statusCode, methodUsed;
@@ -404,6 +411,8 @@ export async function POST(request) {
 
     const maskedDomain = maskDomain(domain);
 
+    sendScanStatusToUser(user._id, { status: "progress", domain, progress: 45, message: "Evaluating DNS anti-spoofing setups (SPF/DKIM/DMARC)..." });
+
     // EASM Scanning calls concurrently or selectively
     let ssl = prevScan ? prevScan.ssl : null;
     let dns = prevScan ? prevScan.dns : null;
@@ -425,6 +434,7 @@ export async function POST(request) {
     try {
       if (section === "all" || !prevScan) {
         // Run all checks in parallel
+        sendScanStatusToUser(user._id, { status: "progress", domain, progress: 60, message: "Auditing SSL/TLS cipher suites and trust chain schedules..." });
         dns = await scanDNS(url);
         const [sslResult, infraTechResult, pathResult, servicesResult, subdomainsResult, publicPagesResult, whoisResult] = await Promise.all([
           scanSSL(url),
@@ -436,6 +446,7 @@ export async function POST(request) {
           scanWhois(url)
         ]);
 
+        sendScanStatusToUser(user._id, { status: "progress", domain, progress: 85, message: "Executing external service maps and subdomain discovery..." });
         ssl = sslResult;
         infraTech = infraTechResult;
         paths = pathResult;
@@ -445,6 +456,7 @@ export async function POST(request) {
         whois = whoisResult;
       } else {
         // Selective scan runs
+        sendScanStatusToUser(user._id, { status: "progress", domain, progress: 60, message: `Running selective audit for component: ${section}...` });
         if (section === "dns") {
           dns = await scanDNS(url);
         } else if (section === "ssl") {
@@ -554,6 +566,8 @@ export async function POST(request) {
       sensitiveFiles: paths ? paths.sensitiveFiles : []
     };
     const aiAdvice = generateAIAdvice(aiAdviceScanData);
+
+    sendScanStatusToUser(user._id, { status: "progress", domain, progress: 95, message: "Compiling postures analysis & generating AI advices..." });
 
     // Save to database
     await connectDB();
@@ -718,6 +732,8 @@ export async function POST(request) {
     }
 
     // Return response
+    sendScanStatusToUser(user._id, { status: "completed", domain, progress: 100, message: "Audit complete! Scan report saved to database records.", scanId: scan._id.toString() });
+
     return NextResponse.json({
       success: true,
       scanId: scan._id.toString(),
@@ -772,6 +788,14 @@ export async function POST(request) {
     
   } catch (error) {
     console.error(`[${requestId}] Scan error:`, error);
+    if (user) {
+      try {
+        const errDomain = rawUrl ? extractDomain(normalizeUrl(rawUrl)) : "unknown";
+        sendScanStatusToUser(user._id, { status: "failed", domain: errDomain, progress: 0, error: error.message || "Unknown scan error" });
+      } catch (e) {
+        // ignore
+      }
+    }
     
     // Differentiate between database and other errors
     if (error.name === "MongoError" || error.name === "MongooseError") {

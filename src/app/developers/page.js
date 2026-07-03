@@ -884,7 +884,7 @@ export default function DevelopersPage() {
                       Developer API Introduction
                     </h2>
                     <p className="text-xs text-text-dim leading-relaxed">
-                      The HeaderGuard REST API allows developers to audit web headers, analyze security postures, and extract structured compliance metrics programmatically. Integrate scanning directly into staging releases or CI environments to identify visual vulnerabilities and security header compliance gaps early.
+                      The HeaderGuard REST API enables developers to audit web security headers, analyze DNS/SSL configurations, and extract structured EASM compliance metrics programmatically. Integrate scanning directly into staging releases, CI/CD pipelines, or deployment workflows to identify misconfigurations early.
                     </p>
                   </div>
 
@@ -935,9 +935,9 @@ export default function DevelopersPage() {
                   </div>
 
                   <div className="bg-surface border border-white/[0.05] rounded-xl p-5 font-mono text-xs text-accent space-y-1 leading-relaxed">
-                    <p className="text-text-muted"># Target scanning headers using X-API-Key</p>
+                    <p className="text-text-muted font-sans font-bold mb-1">Pass X-API-Key inside request headers:</p>
                     <p>
-                      X-API-Key: <span className="text-success font-semibold">hg_sec_a3f9e...</span>
+                      X-API-Key: <span className="text-success font-semibold">YOUR_API_KEY</span>
                     </p>
                   </div>
 
@@ -1019,7 +1019,7 @@ export default function DevelopersPage() {
                       POST Scan Endpoint
                     </h2>
                     <p className="text-xs text-text-dim leading-relaxed">
-                      Trigger a remote security header scan, execute compliance audits, identify header vulnerabilities, and log the scan event.
+                      Trigger a remote security header scan, execute EASM audits (DNS, SSL/TLS, port checks), and retrieve comprehensive compliance posture schemas.
                     </p>
                   </div>
 
@@ -1101,8 +1101,8 @@ export default function DevelopersPage() {
   "success": true,
   "scanId": "6a38c158cd150841c5aba33e",
   "url": "https://example.com",
-  "score": 85,
-  "grade": "A-",
+  "score": 92,
+  "grade": "A",
   "headers": [
     { 
       "name": "Content-Security-Policy", 
@@ -1110,6 +1110,19 @@ export default function DevelopersPage() {
       "severity": "critical",
       "value": "default-src 'self'"
     }
+  ],
+  "ssl": {
+    "valid": true,
+    "issuer": "Let's Encrypt",
+    "validTo": "2026-10-01T00:00:00Z",
+    "protocols": ["TLSv1.2", "TLSv1.3"]
+  },
+  "dns": {
+    "spf": { "valid": true, "record": "v=spf1 include:_spf.google.com ~all" },
+    "dmarc": { "valid": true, "record": "v=DMARC1; p=reject;" }
+  },
+  "exposedServices": [
+    { "port": 443, "service": "https", "status": "open" }
   ],
   "vulnerabilities": [
     {
