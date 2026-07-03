@@ -72,6 +72,7 @@ export async function POST(request) {
     const response = NextResponse.json({
       success: true,
       message: "Account verified successfully.",
+      token,
       user: {
         id: user._id.toString(),
         email: user.email,

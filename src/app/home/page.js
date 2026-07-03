@@ -340,28 +340,6 @@ export default function LandingPage() {
           </Link>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="mt-auto border-t border-white/[0.04] bg-surface py-8 text-xs text-text-dim select-none">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-accent" />
-            <span className="font-bold text-text uppercase">HeaderGuard Audit Console</span>
-          </div>
-          
-          <div className="flex gap-4 text-[10px] uppercase font-bold">
-            <Link href="/scanner" className="hover:text-text">Scanner</Link>
-            <span>·</span>
-            <Link href="/developers" className="hover:text-text">Developer API</Link>
-            <span>·</span>
-            <Link href="/demo/admin" className="hover:text-text">Admin Demo</Link>
-          </div>
-
-          <p className="text-[10px]">
-            &copy; {new Date().getFullYear()} HeaderGuard. Secure Transit Policy.
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

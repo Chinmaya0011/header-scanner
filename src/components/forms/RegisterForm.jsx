@@ -96,7 +96,7 @@ export default function RegisterForm() {
       toast.success("Account verified successfully! Welcome to HeaderGuard.");
       
       if (data.user) {
-        login(data.user);
+        login({ ...data.user, token: data.token });
       }
       router.push("/dashboard");
       router.refresh();

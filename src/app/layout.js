@@ -4,6 +4,7 @@ import VisitTracker from "@/components/common/VisitTracker";
 import ActivityTimeoutListener from "@/components/common/ActivityTimeoutListener";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 import "./globals.css";
 
 export const metadata = {
@@ -162,7 +163,7 @@ export default async function RootLayout({ children }) {
         />
       </head>
       <body
-        className="min-h-screen bg-bg antialiased"
+        className="min-h-screen bg-bg antialiased flex flex-col"
         suppressHydrationWarning
       >
         <ToastProvider>
@@ -170,7 +171,10 @@ export default async function RootLayout({ children }) {
             <VisitTracker />
             <ActivityTimeoutListener />
             <Navbar />
-            {children}
+            <div className="flex-1 flex flex-col">
+              {children}
+            </div>
+            <Footer />
           </AuthProvider>
         </ToastProvider>
       </body>

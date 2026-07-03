@@ -46,7 +46,7 @@ export default function LoginForm() {
       toast.success("Access granted. Redirecting to dashboard...");
       
       if (data.user) {
-        login(data.user);
+        login({ ...data.user, token: data.token });
       }
       router.push("/dashboard");
       router.refresh();

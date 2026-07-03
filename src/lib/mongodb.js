@@ -57,8 +57,7 @@ async function connectDB() {
   await seedAdmin();
 
   // Auto boot the WebSocket server on startup
-  if (typeof window === "undefined" && !global.socketServerStarted) {
-    global.socketServerStarted = true;
+  if (typeof window === "undefined") {
     initSocketServer();
   }
 
