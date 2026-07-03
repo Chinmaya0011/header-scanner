@@ -50,6 +50,7 @@ export async function POST(request) {
     // Set cookie
     const response = NextResponse.json({
       success: true,
+      token,
       user: {
         id: user._id.toString(),
         email: user.email,

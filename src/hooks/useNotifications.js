@@ -124,9 +124,9 @@ export function useNotifications(user) {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.hostname;
     // Standalone server port 3001
-    const wsUrl = `${protocol}//${host}:3001`;
+    const wsUrl = `${protocol}//${host}:3001${user?.token ? `?token=${user.token}` : ""}`;
 
-    console.log(`[WebSocket] Establishing link: ${wsUrl}`);
+    console.log(`[WebSocket] Establishing link: ${wsUrl.replace(user?.token || "DUMMY", "********")}`);
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
@@ -157,6 +157,16 @@ export function useNotifications(user) {
             ...prev,
           ]);
           setUnreadCount((c) => c + 1);
+
+          // Play notification sound
+          try {
+            const audio = new Audio("/media/notification.wav");
+            audio.play().catch((audioErr) => {
+              console.warn("[Notifications] Audio playback failed:", audioErr.message);
+            });
+          } catch (audioErr) {
+            console.error("[Notifications] Audio initialization error:", audioErr);
+          }
 
           // Trigger dynamic UI toast
           const m = `${newNotif.title}: ${newNotif.message}`;

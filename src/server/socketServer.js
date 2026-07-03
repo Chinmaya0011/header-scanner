@@ -16,6 +16,10 @@ const roleSockets = {
  * Initialize the WebSocket Server on port 3001
  */
 export function initSocketServer() {
+  if (global.wss) {
+    wss = global.wss;
+    return;
+  }
   if (wss) return;
 
   const port = process.env.WS_PORT || 3001;
@@ -27,17 +31,32 @@ export function initSocketServer() {
     console.log(`[WebSocket] Server successfully initialized on ws://localhost:${port}`);
 
     wss.on("connection", (ws, req) => {
-      // Extract authentication token from request cookies
-      const token = getCookieToken(req);
+      console.log(`[WebSocket] Connection request received on URL: ${req.url}`);
+      // Extract authentication token from request cookies or query params
+      let token = getCookieToken(req);
+      let source = "cookie";
       if (!token) {
+        try {
+          const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+          token = urlObj.searchParams.get("token");
+          source = "query parameter";
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      if (!token) {
+        console.warn("[WebSocket] Handshake rejected: No token found.");
         ws.close(4001, "Unauthorized: No token provided");
         return;
       }
 
       let decoded;
       try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret");
+        decoded = jwt.verify(token, process.env.JWT_SECRET || "headerguard-secret-key-17-secure-jwt-matrix");
+        console.log(`[WebSocket] Handshake accepted: Token verified from ${source} for user ${decoded.userId || decoded.id}`);
       } catch (err) {
+        console.error(`[WebSocket] Handshake rejected: Token verification failed (${err.message})`);
         ws.close(4002, "Unauthorized: Invalid token");
         return;
       }

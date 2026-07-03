@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import SiteStats from "@/lib/models/SiteStats";
+import Scan from "@/lib/models/Scan";
 import {
   analyzeHeaders,
   normalizeUrl,
@@ -170,20 +171,56 @@ export async function POST(request) {
   const grade = scoreToGrade(score);
   const scanDuration = Date.now() - startTime;
 
-  // Increment public scan counter asynchronously (fire-and-forget)
-  connectDB()
-    .then(() =>
-      SiteStats.findOneAndUpdate(
-        { _key: "global" },
-        { $inc: { totalPublicScans: 1 } },
-        { upsert: true }
-      )
-    )
-    .catch(err => console.error("SiteStats update error:", err));
+  // Save public scan to database and increment counter
+  let savedScan = null;
+  try {
+    await connectDB();
+    savedScan = await Scan.create({
+      url,
+      domain,
+      maskedDomain: domain,
+      score,
+      grade,
+      headers: headers.map(h => ({
+        name: h.name,
+        status: h.status,
+        severity: h.severity,
+        description: h.description,
+      })),
+      vulnerabilities: [],
+      checks: [],
+      statusCode,
+      scanDuration,
+      summary: {
+        present,
+        missing,
+        weak,
+        invalid,
+      },
+      owner: null,
+      isPublic: true,
+      source: "web",
+      recommendations: allRecommendations.map(rec => ({
+        header: rec.name,
+        severity: rec.severity,
+        recommendation: rec.recommendation,
+      })),
+    });
+
+    await SiteStats.findOneAndUpdate(
+      { _key: "global" },
+      { $inc: { totalPublicScans: 1 } },
+      { upsert: true }
+    );
+  } catch (dbErr) {
+    console.error("SiteStats/Scan update error:", dbErr);
+  }
 
   return NextResponse.json({
     success: true,
     isPublicScan: true,
+    scanId: savedScan ? savedScan._id.toString() : null,
+    shareUrl: savedScan ? `/share/${savedScan._id.toString()}` : null,
     url,
     domain,
     score,

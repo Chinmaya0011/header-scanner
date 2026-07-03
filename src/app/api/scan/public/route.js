@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import https from "https";
 import http from "http";
 import dns from "dns";
+import connectDB from "@/lib/mongodb";
+import Scan from "@/lib/models/Scan";
+import SiteStats from "@/lib/models/SiteStats";
 import {
   analyzeHeaders,
   normalizeUrl,
@@ -744,9 +747,119 @@ export async function POST(request) {
       console.error("Failed to trigger public scan admin notification:", notifErr);
     }
 
+    // Save public scan to database
+    let savedScan = null;
+    try {
+      await connectDB();
+      savedScan = await Scan.create({
+        url,
+        domain,
+        maskedDomain: maskDomain(domain),
+        score: finalScore,
+        grade,
+        headers: analysis.headers,
+        vulnerabilities: securityAudit.vulnerabilities,
+        checks: combinedChecks,
+        statusCode,
+        scanDuration: Date.now() - startTime,
+        summary: analysis.summary,
+        owner: null, // guest public scan has no owner
+        isPublic: true,
+        source: "web",
+        metadata: {
+          timestamp: new Date().toISOString(),
+          scansRemainingThisHour: rl.remaining,
+        },
+        recommendations: recommendations.map(rec => ({
+          header: rec.name,
+          severity: rec.severity,
+          recommendation: rec.recommendation,
+          expectedFormat: rec.expectedFormat,
+          reference: rec.reference,
+        })),
+        compliance: securityAudit.compliance,
+
+        // EASM Extensions
+        ssl,
+        dns,
+        infrastructure: infraTech ? infraTech.infra : null,
+        techStack: infraTech ? infraTech.techStack : [],
+        cookies: cookiesParsed,
+        deepCsp: cspParsed,
+        httpProtocol: {
+          version: httpInfo.version,
+          http2: httpInfo.version.includes("2") || httpInfo.version.includes("3"),
+          http3: httpInfo.version.includes("3"),
+          quic: false,
+          compression: httpInfo.compression,
+          keepAlive: httpInfo.keepAlive,
+          redirectChain: [url]
+        },
+        performance: {
+          dnsLookup: dns?.resolveTime || null,
+          tlsHandshake: ssl?.handshakeMs || null,
+          ttfb: null,
+          responseTime: performanceMs,
+          redirectTime: null,
+          totalTime: performanceMs
+        },
+        robotsTxt: paths ? paths.robotsTxt : null,
+        sitemapXml: paths ? paths.sitemapXml : null,
+        sensitiveFiles: paths ? paths.sensitiveFiles : [],
+        securityTxt: paths ? paths.securityTxt : null,
+        seo: (paths && paths.seo) ? paths.seo : {
+          canonicalUrl: "",
+          metaRobots: "",
+          isIndexable: true,
+          title: "",
+          description: "",
+          h1Count: 0,
+          h2Count: 0,
+          imageCount: 0,
+          imageAltCount: 0,
+          openGraph: { title: "", description: "", image: "", type: "", url: "" },
+          twitterCard: { card: "", title: "", description: "", image: "", site: "" }
+        },
+        emailSecurity: {
+          score: dns ? (
+            (dns.spf?.valid ? 20 : 0) +
+            (dns.dmarc?.valid ? 20 : 0) +
+            (dns.dkim?.found ? 20 : 0) +
+            (dns.mtaSts?.valid ? 20 : 0) +
+            (dns.tlsRpt?.valid ? 20 : 0)
+          ) : 0,
+          spfPresent: dns ? !!dns.spf?.valid : false,
+          dmarcPresent: dns ? !!dns.dmarc?.valid : false,
+          dkimPresent: dns ? !!dns.dkim?.found : false,
+          bimiPresent: dns ? !!dns.bimi?.valid : false,
+          mtaStsPresent: dns ? !!dns.mtaSts?.valid : false,
+          tlsRptPresent: dns ? !!dns.tlsRpt?.valid : false
+        },
+        privacy: privacyDetails,
+        subdomains,
+        publicPages,
+        exposedServices,
+        loginSurfaces: paths ? paths.loginSurfaces : [],
+        benchmarks: null,
+        whois,
+        categoryScores
+      });
+
+      // Increment site-wide public scan counter
+      await SiteStats.findOneAndUpdate(
+        { _key: "global" },
+        { $inc: { totalPublicScans: 1 } },
+        { upsert: true }
+      );
+    } catch (dbErr) {
+      console.error("Failed to save public scan to database:", dbErr);
+    }
+
     return NextResponse.json({
       success: true,
       isPublicScan: true,
+      scanId: savedScan ? savedScan._id.toString() : null,
+      shareUrl: savedScan ? `/share/${savedScan._id.toString()}` : null,
       url,
       domain,
       maskedDomain: maskDomain(domain),
