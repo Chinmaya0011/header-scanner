@@ -115,8 +115,8 @@ async function sendAlertEmail(toEmail, domain, oldScore, newScore, oldGrade, new
         <p style="font-size: 13px; line-height: 1.5;">This degradation typically indicates that a recent software deployment or configuration change at the origin server has removed or weakened security response headers.</p>
         
         <div style="margin-top: 25px; text-align: center;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/scan/${scanId}" style="background-color: #ef4444; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 13px; display: inline-block;">
-            View Detailed Scan Findings & Fixes
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/scan/${encodeURIComponent(domain)}" style="background-color: #ef4444; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 13px; display: inline-block;">
+            View Detailed Scan Findings &amp; Fixes
           </a>
         </div>
 
