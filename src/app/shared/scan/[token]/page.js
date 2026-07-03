@@ -37,6 +37,26 @@ export async function generateMetadata({ params }) {
   return {
     title: `Shared Security Header Audit: ${siteDomain} | Grade ${scan.grade}`,
     description: `Public HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View details.`,
+    openGraph: {
+      title: `Shared Security Header Audit: ${siteDomain} | Grade ${scan.grade}`,
+      description: `Public HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View details.`,
+      type: "website",
+      images: [
+        {
+          url: "/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: "HeaderGuard — HTTP Security Header Scanner",
+          type: "image/png",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `Shared Security Header Audit: ${siteDomain} | Grade ${scan.grade}`,
+      description: `Public HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View details.`,
+      images: ["/og-image.png"],
+    },
   };
 }
 

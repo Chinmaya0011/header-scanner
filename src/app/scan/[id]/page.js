@@ -63,11 +63,21 @@ export async function generateMetadata({ params }) {
       title: `HTTP Security Audit: ${siteDomain} — ${scan.grade}`,
       description: `Security Score: ${scan.score}/100. Audit checks for Content-Security-Policy (CSP), HSTS, X-Frame-Options, CORS, and more.`,
       type: "website",
+      images: [
+        {
+          url: "/og-image.png",
+          width: 1200,
+          height: 630,
+          alt: "HeaderGuard — HTTP Security Header Scanner",
+          type: "image/png",
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: `HTTP Security Audit: ${siteDomain} — ${scan.grade}`,
       description: `Security Score: ${scan.score}/100. Actionable recommendations inside.`,
+      images: ["/og-image.png"],
     },
   };
 }

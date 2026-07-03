@@ -2372,10 +2372,30 @@ export default function ScanResults({ result }) {
                               onError={(e) => { e.target.style.display = 'none'; }}
                             />
                           </div>
-                          <div className="p-4.5 space-y-1 text-left font-sans">
-                            <span className="text-[9px] font-black text-accent uppercase tracking-wider font-mono">{domain}</span>
-                            <h4 className="text-xs sm:text-sm font-bold text-text line-clamp-1">{seoData.openGraph.title || seoData.title || "No Title"}</h4>
-                            <p className="text-[11px] text-text-dim line-clamp-2 leading-relaxed">{seoData.openGraph.description || seoData.description || "No description tags available."}</p>
+                          <div className="p-4.5 space-y-2.5 text-left font-sans">
+                            <div className="flex items-center justify-between gap-2 border-b border-white/[0.03] pb-1.5">
+                              <span className="text-[9px] font-black text-accent uppercase tracking-wider font-mono truncate flex items-center gap-1.5">
+                                {seoData.favicon && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img 
+                                    src={seoData.favicon} 
+                                    alt="" 
+                                    className="h-3.5 w-3.5 rounded-sm object-contain bg-white/5" 
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                  />
+                                )}
+                                {domain}
+                              </span>
+                              <div className="flex items-center gap-1 bg-accent/10 border border-accent/25 rounded px-1.5 py-0.5 select-none shrink-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/logo.png" alt="HeaderGuard" className="h-3 w-3 object-contain" />
+                                <span className="text-[8px] font-black text-accent uppercase tracking-wider font-mono">HeaderGuard</span>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-xs sm:text-sm font-bold text-text line-clamp-1">{seoData.openGraph.title || seoData.title || "No Title"}</h4>
+                              <p className="text-[11px] text-text-dim line-clamp-2 leading-relaxed">{seoData.openGraph.description || seoData.description || "No description tags available."}</p>
+                            </div>
                           </div>
                         </Card>
                       </div>
