@@ -51,7 +51,7 @@ export default function Footer() {
               <Eye className="h-4.5 w-4.5" />
             </div>
             <div>
-              <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Page Views</p>
+              <p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Total Visitors</p>
               {loading ? (
                 <div className="h-4 w-12 bg-white/[0.05] rounded animate-pulse mt-1" />
               ) : (
@@ -109,8 +109,6 @@ export default function Footer() {
             <Link href="/scanner" className="hover:text-text transition-colors duration-200">Scanner</Link>
             <span>·</span>
             <Link href="/developers" className="hover:text-text transition-colors duration-200">Developer API</Link>
-            <span>·</span>
-            <Link href="/demo/admin" className="hover:text-text transition-colors duration-200">Admin Demo</Link>
           </div>
 
           <p className="text-[10px] text-text-muted">

@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { 
   Shield, 
   LogOut, 
-  User, 
   Menu, 
   X, 
   ChevronDown, 
@@ -17,16 +16,52 @@ import {
   BookOpen,
   History,
   Home,
-  Crown,
   Bell,
   Check,
   Trash2,
   Inbox,
   AlertCircle,
-  CheckSquare
+  CheckSquare,
+  Sun,
+  Moon
 } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useAuth } from "@/contexts/AuthContext";
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState("dark");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("theme") || "dark";
+      setTheme(stored);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    document.documentElement.classList.remove(theme);
+    document.documentElement.classList.add(nextTheme);
+    document.documentElement.setAttribute("data-theme", nextTheme);
+    localStorage.setItem("theme", nextTheme);
+    setTheme(nextTheme);
+  };
+
+  return (
+    <button
+      onClick={toggleTheme}
+      type="button"
+      className="p-2 rounded-lg bg-surface/50 border border-border text-text-dim hover:text-text hover:bg-surface/80 transition-all duration-300 flex items-center justify-center"
+      aria-label="Toggle theme"
+    >
+      {theme === "dark" ? (
+        <Sun className="h-4.5 w-4.5 text-warning" />
+      ) : (
+        <Moon className="h-4.5 w-4.5 text-accent" />
+      )}
+    </button>
+  );
+}
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -89,12 +124,10 @@ export default function Navbar() {
         { href: "/home", label: "Home", icon: Home },
         { href: "/scanner", label: "Scanner", icon: Shield },
         { href: "/docs", label: "Docs", icon: BookOpen },
-        { href: "/demo/user", label: "Demo User", icon: User },
-        { href: "/demo/admin", label: "Demo Admin", icon: Crown },
       ];
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#030712]/75 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.15)] transition-all duration-300">
+    <nav className="sticky top-0 z-50 bg-bg/85 backdrop-blur-md border-b border-border transition-all duration-300">
       {/* Top micro-gradient indicator bar */}
       <div className="h-[2px] w-full bg-gradient-to-r from-accent/40 via-accent to-accent-light/40" />
       
@@ -104,7 +137,7 @@ export default function Navbar() {
           {/* Logo Brand */}
           <Link href="/home" className="flex items-center group">
             <div className="flex flex-col">
-              <span className="font-sans text-[15.5px] font-bold tracking-tight text-white group-hover:text-accent-light transition-colors leading-none">
+              <span className="font-sans text-[15.5px] font-bold tracking-tight text-text group-hover:text-accent-light transition-colors leading-none">
                 Header<span className="text-accent font-extrabold">Guard</span>
               </span>
               <span className="font-mono text-[8px] text-text-dim/50 font-semibold uppercase tracking-widest leading-none mt-1">
@@ -157,6 +190,7 @@ export default function Navbar() {
 
                 {user ? (
                   <div className="flex items-center gap-3 ml-4">
+                    <ThemeToggle />
                     {/* Notification Center Dropdown */}
                     <div className="relative" ref={notifRef}>
                       <button
@@ -173,7 +207,7 @@ export default function Navbar() {
                       </button>
 
                       {notifDropdownOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-80 md:w-96 bg-[#0b0f19]/95 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp z-50">
+                        <div className="absolute right-0 top-full mt-2 w-80 md:w-96 bg-surface/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp z-50">
                           {/* Header */}
                           <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06] select-none text-left">
                             <div className="flex items-center gap-2">
@@ -297,7 +331,7 @@ export default function Navbar() {
                     <div className="flex items-center gap-2 relative" ref={dropdownRef}>
                       <button
                         onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                        className="flex items-center gap-2 bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:from-white/[0.08] hover:to-white/[0.02] px-3 py-1.5 rounded-lg text-xs border border-white/[0.08] text-text font-medium transition-all shadow-sm"
+                        className="flex items-center gap-2 bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:from-white/[0.08] hover:to-white/[0.02] px-3 py-1.5 rounded-lg text-xs border border-border text-text font-medium transition-all shadow-sm"
                       >
                         <div className="h-5 w-5 rounded-full bg-gradient-to-br from-accent to-accent-light flex items-center justify-center text-[10px] font-black text-white shadow-inner">
                           {user.email.substring(0, 2).toUpperCase()}
@@ -308,7 +342,7 @@ export default function Navbar() {
 
                       {/* Dropdown Menu */}
                       {profileDropdownOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-64 bg-[#0b0f19]/95 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp">
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-surface/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-1.5 space-y-1 animate-fadeInUp">
                           {/* User Info Header */}
                           <div className="px-3 py-2.5 border-b border-white/[0.06] select-none text-left">
                             <div className="flex items-center gap-2">
@@ -376,6 +410,7 @@ export default function Navbar() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 ml-4">
+                    <ThemeToggle />
                     <Link
                       href="/login"
                       className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 border ${
@@ -401,7 +436,7 @@ export default function Navbar() {
           {/* Mobile Menu Toggle Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl text-text-dim hover:text-text hover:bg-white/5 border border-transparent hover:border-white/[0.05] transition-all"
+            className="md:hidden p-2 rounded-xl text-text-dim hover:text-text hover:bg-white/5 border border-transparent hover:border-border transition-all"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -412,7 +447,11 @@ export default function Navbar() {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-white/[0.06] bg-[#030712]/95 backdrop-blur-xl px-4 py-5 space-y-2.5 animate-fadeInUp shadow-inner">
+        <div className="md:hidden border-t border-border bg-bg/95 backdrop-blur-xl px-4 py-5 space-y-2.5 animate-fadeInUp shadow-inner">
+          <div className="flex justify-between items-center pb-2.5 border-b border-border/60 mb-2">
+            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider pl-1">Appearance</span>
+            <ThemeToggle />
+          </div>
           {loading ? (
             <div className="space-y-4">
               <div className="h-8 w-full bg-white/5 rounded-lg animate-pulse" />
@@ -452,8 +491,8 @@ export default function Navbar() {
               })}
 
               {user ? (
-                <div className="pt-4 border-t border-white/[0.06] space-y-2">
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-[#0b0f19]/80 rounded-lg border border-white/[0.05] shadow-inner">
+                <div className="pt-4 border-t border-border space-y-2">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-surface/80 rounded-lg border border-border shadow-inner">
                     <div className="flex items-center gap-2 text-xs text-text truncate">
                       <div className="h-6 w-6 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-[9px] font-black text-accent">
                         {user.email.substring(0, 2).toUpperCase()}
@@ -499,11 +538,11 @@ export default function Navbar() {
                   </button>
                 </div>
               ) : (
-                <div className="pt-4 border-t border-white/[0.06] grid grid-cols-2 gap-2.5">
+                <div className="pt-4 border-t border-border grid grid-cols-2 gap-2.5">
                   <Link
                     href="/login"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider text-text-dim hover:text-text hover:bg-white/5 border border-white/[0.05] text-center"
+                    className="flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider text-text-dim hover:text-text hover:bg-white/5 border border-border text-center"
                   >
                     Login
                   </Link>

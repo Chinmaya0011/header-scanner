@@ -181,6 +181,12 @@ export function useNotifications(user) {
             bell.classList.add("animate-shake");
             setTimeout(() => bell.classList.remove("animate-shake"), 600);
           }
+        } else if (message.type === "scan_status") {
+          if (typeof window !== "undefined") {
+            const eventData = message.payload;
+            const customEvent = new CustomEvent("scan_status_update", { detail: eventData });
+            window.dispatchEvent(customEvent);
+          }
         }
       } catch (err) {
         console.error("[WebSocket] Parser error on packet:", err.message);
@@ -217,9 +223,18 @@ export function useNotifications(user) {
 
   // Initialize lifecycle
   useEffect(() => {
+    const handleOnline = () => {
+      if (user) {
+        console.log("[WebSocket] Browser back online, attempting immediate reconnect.");
+        reconnectAttempts.current = 0;
+        connectWebSocket();
+      }
+    };
+
     if (user) {
       fetchNotifications();
       connectWebSocket();
+      window.addEventListener("online", handleOnline);
     } else {
       setNotifications([]);
       setUnreadCount(0);
@@ -233,6 +248,7 @@ export function useNotifications(user) {
     }
 
     return () => {
+      window.removeEventListener("online", handleOnline);
       if (socketRef.current) {
         socketRef.current.close(1000, "Cleanup");
       }

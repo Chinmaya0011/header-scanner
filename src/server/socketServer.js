@@ -184,6 +184,22 @@ export function sendNotificationToUser(userId, notification) {
 }
 
 /**
+ * Send real-time scan status packet to a specific user ID
+ */
+export function sendScanStatusToUser(userId, eventData) {
+  if (!userId) return;
+  const sockets = userSockets.get(userId.toString());
+  if (sockets && sockets.size > 0) {
+    const payload = JSON.stringify({ type: "scan_status", payload: eventData });
+    sockets.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(payload);
+      }
+    });
+  }
+}
+
+/**
  * Send real-time packet to all users with a specific role
  */
 export function sendNotificationToRole(role, notification) {

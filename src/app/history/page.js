@@ -3,6 +3,7 @@ import { History } from "lucide-react";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getCurrentUser } from "@/lib/auth";
+import Link from "next/link";
 
 // Direct server-side DB query function
 async function getScansDirectly() {
@@ -12,10 +13,11 @@ async function getScansDirectly() {
     // Check if requester is admin
     const user = await getCurrentUser();
     const isAdmin = user && user.role === "admin";
+    const limitCount = user ? 50 : 4;
 
     const scans = await Scan.find({})
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(limitCount)
       .select("maskedDomain domain score grade summary statusCode scanDuration createdAt owner")
       .lean();
 
@@ -49,6 +51,7 @@ export const metadata = {
 
 export default async function HistoryPage() {
   const scans = await getScansDirectly();
+  const user = await getCurrentUser();
 
   return (
     <div className="min-h-screen bg-bg">
@@ -67,6 +70,31 @@ export default async function HistoryPage() {
         </div>
 
         <HistoryTable scans={scans} />
+
+        {!user && (
+          <div className="mt-8 bg-gradient-to-r from-accent/10 to-accent-light/5 border border-accent/20 rounded-2xl p-6 text-center shadow-lg relative overflow-hidden max-w-3xl mx-auto">
+            <div className="absolute top-0 left-0 w-full h-full bg-surface/20 backdrop-blur-[1px] -z-10" />
+            <div className="relative z-10 space-y-4">
+              <p className="text-xs sm:text-sm font-bold text-text uppercase tracking-wider leading-relaxed">
+                Create a free account to view all scan results, access complete reports, and manage your scan history.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-3.5">
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-light text-white text-xs font-bold uppercase tracking-wider px-6 py-2.5 rounded-xl transition-all duration-300 hover:shadow-glow"
+                >
+                  Create Free Account
+                </Link>
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center gap-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-text text-xs font-bold uppercase tracking-wider px-6 py-2.5 rounded-xl transition-all duration-300"
+                >
+                  Sign In
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

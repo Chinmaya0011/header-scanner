@@ -36,6 +36,11 @@ export default function ScannerForm() {
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   
+  // Real-time scan states
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanMessage, setScanMessage] = useState("Initializing scanning sequence...");
+  const [scanState, setScanState] = useState("idle");
+  
   // Domain Verification States
   const [verificationDomain, setVerificationDomain] = useState("");
   const [verificationToken, setVerificationToken] = useState("");
@@ -105,6 +110,28 @@ print(res.json())`
     checkAuth();
   }, []);
 
+  // Listen to WebSocket-based real-time scan status updates
+  useEffect(() => {
+    const handleStatusUpdate = (e) => {
+      const { status, progress, message, scanId, error } = e.detail;
+      setScanState(status);
+      if (progress !== undefined) setScanProgress(progress);
+      if (message) setScanMessage(message);
+      
+      if (status === "completed" && scanId) {
+        handleLoadScan(scanId);
+      } else if (status === "failed") {
+        toast.error(error || "Audit scan failed.");
+        setLoading(false);
+      }
+    };
+
+    window.addEventListener("scan_status_update", handleStatusUpdate);
+    return () => {
+      window.removeEventListener("scan_status_update", handleStatusUpdate);
+    };
+  }, []);
+
   // Read target URL from query parameters on mount and execute auto-scan if present
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -142,6 +169,31 @@ print(res.json())`
               loggedIn = authData.loggedIn;
             }
 
+            setScanProgress(0);
+            setScanMessage("Initializing connection...");
+            setScanState("started");
+
+            var guestInterval = null;
+            if (!loggedIn) {
+              let currentProgress = 10;
+              setScanProgress(currentProgress);
+              setScanMessage("Resolving host address...");
+              guestInterval = setInterval(() => {
+                currentProgress += Math.floor(Math.random() * 12) + 5;
+                if (currentProgress >= 95) {
+                  currentProgress = 95;
+                  setScanMessage("Finalizing analysis report...");
+                  clearInterval(guestInterval);
+                } else {
+                  if (currentProgress < 30) setScanMessage("Auditing HTTP Response Headers...");
+                  else if (currentProgress < 55) setScanMessage("Evaluating DNS zone records...");
+                  else if (currentProgress < 75) setScanMessage("Checking SSL/TLS certificate suites...");
+                  else setScanMessage("Compiling security recommendations...");
+                }
+                setScanProgress(currentProgress);
+              }, 700);
+            }
+
             let endpoint = loggedIn ? "/api/scan" : "/api/scan/public";
 
             let res = await fetch(endpoint, {
@@ -170,6 +222,7 @@ print(res.json())`
           } catch {
             toast.error("Failed to run auto-scan due to network error.");
           } finally {
+            if (guestInterval) clearInterval(guestInterval);
             setLoading(false);
           }
         };
@@ -248,6 +301,30 @@ print(res.json())`
     setLoading(true);
     setResult(null);
     setShowVerification(false);
+    setScanProgress(0);
+    setScanMessage("Initializing connection...");
+    setScanState("started");
+
+    var guestInterval = null;
+    if (!currentUser) {
+      let currentProgress = 10;
+      setScanProgress(currentProgress);
+      setScanMessage("Resolving host address...");
+      guestInterval = setInterval(() => {
+        currentProgress += Math.floor(Math.random() * 12) + 5;
+        if (currentProgress >= 95) {
+          currentProgress = 95;
+          setScanMessage("Finalizing analysis report...");
+          clearInterval(guestInterval);
+        } else {
+          if (currentProgress < 30) setScanMessage("Auditing HTTP Response Headers...");
+          else if (currentProgress < 55) setScanMessage("Evaluating DNS zone records...");
+          else if (currentProgress < 75) setScanMessage("Checking SSL/TLS certificate suites...");
+          else setScanMessage("Compiling security recommendations...");
+        }
+        setScanProgress(currentProgress);
+      }, 700);
+    }
 
     try {
       const targetDomain = extractDomainSimple(cleanUrl);
@@ -285,6 +362,7 @@ print(res.json())`
     } catch {
       toast.error("Network connectivity error. Please verify your connection.");
     } finally {
+      if (guestInterval) clearInterval(guestInterval);
       setLoading(false);
     }
   };
@@ -794,26 +872,41 @@ print(res.json())`
               <div className="h-full w-1/4 bg-gradient-to-r from-transparent via-accent to-transparent scan-line" />
             </div>
             
-            <div className="space-y-8 w-full flex flex-col items-center">
-              <Loading message="EASM AUDIT IN PROGRESS" />
+            <div className="space-y-8 w-full max-w-md flex flex-col items-center">
+              <Loading message={currentUser ? `SCANNING: ${scanMessage}` : `ANALYZING: ${scanMessage}`} />
               
-              {/* Dynamic steps simulation */}
-              <div className="w-full max-w-xs space-y-2.5 font-mono text-[9px] uppercase tracking-wider text-text-dim">
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.02]">
-                  <span className="flex items-center gap-2"><Globe className="h-3.5 w-3.5 text-accent" /> DNS Zone Lookup</span>
-                  <span className="text-success font-bold">Checking...</span>
+              {/* Progress Bar */}
+              <div className="w-full space-y-2">
+                <div className="flex justify-between font-mono text-[10px] uppercase text-text-dim px-1">
+                  <span>Current Checkpoint: <span className="text-accent font-bold">{scanMessage}</span></span>
+                  <span className="font-bold text-accent">{scanProgress}%</span>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.02]">
-                  <span className="flex items-center gap-2"><Shield className="h-3.5 w-3.5 text-accent" /> Headers Analysis</span>
-                  <span className="text-text-muted">Pending</span>
+                <div className="w-full h-2.5 bg-black/40 rounded-full border border-white/[0.05] overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-accent to-accent-light rounded-full transition-all duration-300 relative overflow-hidden"
+                    style={{ width: `${scanProgress}%` }}
+                  >
+                    <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:16px_16px] animate-[progress-bar-stripes_1s_linear_infinite]" />
+                  </div>
                 </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.02]">
-                  <span className="flex items-center gap-2"><Cpu className="h-3.5 w-3.5 text-accent" /> SSL Cipher Evaluation</span>
-                  <span className="text-text-muted">Pending</span>
+              </div>
+
+              {/* Status details indicators */}
+              <div className="w-full grid grid-cols-5 gap-2 text-center text-[9px] font-mono uppercase text-text-dim">
+                <div className={`p-2 rounded-lg border ${scanProgress >= 10 ? 'border-accent/30 bg-accent/5 text-accent font-bold' : 'border-white/[0.03] opacity-40'}`}>
+                  Queue
                 </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="flex items-center gap-2"><Terminal className="h-3.5 w-3.5 text-accent" /> Ports Mapping Check</span>
-                  <span className="text-text-muted">Pending</span>
+                <div className={`p-2 rounded-lg border ${scanProgress >= 20 ? 'border-accent/30 bg-accent/5 text-accent font-bold' : 'border-white/[0.03] opacity-40'}`}>
+                  Headers
+                </div>
+                <div className={`p-2 rounded-lg border ${scanProgress >= 45 ? 'border-accent/30 bg-accent/5 text-accent font-bold' : 'border-white/[0.03] opacity-40'}`}>
+                  DNS
+                </div>
+                <div className={`p-2 rounded-lg border ${scanProgress >= 70 ? 'border-accent/30 bg-accent/5 text-accent font-bold' : 'border-white/[0.03] opacity-40'}`}>
+                  SSL/TLS
+                </div>
+                <div className={`p-2 rounded-lg border ${scanProgress >= 90 ? 'border-accent/30 bg-accent/5 text-accent font-bold' : 'border-white/[0.03] opacity-40'}`}>
+                  Exposures
                 </div>
               </div>
             </div>
