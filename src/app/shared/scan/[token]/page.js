@@ -34,28 +34,31 @@ export async function generateMetadata({ params }) {
   }
 
   const siteDomain = scan.domain;
+  const ogImageUrl = `/api/og/shared/${token}`;
   return {
-    title: `Shared Security Header Audit: ${siteDomain} | Grade ${scan.grade}`,
-    description: `Public HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View details.`,
+    title: `Shared Security Audit: ${siteDomain} | Grade ${scan.grade} | HeaderGuard`,
+    description: `Public HTTP security header report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}.`,
     openGraph: {
-      title: `Shared Security Header Audit: ${siteDomain} | Grade ${scan.grade}`,
-      description: `Public HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View details.`,
+      title: `Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
+      description: `Public HTTP security header report for ${siteDomain}. Score: ${scan.score}/100. Covers CSP, HSTS, X-Frame-Options, CORS, and more.`,
       type: "website",
+      url: `${process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online"}/shared/scan/${token}`,
+      siteName: "HeaderGuard",
       images: [
         {
-          url: "/og-image.png",
+          url: ogImageUrl,
           width: 1200,
           height: 630,
-          alt: "HeaderGuard — HTTP Security Header Scanner",
+          alt: `HeaderGuard Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
           type: "image/png",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: `Shared Security Header Audit: ${siteDomain} | Grade ${scan.grade}`,
-      description: `Public HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View details.`,
-      images: ["/og-image.png"],
+      title: `Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
+      description: `Public HTTP security report for ${siteDomain}. Score: ${scan.score}/100. View on HeaderGuard.`,
+      images: [ogImageUrl],
     },
   };
 }
