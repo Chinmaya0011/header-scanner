@@ -56,28 +56,31 @@ export async function generateMetadata({ params }) {
   }
 
   const siteDomain = scan.domain || scan.maskedDomain;
+  const ogImageUrl = `/api/og/scan/${id}`;
   return {
     title: `Security Header Audit for ${siteDomain} | Grade ${scan.grade}`,
     description: `HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View missing security headers and fixes.`,
     openGraph: {
-      title: `HTTP Security Audit: ${siteDomain} — ${scan.grade}`,
-      description: `Security Score: ${scan.score}/100. Audit checks for Content-Security-Policy (CSP), HSTS, X-Frame-Options, CORS, and more.`,
+      title: `HTTP Security Audit: ${siteDomain} — Grade ${scan.grade}`,
+      description: `Security Score: ${scan.score}/100. Covers CSP, HSTS, X-Frame-Options, CORS, and more.`,
       type: "website",
+      url: `${process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online"}/scan/${id}`,
+      siteName: "HeaderGuard",
       images: [
         {
-          url: "/og-image.png",
+          url: ogImageUrl,
           width: 1200,
           height: 630,
-          alt: "HeaderGuard — HTTP Security Header Scanner",
+          alt: `HeaderGuard Security Audit: ${siteDomain} — Grade ${scan.grade}`,
           type: "image/png",
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: `HTTP Security Audit: ${siteDomain} — ${scan.grade}`,
-      description: `Security Score: ${scan.score}/100. Actionable recommendations inside.`,
-      images: ["/og-image.png"],
+      title: `HTTP Security Audit: ${siteDomain} — Grade ${scan.grade}`,
+      description: `Security Score: ${scan.score}/100. View actionable recommendations on HeaderGuard.`,
+      images: [ogImageUrl],
     },
   };
 }
