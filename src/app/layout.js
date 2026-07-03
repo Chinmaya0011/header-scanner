@@ -145,12 +145,23 @@ const jsonLd = {
   },
 };
 
+const sitelinksJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "url": "https://www.headerguards.online",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://www.headerguards.online/scanner?url={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+};
+
 export default async function RootLayout({ children }) {
   const headersList = await headers();
   const nonce = headersList.get("x-nonce") ?? "";
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-theme="dark">
       <head>
         <meta name="google-site-verification" content="4f7twDcE-tAqyiVVol5Bxnd3lO-I0l2j8yxzzLCkmDI" />
         <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
@@ -158,8 +169,34 @@ export default async function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <script
           nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const storedTheme = localStorage.getItem('theme');
+                  if (storedTheme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                  } else {
+                    document.documentElement.classList.remove('light');
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                  }
+                } catch (e) {}
+              })()
+            `,
+          }}
+        />
+        <script
+          nonce={nonce}
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <script
+          nonce={nonce}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(sitelinksJsonLd) }}
         />
       </head>
       <body
