@@ -89,7 +89,7 @@ export default function HistoryTable({ scans }) {
                   </span>
                 </td>
                 <td className="px-5 py-4 text-right">
-                  <Link href={`/scan/${scan._id}`} passHref>
+                  <Link href={`/scan/${encodeURIComponent(scan.domain || scan.maskedDomain || scan._id)}`} passHref>
                     <Button variant="secondary" size="sm" icon={ArrowRight}>
                       View Report
                     </Button>
@@ -106,7 +106,7 @@ export default function HistoryTable({ scans }) {
         {scans.map((scan) => (
           <Link
             key={scan._id}
-            href={`/scan/${scan._id}`}
+            href={`/scan/${encodeURIComponent(scan.domain || scan.maskedDomain || scan._id)}`}
             className="flex items-center justify-between p-4.5 hover:bg-panel/20 transition-colors block"
           >
             <div className="space-y-1.5 min-w-0 mr-3">

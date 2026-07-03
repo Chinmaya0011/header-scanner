@@ -578,7 +578,7 @@ export default function UserDashboard({
                         {formatDate(scan.createdAt)}
                       </td>
                       <td className="py-3 text-right">
-                        <Link href={`/scan/${scan._id}`} passHref>
+                        <Link href={`/scan/${encodeURIComponent(scan.domain || scan.maskedDomain || scan._id)}`} passHref>
                           <Button variant="secondary" size="sm" icon={Eye}>
                             View
                           </Button>

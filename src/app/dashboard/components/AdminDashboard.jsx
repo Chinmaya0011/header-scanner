@@ -554,7 +554,7 @@ export default function AdminDashboard({
                             {formatDate(scan.createdAt)}
                           </td>
                           <td className="py-3 text-right space-x-1.5">
-                            <Link href={`/scan/${scan._id}`} passHref target="_blank">
+                            <Link href={`/scan/${encodeURIComponent(scan.domain || scan.maskedDomain || scan._id)}`} passHref target="_blank">
                               <Button variant="secondary" size="sm" icon={Eye}>
                                 View
                               </Button>

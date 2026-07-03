@@ -357,8 +357,15 @@ print(res.json())`
         return;
       }
 
-      setResult(data.data || data);
+      const scanData = data.data || data;
+      setResult(scanData);
       toast.success("Security posture scan completed successfully!");
+
+      // Update browser URL to human-readable domain slug
+      const scannedDomain = scanData.domain || scanData.maskedDomain || extractDomainSimple(cleanUrl);
+      if (scannedDomain && typeof window !== "undefined") {
+        window.history.pushState({}, "", `/scan/${encodeURIComponent(scannedDomain)}`);
+      }
     } catch {
       toast.error("Network connectivity error. Please verify your connection.");
     } finally {
@@ -409,8 +416,14 @@ print(res.json())`
         });
         const scanData = await scanRes.json();
         if (scanRes.ok) {
-          setResult(scanData.data || scanData);
+          const resultData = scanData.data || scanData;
+          setResult(resultData);
           toast.success("Security posture scan completed successfully!");
+          // Update browser URL to human-readable domain slug
+          const scannedDomain = resultData.domain || resultData.maskedDomain || verificationDomain;
+          if (scannedDomain && typeof window !== "undefined") {
+            window.history.pushState({}, "", `/scan/${encodeURIComponent(scannedDomain)}`);
+          }
         } else {
           toast.error(scanData.error || "Scan failed.");
         }
@@ -438,8 +451,14 @@ print(res.json())`
       if (!data.success || !data.data) {
         throw new Error(data.error || "No scan data found");
       }
-      setResult(data.data);
+      const resultData = data.data;
+      setResult(resultData);
       toast.success("Scan history loaded successfully.");
+      // Update browser URL to human-readable domain slug
+      const scannedDomain = resultData.domain || resultData.maskedDomain;
+      if (scannedDomain && typeof window !== "undefined") {
+        window.history.pushState({}, "", `/scan/${encodeURIComponent(scannedDomain)}`);
+      }
     } catch (err) {
       toast.error(`Failed to retrieve scan: ${err.message}`);
     } finally {
