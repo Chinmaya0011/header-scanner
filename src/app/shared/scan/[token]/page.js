@@ -34,19 +34,26 @@ export async function generateMetadata({ params }) {
   }
 
   const siteDomain = scan.domain;
-  const ogImageUrl = `/api/og/shared/${token}`;
+  // Social crawlers require absolute URLs — relative paths are NOT resolved by crawlers
+  const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online";
+  const ogImageUrl = `${BASE_URL}/api/og/shared/${token}`;
   return {
+    metadataBase: new URL(BASE_URL),
     title: `Shared Security Audit: ${siteDomain} | Grade ${scan.grade} | HeaderGuard`,
     description: `Public HTTP security header report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}.`,
+    alternates: {
+      canonical: `${BASE_URL}/shared/scan/${token}`,
+    },
     openGraph: {
       title: `Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
       description: `Public HTTP security header report for ${siteDomain}. Score: ${scan.score}/100. Covers CSP, HSTS, X-Frame-Options, CORS, and more.`,
       type: "website",
-      url: `${process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online"}/shared/scan/${token}`,
+      url: `${BASE_URL}/shared/scan/${token}`,
       siteName: "HeaderGuard",
       images: [
         {
           url: ogImageUrl,
+          secureUrl: ogImageUrl,
           width: 1200,
           height: 630,
           alt: `HeaderGuard Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
@@ -56,6 +63,8 @@ export async function generateMetadata({ params }) {
     },
     twitter: {
       card: "summary_large_image",
+      site: "@headerguards",
+      creator: "@headerguards",
       title: `Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
       description: `Public HTTP security report for ${siteDomain}. Score: ${scan.score}/100. View on HeaderGuard.`,
       images: [ogImageUrl],
