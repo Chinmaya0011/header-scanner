@@ -59,6 +59,22 @@ const nextConfig = {
         ],
       },
       {
+        // ── OG image endpoints ──────────────────────────────────────────────
+        // Social media crawlers (WhatsApp, Twitter, Facebook, LinkedIn) are
+        // external origins. We MUST set CORP=cross-origin so they can fetch
+        // the dynamically-generated OG images. The global same-origin rule
+        // would otherwise block them and result in broken link previews.
+        source: "/api/og/:path*",
+        headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          // Allow crawlers to cache OG images: 1 h browser, 24 h CDN/proxy
+          { key: "Cache-Control", value: "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600" },
+          // Ensure CORS headers allow image loading from any origin
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, OPTIONS" },
+        ],
+      },
+      {
         source: "/api/:path*",
         headers: [
           // Relax CORP on API so cross-origin fetch calls work
