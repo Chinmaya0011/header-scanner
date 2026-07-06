@@ -5,42 +5,60 @@
 
 :root {
   /* Colorful Emerald Cyber-Matrix Dark Theme */
-  --bg: #030708;            /* Deep Obsidian Charcoal Void */
-  --surface: #05120f;       /* Tech Deep Forest Card */
-  --panel: #081a17;         /* Radiant Forest Panel */
-  --border: rgba(16, 185, 129, 0.08); /* Neon Emerald Border */
-  --border-hover: rgba(6, 182, 212, 0.3); /* Neon Cyan Hover Border */
+  --bg: #030708;
+  /* Deep Obsidian Charcoal Void */
+  --surface: #05120f;
+  /* Tech Deep Forest Card */
+  --panel: #081a17;
+  /* Radiant Forest Panel */
+  --border: rgba(16, 185, 129, 0.08);
+  /* Neon Emerald Border */
+  --border-hover: rgba(6, 182, 212, 0.3);
+  /* Neon Cyan Hover Border */
 
   /* Cyber Neon Accent Colors */
-  --accent: #10b981;        /* Neon Emerald Green */
-  --accent-light: #06b6d4;  /* Neon Laser Cyan */
+  --accent: #10b981;
+  /* Neon Emerald Green */
+  --accent-light: #06b6d4;
+  /* Neon Laser Cyan */
   --accent-dim: rgba(16, 185, 129, 0.35);
   --accent-glow: rgba(16, 185, 129, 0.12);
 
   /* Cyber Neon Status Signals */
-  --success: #22c55e;       /* Laser Green Success */
+  --success: #22c55e;
+  /* Laser Green Success */
   --success-dim: rgba(34, 197, 94, 0.15);
-  --warning: #eab308;       /* Shock Yellow Warning */
+  --warning: #eab308;
+  /* Shock Yellow Warning */
   --warning-dim: rgba(234, 179, 8, 0.15);
-  --danger: #ef4444;        /* Laser Crimson Danger */
+  --danger: #ef4444;
+  /* Laser Crimson Danger */
   --danger-dim: rgba(239, 68, 68, 0.15);
 
   /* Highly Accessible Typography */
-  --text: #ecfdf5;          /* Crisp Mint Ice White */
-  --text-dim: #6ee7b7;      /* Bright Mint Descriptor Text */
-  --text-muted: #059669;    /* Tech Green Label */
+  --text: #ecfdf5;
+  /* Crisp Mint Ice White */
+  --text-dim: #6ee7b7;
+  /* Bright Mint Descriptor Text */
+  --text-muted: #059669;
+  /* Tech Green Label */
 }
 
 [data-theme="light"] {
   /* Elegant Emerald Light Theme variables */
-  --bg: #e6f3f0;            /* Soft Light Dim Mint Void */
-  --surface: #f1faf7;       /* Soft Light Mint Card */
-  --panel: #dbece8;         /* Soft Mint Panel */
+  --bg: #e6f3f0;
+  /* Soft Light Dim Mint Void */
+  --surface: #f1faf7;
+  /* Soft Light Mint Card */
+  --panel: #dbece8;
+  /* Soft Mint Panel */
   --border: rgba(16, 185, 129, 0.12);
   --border-hover: rgba(6, 182, 212, 0.25);
 
-  --accent: #059669;        /* Cyber Mint Green */
-  --accent-light: #0891b2;  /* Cyber Cyan Blue */
+  --accent: #059669;
+  /* Cyber Mint Green */
+  --accent-light: #0891b2;
+  /* Cyber Cyan Blue */
   --accent-dim: rgba(5, 150, 105, 0.2);
   --accent-glow: rgba(5, 150, 105, 0.08);
 
@@ -51,9 +69,12 @@
   --danger: #dc2626;
   --danger-dim: rgba(220, 38, 38, 0.1);
 
-  --text: #022c22;          /* Deep Forest Slate Text */
-  --text-dim: #0f766e;      /* Teal Descriptor Text */
-  --text-muted: #047857;    /* Green Label */
+  --text: #022c22;
+  /* Deep Forest Slate Text */
+  --text-dim: #0f766e;
+  /* Teal Descriptor Text */
+  --text-muted: #047857;
+  /* Green Label */
 }
 
 * {
@@ -104,9 +125,11 @@ body {
     top: 0%;
     opacity: 0.8;
   }
+
   50% {
     opacity: 1;
   }
+
   100% {
     top: 100%;
     opacity: 0;
@@ -123,6 +146,7 @@ body {
     opacity: 0;
     transform: translateY(12px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -134,9 +158,12 @@ body {
 }
 
 @keyframes pulse-accent {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 var(--accent-glow);
   }
+
   50% {
     box-shadow: 0 0 0 6px transparent;
   }
@@ -150,6 +177,7 @@ body {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -160,24 +188,73 @@ body {
 }
 
 /* Custom delays for grid stagger layout */
-.stagger-1 { animation-delay: 0.05s; opacity: 0; }
-.stagger-2 { animation-delay: 0.1s; opacity: 0; }
-.stagger-3 { animation-delay: 0.15s; opacity: 0; }
-.stagger-4 { animation-delay: 0.2s; opacity: 0; }
-.stagger-5 { animation-delay: 0.25s; opacity: 0; }
+.stagger-1 {
+  animation-delay: 0.05s;
+  opacity: 0;
+}
 
-.grade-a { text-shadow: 0 0 15px rgba(57, 255, 20, 0.55); }
-.grade-b { text-shadow: 0 0 15px rgba(0, 240, 255, 0.55); }
-.grade-c { text-shadow: 0 0 15px rgba(255, 230, 0, 0.55); }
-.grade-f { text-shadow: 0 0 15px rgba(255, 0, 85, 0.55); }
+.stagger-2 {
+  animation-delay: 0.1s;
+  opacity: 0;
+}
+
+.stagger-3 {
+  animation-delay: 0.15s;
+  opacity: 0;
+}
+
+.stagger-4 {
+  animation-delay: 0.2s;
+  opacity: 0;
+}
+
+.stagger-5 {
+  animation-delay: 0.25s;
+  opacity: 0;
+}
+
+.grade-a {
+  text-shadow: 0 0 15px rgba(57, 255, 20, 0.55);
+}
+
+.grade-b {
+  text-shadow: 0 0 15px rgba(0, 240, 255, 0.55);
+}
+
+.grade-c {
+  text-shadow: 0 0 15px rgba(255, 230, 0, 0.55);
+}
+
+.grade-f {
+  text-shadow: 0 0 15px rgba(255, 0, 85, 0.55);
+}
 
 /* WebSocket Notification Bell Shake Keyframes */
 @keyframes shake {
-  0%, 100% { transform: rotate(0deg); }
-  15%, 85% { transform: rotate(-10deg); }
-  30%, 70% { transform: rotate(12deg); }
-  45%, 55% { transform: rotate(-14deg); }
-  60% { transform: rotate(10deg); }
+
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  15%,
+  85% {
+    transform: rotate(-10deg);
+  }
+
+  30%,
+  70% {
+    transform: rotate(12deg);
+  }
+
+  45%,
+  55% {
+    transform: rotate(-14deg);
+  }
+
+  60% {
+    transform: rotate(10deg);
+  }
 }
 
 .animate-shake {

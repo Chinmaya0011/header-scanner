@@ -1,0 +1,2815 @@
+openapi: 3.1.0
+info:
+  title: HeaderGuard API
+  version: 2.0.0
+  description: |
+    **HeaderGuard** is an enterprise-grade HTTP security header scanner & External Attack Surface Management (EASM) platform.
+
+    This API enables you to scan websites for security header compliance, retrieve detailed security audit reports,
+    manage continuous monitoring schedules, and administer user accounts — all from a single, powerful REST interface.
+
+    ## Key Capabilities
+
+    | Feature | Description |
+    |---|---|
+    | **Header Scanning** | Analyze 8+ critical HTTP security headers with severity ratings |
+    | **EASM Analysis** | SSL/TLS, DNS, infrastructure, technology stack, WHOIS, and more |
+    | **Compliance Checking** | GDPR, PCI-DSS, OWASP, and NIST compliance assessments |
+    | **Vulnerability Detection** | Nuclei, Nmap, Nikto integration for deep vulnerability scanning |
+    | **Continuous Monitoring** | Daily/weekly automated scans with email alerting on regressions |
+    | **Domain Verification** | File-based domain ownership verification before scanning |
+
+    ## Scoring System
+
+    | Score Range | Grade |
+    |---|---|
+    | 90–100 | A+ |
+    | 80–89 | A |
+    | 70–79 | B |
+    | 60–69 | C |
+    | 50–59 | D |
+    | < 50 | F |
+
+    Each header is weighted. A correctly configured header earns full weight; a weak header earns 30% weight; a missing header earns 0.
+
+    ## Rate Limiting
+
+    - **Authenticated users**: Daily quota (default 20 requests/day, admin 27/day)
+    - **Public scans**: 5 requests/minute per IP
+    - **API key scans**: Subject to per-minute and daily limits
+
+  termsOfService: https://headerguard.securityaudit.dev/terms
+  contact:
+    name: HeaderGuard Support
+    email: support@headerguard.dev
+    url: https://headerguard.securityaudit.dev
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /api
+    description: HeaderGuard API (relative to application root)
+
+tags:
+  - name: Authentication
+    description: User registration, login, logout, password management, and OTP verification
+  - name: API Keys
+    description: Create, manage, and monitor programmatic API key access
+  - name: Scanning
+    description: Run security header scans on websites (authenticated)
+  - name: Public Scanning
+    description: Unauthenticated quick scans with limited output
+  - name: Scan Results
+    description: Retrieve, share, compare, and manage individual scan reports
+  - name: Scan History
+    description: Browse and filter paginated scan history with analytics
+  - name: Domain Verification
+    description: Verify domain ownership before running full scans
+  - name: Monitors
+    description: Continuous monitoring schedules for automated recurring scans
+  - name: Notifications
+    description: In-app notification feed and management
+  - name: Statistics
+    description: Public and admin-level platform statistics
+  - name: Administration
+    description: Admin-only user and system management endpoints
+  - name: Cron
+    description: Background scheduled monitor execution (internal)
+  - name: Utilities
+    description: Miscellaneous utility endpoints
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Pass a JWT token obtained from `/api/auth/login` in the `Authorization` header.
+
+        ```
+        Authorization: Bearer <token>
+        ```
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+      description: |
+        An HTTP-only `token` cookie is automatically set on login.
+        Browser-based clients use this method automatically.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: |
+        Pass your API key (prefixed with `hg_`) in the `x-api-key` header.
+
+        ```
+        x-api-key: hg_abc123def456...
+        ```
+
+  schemas:
+    # ── Error Responses ──────────────────────────────────────────────
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Authentication required. Please log in to perform scans."
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "UNAUTHORIZED"
+        success:
+          type: boolean
+          example: false
+
+    # ── Auth Schemas ─────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: "securePassword123"
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        token:
+          type: string
+          description: JWT authentication token
+          example: "eyJhbGciOiJIUzI1NiIs..."
+        user:
+          $ref: '#/components/schemas/UserSummary'
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: "securePassword123"
+
+    RegisterResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        email:
+          type: string
+          example: "newuser@example.com"
+        step:
+          type: string
+          example: "verify_otp"
+        message:
+          type: string
+          example: "Verification code sent to email. Please verify your identity."
+
+    VerifyOtpRequest:
+      type: object
+      required: [email, otp]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        otp:
+          type: string
+          pattern: '^\d{6}$'
+          example: "482917"
+
+    VerifyOtpResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Account verified successfully."
+        token:
+          type: string
+          description: JWT token (user is auto-logged in)
+        user:
+          $ref: '#/components/schemas/UserSummary'
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 6
+
+    DeleteAccountRequest:
+      type: object
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          description: Must be exactly `"DELETE"` to confirm permanent account deletion
+          example: "DELETE"
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "667a1b2c3d4e5f6a7b8c9d0e"
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        role:
+          type: string
+          enum: [user, admin]
+          example: "user"
+
+    MeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        loggedIn:
+          type: boolean
+          example: true
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+              format: email
+            role:
+              type: string
+              enum: [user, admin]
+            createdAt:
+              type: string
+              format: date-time
+            emailVerified:
+              type: boolean
+            token:
+              type: string
+              description: Current session token
+
+    # ── API Key Schemas ──────────────────────────────────────────────
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "667a1b2c3d4e5f6a7b8c9d0e"
+        name:
+          type: string
+          example: "Production Scanner Key"
+        createdAt:
+          type: string
+          format: date-time
+        lastUsed:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+          example: true
+        webhookUrl:
+          type: string
+          example: "https://hooks.example.com/scan-complete"
+        allowedDomains:
+          type: string
+          description: Comma-separated list of allowed domains
+          example: "example.com,mysite.org"
+        customUserAgent:
+          type: string
+          example: "MyScanBot/1.0"
+        status:
+          type: string
+          enum: [active, revoked, expired, deleted]
+          example: "active"
+
+    ApiKeyWithSecret:
+      allOf:
+        - $ref: '#/components/schemas/ApiKey'
+        - type: object
+          properties:
+            rawKey:
+              type: string
+              description: "**Shown only once at creation.** Copy and store securely."
+              example: "hg_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+
+    CreateApiKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Production Key"
+        regenerateKeyId:
+          type: string
+          description: If provided, regenerates the key with this ID instead of creating a new one
+
+    UpdateApiKeyRequest:
+      type: object
+      required: [keyId]
+      properties:
+        keyId:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+        webhookUrl:
+          type: string
+        allowedDomains:
+          type: string
+        customUserAgent:
+          type: string
+        status:
+          type: string
+          enum: [active, revoked]
+
+    DeleteApiKeyRequest:
+      type: object
+      required: [keyId]
+      properties:
+        keyId:
+          type: string
+
+    ApiKeyUsageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            rateLimit:
+              type: object
+              properties:
+                currentUsage:
+                  type: integer
+                  description: Requests made in the current 1-minute window
+                maxLimit:
+                  type: integer
+                  example: 10
+                windowMs:
+                  type: integer
+                  example: 60000
+            dailyQuota:
+              type: object
+              properties:
+                usage:
+                  type: integer
+                  description: Scans used today
+                limit:
+                  type: integer
+                  description: Maximum scans allowed per day
+                apiAccessEnabled:
+                  type: boolean
+            metrics:
+              type: object
+              properties:
+                total:
+                  type: integer
+                  description: Total API scans all-time
+                last24h:
+                  type: integer
+                last30d:
+                  type: integer
+            keyBreakdown:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  isActive:
+                    type: boolean
+                  count:
+                    type: integer
+            recentScans:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  url:
+                    type: string
+                  domain:
+                    type: string
+                  score:
+                    type: integer
+                  grade:
+                    type: string
+                  statusCode:
+                    type: integer
+                  scanDuration:
+                    type: integer
+                  createdAt:
+                    type: string
+                    format: date-time
+                  keyName:
+                    type: string
+            chartData:
+              type: array
+              items:
+                $ref: '#/components/schemas/DailyChartPoint'
+
+    # ── Scan Schemas ─────────────────────────────────────────────────
+    ScanRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: The URL or domain to scan
+          example: "https://example.com"
+        section:
+          type: string
+          description: Scan scope — `all` for full EASM, or a specific section
+          default: "all"
+          example: "all"
+
+    PublicScanRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          example: "example.com"
+
+    HeaderResult:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Content-Security-Policy"
+        status:
+          type: string
+          enum: [present, missing, weak, invalid]
+          example: "present"
+        value:
+          type: string
+          example: "default-src 'self'"
+        description:
+          type: string
+        recommendation:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+          example: "critical"
+
+    Vulnerability:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          example: "Missing Content-Security-Policy"
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        category:
+          type: string
+        description:
+          type: string
+        recommendation:
+          type: string
+
+    SecurityCheck:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+        title:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        status:
+          type: string
+          enum: [passed, failed, warning, info]
+        description:
+          type: string
+        evidence:
+          type: string
+        whyItMatters:
+          type: string
+        recommendation:
+          type: string
+        references:
+          type: array
+          items:
+            type: string
+
+    Recommendation:
+      type: object
+      properties:
+        header:
+          type: string
+          example: "Content-Security-Policy"
+        severity:
+          type: string
+          example: "critical"
+        recommendation:
+          type: string
+          example: "Add a Content-Security-Policy header to prevent XSS attacks."
+        expectedFormat:
+          type: string
+        reference:
+          type: string
+
+    ComplianceItem:
+      type: object
+      properties:
+        compliant:
+          type: boolean
+        recommendation:
+          type: string
+
+    SslDetails:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        tlsVersion:
+          type: string
+          example: "TLSv1.3"
+        supportedVersions:
+          type: array
+          items:
+            type: string
+        cipherSuite:
+          type: string
+        expirationDate:
+          type: string
+          format: date-time
+        daysRemaining:
+          type: integer
+        issuer:
+          type: string
+          example: "Let's Encrypt"
+        wildcard:
+          type: boolean
+        sans:
+          type: array
+          items:
+            type: string
+        ocspStatus:
+          type: string
+        hstsPreload:
+          type: boolean
+        keyType:
+          type: string
+        keyLength:
+          type: integer
+
+    DnsDetails:
+      type: object
+      properties:
+        a:
+          type: array
+          items:
+            type: string
+        aaaa:
+          type: array
+          items:
+            type: string
+        cname:
+          type: array
+          items:
+            type: string
+        mx:
+          type: array
+          items:
+            type: string
+        txt:
+          type: array
+          items:
+            type: string
+        spf:
+          type: object
+          properties:
+            value:
+              type: string
+            valid:
+              type: boolean
+            error:
+              type: string
+        dkim:
+          type: object
+          properties:
+            value:
+              type: string
+            found:
+              type: boolean
+        dmarc:
+          type: object
+          properties:
+            value:
+              type: string
+            valid:
+              type: boolean
+            error:
+              type: string
+        dnssec:
+          type: boolean
+        caa:
+          type: array
+          items:
+            type: string
+
+    InfrastructureDetails:
+      type: object
+      properties:
+        cdn:
+          type: string
+        waf:
+          type: string
+        reverseProxy:
+          type: string
+        hosting:
+          type: string
+        asn:
+          type: string
+        isp:
+          type: string
+        country:
+          type: string
+        region:
+          type: string
+
+    WhoisDetails:
+      type: object
+      properties:
+        registrar:
+          type: string
+        createdDate:
+          type: string
+          format: date-time
+        expiryDate:
+          type: string
+          format: date-time
+        updatedDate:
+          type: string
+          format: date-time
+        domainAgeDays:
+          type: integer
+        daysToExpiry:
+          type: integer
+        nameServers:
+          type: array
+          items:
+            type: string
+        isRecent:
+          type: boolean
+        isExpiringSoon:
+          type: boolean
+
+    ScanSummary:
+      type: object
+      properties:
+        present:
+          type: integer
+          description: Number of security headers present
+        missing:
+          type: integer
+          description: Number of security headers missing
+        weak:
+          type: integer
+          description: Number of weakly configured headers
+        invalid:
+          type: integer
+          description: Number of headers with invalid configuration
+
+    ScanResult:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "667a1b2c3d4e5f6a7b8c9d0e"
+        url:
+          type: string
+          example: "https://example.com"
+        domain:
+          type: string
+          example: "example.com"
+        maskedDomain:
+          type: string
+          example: "ex*****.com"
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 78
+        grade:
+          type: string
+          enum: ["A+", "A", "B", "C", "D", "F"]
+          example: "B"
+        headers:
+          type: array
+          items:
+            $ref: '#/components/schemas/HeaderResult'
+        vulnerabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vulnerability'
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecurityCheck'
+        statusCode:
+          type: integer
+          example: 200
+        scanDuration:
+          type: integer
+          description: Scan duration in milliseconds
+          example: 3420
+        summary:
+          $ref: '#/components/schemas/ScanSummary'
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+        compliance:
+          type: object
+          properties:
+            GDPR:
+              $ref: '#/components/schemas/ComplianceItem'
+            PCI_DSS:
+              $ref: '#/components/schemas/ComplianceItem'
+            OWASP:
+              $ref: '#/components/schemas/ComplianceItem'
+            NIST:
+              $ref: '#/components/schemas/ComplianceItem'
+        ssl:
+          $ref: '#/components/schemas/SslDetails'
+        dns:
+          $ref: '#/components/schemas/DnsDetails'
+        infrastructure:
+          $ref: '#/components/schemas/InfrastructureDetails'
+        whois:
+          $ref: '#/components/schemas/WhoisDetails'
+        techStack:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              category:
+                type: string
+              version:
+                type: string
+        cookies:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              secure:
+                type: boolean
+              httpOnly:
+                type: boolean
+              sameSite:
+                type: string
+              risk:
+                type: string
+        categoryScores:
+          type: object
+          properties:
+            headers:
+              type: number
+            ssl:
+              type: number
+            dns:
+              type: number
+            cookies:
+              type: number
+            compliance:
+              type: number
+            performance:
+              type: number
+            exposure:
+              type: number
+        isPublic:
+          type: boolean
+        shareToken:
+          type: string
+          nullable: true
+        source:
+          type: string
+          enum: [web, api]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PublicScanResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        isPublicScan:
+          type: boolean
+          example: true
+        scanId:
+          type: string
+          nullable: true
+        shareUrl:
+          type: string
+          nullable: true
+        url:
+          type: string
+        domain:
+          type: string
+        score:
+          type: integer
+        grade:
+          type: string
+        statusCode:
+          type: integer
+        scanDuration:
+          type: integer
+        summary:
+          type: object
+          properties:
+            present:
+              type: integer
+            missing:
+              type: integer
+            weak:
+              type: integer
+            invalid:
+              type: integer
+            total:
+              type: integer
+        headers:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+              severity:
+                type: string
+              description:
+                type: string
+        recommendations:
+          type: array
+          description: Top 3 recommendations only
+          items:
+            $ref: '#/components/schemas/Recommendation'
+
+    # ── Scan History Schemas ─────────────────────────────────────────
+    HistoryEntry:
+      type: object
+      properties:
+        _id:
+          type: string
+        domain:
+          type: string
+          description: Full domain for owners/admins, masked for others
+        maskedDomain:
+          type: string
+        score:
+          type: integer
+        grade:
+          type: string
+        summary:
+          $ref: '#/components/schemas/ScanSummary'
+        statusCode:
+          type: integer
+        scanDuration:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    PaginatedScansResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            scans:
+              type: array
+              items:
+                $ref: '#/components/schemas/ScanResult'
+            pagination:
+              type: object
+              properties:
+                currentPage:
+                  type: integer
+                totalPages:
+                  type: integer
+                totalScans:
+                  type: integer
+                limit:
+                  type: integer
+                hasNextPage:
+                  type: boolean
+                hasPrevPage:
+                  type: boolean
+                nextPage:
+                  type: integer
+                  nullable: true
+                prevPage:
+                  type: integer
+                  nullable: true
+            filters:
+              type: object
+              properties:
+                applied:
+                  type: object
+                  description: The filters currently applied to the query
+                available:
+                  type: object
+                  description: Filter options available for the user's scans
+            summary:
+              type: object
+              description: Aggregate statistics for filtered and global scans
+        responseTimeMs:
+          type: integer
+
+    # ── Compare Schemas ──────────────────────────────────────────────
+    ComparisonDiff:
+      type: object
+      properties:
+        success:
+          type: boolean
+        diff:
+          type: object
+          properties:
+            meta:
+              type: object
+              properties:
+                domain1:
+                  type: string
+                domain2:
+                  type: string
+                date1:
+                  type: string
+                  format: date-time
+                date2:
+                  type: string
+                  format: date-time
+            score:
+              type: object
+              properties:
+                val1:
+                  type: integer
+                val2:
+                  type: integer
+                change:
+                  type: integer
+                  description: Positive = improvement, negative = regression
+            grade:
+              type: object
+              properties:
+                val1:
+                  type: string
+                val2:
+                  type: string
+            headers:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  val1:
+                    type: string
+                  val2:
+                    type: string
+                  status:
+                    type: string
+                    enum: [added, removed, modified]
+            ssl:
+              type: object
+            dns:
+              type: object
+            cookies:
+              type: array
+              items:
+                type: object
+            vulnerabilities:
+              type: array
+              items:
+                type: object
+
+    # ── Monitor Schemas ──────────────────────────────────────────────
+    Monitor:
+      type: object
+      properties:
+        _id:
+          type: string
+        url:
+          type: string
+        domain:
+          type: string
+        frequency:
+          type: string
+          enum: [daily, weekly]
+        active:
+          type: boolean
+        alertEmail:
+          type: string
+          format: email
+        lastRun:
+          type: string
+          format: date-time
+          nullable: true
+        lastScore:
+          type: integer
+          nullable: true
+        lastGrade:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateMonitorRequest:
+      type: object
+      required: [url, alertEmail]
+      properties:
+        url:
+          type: string
+          example: "https://example.com"
+        frequency:
+          type: string
+          enum: [daily, weekly]
+          default: "daily"
+        alertEmail:
+          type: string
+          format: email
+          example: "alerts@example.com"
+
+    DeleteMonitorRequest:
+      type: object
+      required: [monitorId]
+      properties:
+        monitorId:
+          type: string
+
+    # ── Notification Schemas ─────────────────────────────────────────
+    Notification:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+          example: "Security Posture Degraded"
+        message:
+          type: string
+        type:
+          type: string
+          enum: [success, info, warning, danger]
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    NotificationAction:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [mark_read, delete]
+        id:
+          type: string
+          description: Notification ID (required unless `all` is true)
+        all:
+          type: boolean
+          description: Apply action to all notifications
+          default: false
+
+    # ── Domain Verification Schemas ──────────────────────────────────
+    VerifyInitiateRequest:
+      type: object
+      required: [action, domain]
+      properties:
+        action:
+          type: string
+          enum: [initiate]
+        domain:
+          type: string
+          example: "example.com"
+
+    VerifyConfirmRequest:
+      type: object
+      required: [action, domain]
+      properties:
+        action:
+          type: string
+          enum: [confirm]
+        domain:
+          type: string
+
+    VerificationRecord:
+      type: object
+      properties:
+        _id:
+          type: string
+        domain:
+          type: string
+        verificationToken:
+          type: string
+        verified:
+          type: boolean
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verificationMethod:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── Statistics Schemas ───────────────────────────────────────────
+    PublicStats:
+      type: object
+      properties:
+        success:
+          type: boolean
+        stats:
+          type: object
+          properties:
+            totalVisits:
+              type: integer
+            totalScans:
+              type: integer
+            uniqueDomains:
+              type: integer
+
+    AdminStats:
+      type: object
+      properties:
+        success:
+          type: boolean
+        stats:
+          type: object
+          properties:
+            totalUsers:
+              type: integer
+            totalApiRequests:
+              type: integer
+            totalAllScans:
+              type: integer
+            totalPublicScans:
+              type: integer
+            totalVisits:
+              type: integer
+            dailyApiRequests:
+              type: integer
+            successfulApiCalls:
+              type: integer
+            failedApiCalls:
+              type: integer
+            blockedUsers:
+              type: integer
+            activeKeys:
+              type: integer
+            revokedKeys:
+              type: integer
+            deletedKeys:
+              type: integer
+            usersNearLimit:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  dailyUsage:
+                    type: integer
+                  dailyLimit:
+                    type: integer
+                  apiAccessEnabled:
+                    type: boolean
+            chartData:
+              type: array
+              items:
+                $ref: '#/components/schemas/DailyChartPoint'
+
+    DailyChartPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          example: "Jul 5"
+        success:
+          type: integer
+        failed:
+          type: integer
+        total:
+          type: integer
+
+    # ── User Admin Schemas ───────────────────────────────────────────
+    UserAdmin:
+      type: object
+      properties:
+        _id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, admin]
+        isVerified:
+          type: boolean
+        apiAccessEnabled:
+          type: boolean
+        dailyLimit:
+          type: integer
+        dailyUsage:
+          type: integer
+        apiKeys:
+          type: array
+          items:
+            type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        dailyLimit:
+          type: integer
+          description: Set the user's daily scan limit
+        apiAccessEnabled:
+          type: boolean
+          description: Enable or disable API access for this user
+        revokeKeyId:
+          type: string
+          description: Revoke a specific API key by its ID
+
+    # ── Email Report Schemas ─────────────────────────────────────────
+    EmailReportRequest:
+      type: object
+      properties:
+        recipient:
+          type: string
+          format: email
+          description: Override recipient email (defaults to current user's email)
+
+    # ── Share Toggle Schemas ─────────────────────────────────────────
+    ShareToggleRequest:
+      type: object
+      required: [isPublic]
+      properties:
+        isPublic:
+          type: boolean
+          description: Set to `true` to make the scan publicly shareable
+
+    ShareToggleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        isPublic:
+          type: boolean
+        shareToken:
+          type: string
+        shareUrl:
+          type: string
+          example: "/shared/scan/abc123def456"
+
+    SuccessMessage:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+
+# ═══════════════════════════════════════════════════════════════════════
+# PATHS
+# ═══════════════════════════════════════════════════════════════════════
+paths:
+
+  # ── Authentication ─────────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a new account
+      description: |
+        Creates a new user account and sends a 6-digit OTP verification code to the provided email.
+        The user must verify their email before they can log in.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Registration initiated — OTP sent to email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Validation error or user already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to send verification email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/register/verify:
+    post:
+      tags: [Authentication]
+      summary: Verify OTP code
+      description: |
+        Completes registration by verifying the 6-digit OTP code sent to the user's email.
+        On success, the user is automatically logged in and receives a JWT token + session cookie.
+      operationId: verifyOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpRequest'
+      responses:
+        '200':
+          description: Account verified and user logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyOtpResponse'
+        '400':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User registration session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in
+      description: |
+        Authenticates a user with email and password. Returns a JWT token and sets an HTTP-only session cookie.
+        Unverified accounts will receive a `403` error.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HTTP-only session cookie
+        '400':
+          description: Missing credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Account not verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out
+      description: Clears the session cookie and site data. No request body required.
+      operationId: logout
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user
+      description: "Returns the currently authenticated user's profile, or `loggedIn: false` if no valid session exists."
+      operationId: getMe
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+
+  /auth/change-password:
+    post:
+      tags: [Authentication]
+      summary: Change password
+      description: Changes the authenticated user's password after verifying their current password.
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '400':
+          description: Incorrect current password or invalid new password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/delete-account:
+    post:
+      tags: [Authentication]
+      summary: Delete own account
+      description: |
+        Permanently deletes the authenticated user's account and all associated data
+        (scans, monitors, rate limits). Requires confirmation text `"DELETE"`.
+
+        ⚠️ **This action is irreversible.**
+      operationId: deleteAccount
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+      responses:
+        '200':
+          description: Account permanently deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '400':
+          description: Invalid confirmation text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── API Keys ───────────────────────────────────────────────────────
+  /auth/api-keys:
+    get:
+      tags: [API Keys]
+      summary: List API keys
+      description: Returns metadata for all active API keys belonging to the authenticated user.
+      operationId: listApiKeys
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [API Keys]
+      summary: Generate a new API key
+      description: |
+        Creates a new API key (prefixed with `hg_`) and returns it. The raw key is **only shown once** —
+        store it securely. Optionally regenerate an existing key by passing `regenerateKeyId`.
+      operationId: createApiKey
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '200':
+          description: API key created (raw key included — copy now!)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  key:
+                    $ref: '#/components/schemas/ApiKeyWithSecret'
+
+    put:
+      tags: [API Keys]
+      summary: Update API key settings
+      description: Update name, activation status, webhook URL, allowed domains, or custom user agent for an API key.
+      operationId: updateApiKey
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApiKeyRequest'
+      responses:
+        '200':
+          description: API key settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  key:
+                    $ref: '#/components/schemas/ApiKey'
+
+    delete:
+      tags: [API Keys]
+      summary: Delete an API key
+      description: Soft-deletes an API key (marks status as `deleted` and deactivates it).
+      operationId: deleteApiKey
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteApiKeyRequest'
+      responses:
+        '200':
+          description: API key deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+
+  /auth/api-keys/usage:
+    get:
+      tags: [API Keys]
+      summary: Get API key usage analytics
+      description: |
+        Returns comprehensive usage analytics including rate limit status, daily quota,
+        per-key breakdown, recent API scans, and a 7-day usage chart.
+      operationId: getApiKeyUsage
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: API key usage analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyUsageResponse'
+
+  # ── Scanning ───────────────────────────────────────────────────────
+  /scan:
+    post:
+      tags: [Scanning]
+      summary: Run a full security scan
+      description: |
+        Performs a comprehensive security scan on a target URL including:
+        - HTTP security header analysis (8 critical headers)
+        - SSL/TLS certificate validation
+        - DNS record analysis (SPF, DKIM, DMARC, DNSSEC)
+        - Infrastructure & technology detection
+        - Cookie security analysis
+        - Vulnerability scanning (Nuclei, Nmap, Nikto)
+        - Compliance checking (GDPR, PCI-DSS, OWASP, NIST)
+        - WHOIS information
+        - AI-powered remediation advice
+
+        **Requirements:**
+        - Authentication required
+        - Domain must be verified (unless admin or bypass enabled)
+        - Subject to daily quota limits
+
+        **Rate Limiting:**
+        - Daily limit: 20 scans/day (27 for admins)
+        - Returns `429` with `Retry-After: 86400` when exceeded
+      operationId: runScan
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+      responses:
+        '200':
+          description: Scan completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ScanResult'
+        '400':
+          description: Invalid or missing URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: API access disabled or domain not verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Daily quota exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: string
+                example: "86400"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Target unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /public-scan:
+    post:
+      tags: [Public Scanning]
+      summary: Run a quick public scan (no auth)
+      description: |
+        Performs a lightweight security header scan without authentication.
+        Returns basic header analysis, score, grade, and top 3 recommendations.
+
+        **Limitations vs. authenticated scans:**
+        - No SSL/TLS, DNS, WHOIS, or infrastructure analysis
+        - No compliance checking
+        - No AI advice
+        - Limited to 5 requests/minute per IP
+        - Private/local addresses are blocked
+      operationId: publicScan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicScanRequest'
+      responses:
+        '200':
+          description: Public scan completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicScanResponse'
+        '400':
+          description: Missing or invalid URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded (5/minute)
+          headers:
+            Retry-After:
+              schema:
+                type: string
+                example: "60"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Target unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Scan Results ───────────────────────────────────────────────────
+  /scan/{id}:
+    get:
+      tags: [Scan Results]
+      summary: Get scan by ID
+      description: |
+        Retrieves a specific scan result by its MongoDB ObjectId.
+        Domain names are privacy-masked unless the requester is the scan owner or an admin.
+      operationId: getScanById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{24}$'
+          description: 24-character MongoDB ObjectId
+          example: "667a1b2c3d4e5f6a7b8c9d0e"
+      responses:
+        '200':
+          description: Scan result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ScanResult'
+                  responseTimeMs:
+                    type: integer
+        '400':
+          description: Invalid ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags: [Scan Results]
+      summary: Toggle public sharing
+      description: |
+        Enables or disables public sharing for a scan. When enabled, a unique share token is generated
+        and the scan becomes accessible via `/api/scan/shared/{token}`.
+      operationId: toggleScanSharing
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareToggleRequest'
+      responses:
+        '200':
+          description: Sharing status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShareToggleResponse'
+        '403':
+          description: Not authorized to share this scan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Scan Results]
+      summary: Delete a scan (Admin)
+      description: Permanently deletes a scan record. **Admin only.**
+      operationId: deleteScan
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Scan deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scan/{id}/email:
+    post:
+      tags: [Scan Results]
+      summary: Email a scan report
+      description: |
+        Sends a formatted HTML audit report email for the specified scan.
+        Defaults to the authenticated user's email, or specify a custom `recipient`.
+      operationId: emailScanReport
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailReportRequest'
+      responses:
+        '200':
+          description: Report emailed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scan/domain/{domain}:
+    get:
+      tags: [Scan Results]
+      summary: Get latest scan by domain
+      description: |
+        Looks up the most recent successful scan for a domain name.
+        Prefers scans owned by the authenticated user, then falls back to any scan.
+      operationId: getScanByDomain
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "github.com"
+      responses:
+        '200':
+          description: Most recent scan for the domain
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ScanResult'
+                  responseTimeMs:
+                    type: integer
+        '404':
+          description: No scan found for this domain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /scan/shared/{token}:
+    get:
+      tags: [Scan Results]
+      summary: Get shared scan (public)
+      description: Retrieves a scan that has been publicly shared via its unique share token. No authentication required.
+      operationId: getSharedScan
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique share token generated when sharing was enabled
+      responses:
+        '200':
+          description: Shared scan data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ScanResult'
+        '400':
+          description: Token is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Public scan not found or no longer shared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Scan History & Analytics ───────────────────────────────────────
+  /history:
+    get:
+      tags: [Scan History]
+      summary: Get recent scan history
+      description: |
+        Returns the most recent scans (up to 50 for authenticated users, 4 for guests).
+        Domain names are privacy-masked unless the requester owns the scan or is admin.
+      operationId: getHistory
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Recent scan history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HistoryEntry'
+
+  /scans:
+    get:
+      tags: [Scan History]
+      summary: Get paginated scans with filters
+      description: |
+        Returns paginated, filterable, sortable scan results with aggregate statistics.
+
+        **Available Filters:**
+        - `domain` — Partial domain search (case-insensitive)
+        - `grade` — Filter by grade (A+, A, B, C, D, F)
+        - `minScore` / `maxScore` — Score range (0-100)
+        - `startDate` / `endDate` — Date range (ISO format)
+        - `statusCode` — HTTP status code (100-599)
+        - `compliant` — Compliance framework (GDPR, PCI_DSS, OWASP, NIST)
+
+        **Sorting:**
+        - `sortBy` — createdAt, score, grade, domain, scanDuration
+        - `sortOrder` — asc or desc
+      operationId: getScans
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, score, grade, domain, scanDuration]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: domain
+          in: query
+          schema:
+            type: string
+          description: Partial domain search
+        - name: grade
+          in: query
+          schema:
+            type: string
+            enum: ["A+", A, B, C, D, F]
+        - name: minScore
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+        - name: maxScore
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: ISO date (YYYY-MM-DD)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: statusCode
+          in: query
+          schema:
+            type: integer
+        - name: compliant
+          in: query
+          schema:
+            type: string
+            enum: [GDPR, PCI_DSS, OWASP, NIST]
+      responses:
+        '200':
+          description: Paginated scans with statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedScansResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Scan History]
+      summary: Clear all scans (Admin)
+      description: Permanently deletes **all** scan records in the system. **Admin only.**
+      operationId: clearAllScans
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: All scans cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /compare:
+    get:
+      tags: [Scan Results]
+      summary: Compare two scans
+      description: |
+        Generates a detailed side-by-side comparison diff between two scan results.
+        Includes header changes, SSL changes, DNS changes, cookie changes, and vulnerability changes.
+        User must own both scans (or be admin).
+      operationId: compareScans
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id1
+          in: query
+          required: true
+          schema:
+            type: string
+          description: First scan ID
+        - name: id2
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Second scan ID
+      responses:
+        '200':
+          description: Comparison diff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonDiff'
+        '400':
+          description: Both scan IDs required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access one or both scans
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: One or both scans not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Domain Verification ────────────────────────────────────────────
+  /verify:
+    post:
+      tags: [Domain Verification]
+      summary: Initiate or confirm domain verification
+      description: |
+        **Two-step domain verification flow:**
+
+        **Step 1 — Initiate** (`action: "initiate"`):
+        Generates a verification token for the domain. Host a file at:
+        ```
+        http://<domain>/headerguard-verification.txt
+        ```
+        containing the returned token string.
+
+        **Step 2 — Confirm** (`action: "confirm"`):
+        HeaderGuard fetches the verification file from your domain and checks for the token.
+        On success, the domain is marked as verified and you can run full scans.
+      operationId: verifyDomain
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/VerifyInitiateRequest'
+                - $ref: '#/components/schemas/VerifyConfirmRequest'
+      responses:
+        '200':
+          description: Verification initiated or confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  domain:
+                    type: string
+                  token:
+                    type: string
+                    description: Verification token to place in the file
+                  verified:
+                    type: boolean
+                  fileLocation:
+                    type: string
+                    description: URL where the verification file should be hosted
+        '400':
+          description: Verification failed or invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags: [Domain Verification]
+      summary: List verification records
+      description: |
+        Returns all domain verification records for the authenticated user.
+        Admins see all records. Pass `?domain=example.com` to check a specific domain.
+      operationId: listVerifications
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: domain
+          in: query
+          schema:
+            type: string
+          description: Check verification status for a specific domain
+      responses:
+        '200':
+          description: Verification records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  verifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VerificationRecord'
+
+    delete:
+      tags: [Domain Verification]
+      summary: Delete a verification record
+      description: Removes a domain verification record. Admins can delete any record.
+      operationId: deleteVerification
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Verification record ID
+      responses:
+        '200':
+          description: Verification deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '404':
+          description: Record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Monitors ───────────────────────────────────────────────────────
+  /monitors:
+    get:
+      tags: [Monitors]
+      summary: List monitors
+      description: Returns all continuous monitoring schedules configured by the authenticated user.
+      operationId: listMonitors
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: List of monitors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  monitors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Monitor'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Monitors]
+      summary: Create a monitor
+      description: |
+        Creates a new continuous monitoring schedule for a URL.
+        The system will automatically re-scan at the specified frequency and send email alerts
+        if the security score degrades.
+      operationId: createMonitor
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMonitorRequest'
+      responses:
+        '200':
+          description: Monitor created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  monitor:
+                    $ref: '#/components/schemas/Monitor'
+        '400':
+          description: Missing fields or duplicate monitor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Monitors]
+      summary: Delete a monitor
+      description: Removes a monitoring schedule. Only the owner can delete their own monitors.
+      operationId: deleteMonitor
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteMonitorRequest'
+      responses:
+        '200':
+          description: Monitor deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '404':
+          description: Monitor not found or unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Notifications ──────────────────────────────────────────────────
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Get notifications
+      description: |
+        Returns the last 50 notifications for the authenticated user, including
+        individual notifications and role-based broadcasts. Also returns the unread count.
+      operationId: getNotifications
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Notification list with unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  unreadCount:
+                    type: integer
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [Notifications]
+      summary: Manage notifications
+      description: |
+        Perform actions on notifications:
+        - `mark_read` — Mark a single notification (by `id`) or all notifications (`all: true`) as read
+        - `delete` — Delete a single notification or all notifications
+      operationId: manageNotifications
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationAction'
+      responses:
+        '200':
+          description: Action completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '400':
+          description: Invalid action or missing ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Statistics ─────────────────────────────────────────────────────
+  /stats:
+    get:
+      tags: [Statistics]
+      summary: Get public statistics
+      description: Returns aggregate platform statistics — total visits, total scans, and unique domains scanned. No authentication required.
+      operationId: getPublicStats
+      responses:
+        '200':
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicStats'
+
+  /admin/stats:
+    get:
+      tags: [Administration]
+      summary: Get admin dashboard statistics
+      description: |
+        Returns comprehensive admin-level statistics including user counts, API request metrics,
+        key status aggregations, users near their daily limits, and a 7-day usage chart.
+        **Admin only.**
+      operationId: getAdminStats
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: Admin statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── User Administration ────────────────────────────────────────────
+  /users:
+    get:
+      tags: [Administration]
+      summary: List all users (Admin)
+      description: Returns all registered users (excluding passwords). **Admin only.**
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserAdmin'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Administration]
+      summary: Delete all users except self (Admin)
+      description: |
+        Deletes all user accounts except the current admin, along with all their scans and monitors.
+        **Admin only. Use with extreme caution.**
+      operationId: deleteAllUsers
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      responses:
+        '200':
+          description: All users deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{id}:
+    put:
+      tags: [Administration]
+      summary: Update user config (Admin)
+      description: |
+        Update a user's daily limit, API access status, or revoke a specific API key.
+        **Admin only.**
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User configurations updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/UserAdmin'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Administration]
+      summary: Delete a user (Admin)
+      description: |
+        Permanently deletes a specific user account and all associated scans, monitors, and data.
+        Cannot delete your own admin account. **Admin only.**
+      operationId: deleteUser
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted with all associated data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '400':
+          description: Cannot delete own account or invalid ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Cron ───────────────────────────────────────────────────────────
+  /cron:
+    get:
+      tags: [Cron]
+      summary: Run monitor cron job
+      description: |
+        Triggers scheduled monitor scans for all due monitors. Sends email alerts on security regressions.
+        Protected by `CRON_SECRET` — pass the secret via `?secret=` query param or `x-cron-secret` header.
+
+        **Internal use only** — typically invoked by a scheduled job (e.g., Vercel Cron).
+      operationId: runCron
+      parameters:
+        - name: secret
+          in: query
+          schema:
+            type: string
+          description: Cron authorization secret
+        - name: x-cron-secret
+          in: header
+          schema:
+            type: string
+          description: Alternative header-based cron secret
+      responses:
+        '200':
+          description: Cron execution results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: object
+                    properties:
+                      totalDue:
+                        type: integer
+                      scanned:
+                        type: integer
+                      alertsSent:
+                        type: integer
+                      failures:
+                        type: integer
+                      details:
+                        type: array
+                        items:
+                          type: object
+        '401':
+          description: Invalid cron secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Utilities ──────────────────────────────────────────────────────
+  /track-visit:
+    post:
+      tags: [Utilities]
+      summary: Track a page visit
+      description: Increments the global page-view counter. No authentication required. No request body needed.
+      operationId: trackVisit
+      responses:
+        '200':
+          description: Visit tracked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean

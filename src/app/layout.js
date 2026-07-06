@@ -152,7 +152,7 @@ export default async function RootLayout({ children }) {
   const nonce = headersList.get("x-nonce") ?? "";
 
   return (
-    <html lang="en" className="dark" data-theme="dark">
+    <html lang="en" className="dark" data-theme="dark" suppressHydrationWarning>
       <head>
         <meta name="google-site-verification" content="4f7twDcE-tAqyiVVol5Bxnd3lO-I0l2j8yxzzLCkmDI" />
         <link rel="sitemap" type="application/xml" href="/sitemap.xml" />

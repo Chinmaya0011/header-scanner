@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { getUnifiedFindings } from "./analyzer.js";
 
 /**
  * Sends a detailed HTML & Markdown security report directly to the recipient's email address.
@@ -27,110 +28,163 @@ export async function sendAuditReportEmail(toEmail, scan) {
     },
   });
 
-  // Extract vulnerable / missing / weak headers
-  const vulnerableHeaders = scan.headers.filter((h) => h.status !== "present");
+  // Extract vulnerable / missing / weak findings
+  const unifiedFindings = getUnifiedFindings(scan);
+  const vulnerableFindings = unifiedFindings.filter((h) => h.status !== "present" && h.status !== "passed");
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4"
+  });
+
+  const primaryColor = "#0f172a";
+  const accentColor = "#6366f1";
+  const successColor = "#22c55e";
+  const warningColor = "#eab308";
+  const dangerColor = "#ef4444";
+  const textColor = "#334155";
+  const textLightColor = "#64748b";
+
+  // Header Banner
+  doc.setFillColor(primaryColor);
+  doc.rect(0, 0, 210, 40, "F");
+
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor("#ffffff");
+  doc.text("HeaderGuard Security Report", 15, 20);
+
+  const scanDateStr = scan.createdAt || scan.metadata?.timestamp || new Date().toISOString();
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor("#cbd5e1");
+  doc.text(`Scanned: ${new Date(scanDateStr).toLocaleString()}`, 15, 30);
+
+  // Body Overview
+  doc.setTextColor(primaryColor);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Scan Overview", 15, 55);
+
+  // Stats box
+  doc.setDrawColor("#e2e8f0");
+  doc.setFillColor("#f8fafc");
+  doc.roundedRect(15, 60, 180, 30, 3, 3, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(primaryColor);
+  doc.text(`Target Host: ${domain}`, 20, 68);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(textLightColor);
+  doc.text(`Security Grade:`, 20, 78);
+
+  let gColor = dangerColor;
+  if (grade.startsWith("A")) gColor = successColor;
+  else if (grade.startsWith("B")) gColor = accentColor;
+  else if (grade.startsWith("C")) gColor = warningColor;
+
+  doc.setTextColor(gColor);
+  doc.setFontSize(16);
+  doc.text(grade, 55, 78);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(textLightColor);
+  doc.text(`Security Score:`, 110, 78);
+
+  doc.setTextColor(accentColor);
+  doc.setFontSize(16);
+  doc.text(`${score}/100`, 145, 78);
+
+  // Detailed Headers Checklist
+  doc.setTextColor(primaryColor);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Detailed Response Evaluation", 15, 105);
+
+  let yOffset = 115;
   
-  // Compile Action Items HTML block
-  let actionItemsHTML = "";
-  if (vulnerableHeaders.length > 0) {
-    actionItemsHTML = `
-      <div style="margin: 25px 0; border: 1px dashed #dc2626; border-radius: 6px; padding: 15px; background-color: rgba(220, 38, 38, 0.03);">
-        <h3 style="color: #ef4444; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; font-family: monospace;">Vulnerable Headers & Action Items</h3>
-        <div style="overflow-x: auto;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #cbd5e1; text-align: left;">
-            <thead>
-              <tr style="border-bottom: 1px solid #1a3d1a; color: #00ff41; font-family: monospace;">
-                <th style="padding: 6px; font-weight: bold; text-transform: uppercase;">Header Name</th>
-                <th style="padding: 6px; font-weight: bold; text-transform: uppercase; text-align: center;">Status</th>
-                <th style="padding: 6px; font-weight: bold; text-transform: uppercase; text-align: center;">Severity</th>
-                <th style="padding: 6px; font-weight: bold; text-transform: uppercase; text-align: right;">Implementation & Fix</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${vulnerableHeaders
-                .map(
-                  (h) => `
-                <tr style="border-bottom: 1px solid rgba(30, 45, 69, 0.5);">
-                  <td style="padding: 8px 6px; font-family: monospace; color: #e2e8f0; font-weight: bold;">${h.name}</td>
-                  <td style="padding: 8px 6px; text-align: center;">
-                    <span style="color: ${h.status === "missing" ? "#ef4444" : "#d97706"}; font-weight: bold; text-transform: uppercase; font-size: 10px;">${h.status}</span>
-                  </td>
-                  <td style="padding: 8px 6px; text-align: center;">
-                    <span style="color: ${h.severity === "critical" || h.severity === "high" ? "#ef4444" : "#d97706"}; font-weight: bold; text-transform: uppercase; font-size: 9px;">${h.severity}</span>
-                  </td>
-                  <td style="padding: 8px 6px; text-align: right; color: #94a3b8; font-style: italic;">
-                    ${h.recommendation || "Implement this security header."}
-                  </td>
-                </tr>
-              `
-                )
-                .join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  } else {
-    actionItemsHTML = `
-      <div style="margin: 25px 0; border: 1px solid #16a34a; border-radius: 6px; padding: 15px; text-align: center; background-color: rgba(22, 163, 74, 0.03);">
-        <h3 style="color: #22c55e; font-size: 13px; margin: 0; text-transform: uppercase; font-family: monospace;">✔ Perfect Security Posture</h3>
-        <p style="color: #b4ffb4; font-size: 11px; margin: 5px 0 0 0;">All 8 essential HTTP security response headers are properly configured.</p>
-      </div>
-    `;
-  }
+  unifiedFindings.forEach((header) => {
+    if (yOffset > 265) {
+      doc.addPage();
+      yOffset = 25;
+    }
 
-  // Compile full Detailed Headers Breakdown HTML block
-  const headersBreakdownHTML = `
-    <div style="margin: 25px 0; border: 1px solid #1a3d1a; border-radius: 6px; padding: 15px; background-color: #0a1a0a;">
-      <h3 style="color: #00ff41; font-size: 13px; font-weight: bold; margin-top: 0; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; font-family: monospace; border-bottom: 1px solid #1a3d1a; padding-bottom: 8px;">Detailed Header Breakdown</h3>
-      <div>
-        ${scan.headers
-          .map((h, i) => {
-            let badgeColor = "#ef4444"; // red for missing
-            let badgeBg = "rgba(239, 68, 68, 0.1)";
-            if (h.status === "present") {
-              badgeColor = "#22c55e"; // green
-              badgeBg = "rgba(34, 197, 94, 0.1)";
-            } else if (h.status === "weak") {
-              badgeColor = "#f59e0b"; // orange
-              badgeBg = "rgba(245, 158, 11, 0.1)";
-            }
+    doc.setDrawColor("#e2e8f0");
+    doc.line(15, yOffset - 4, 195, yOffset - 4);
 
-            return `
-              <div style="border-bottom: 1px solid #1a3d1a; padding: 12px 0; ${
-                i === scan.headers.length - 1 ? "border-bottom: none; padding-bottom: 0;" : ""
-              } ${i === 0 ? "padding-top: 0;" : ""}">
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 6px;">
-                  <tr>
-                    <td style="text-align: left; vertical-align: middle;">
-                      <strong style="color: #e2e8f0; font-family: monospace; font-size: 12px;">${h.name}</strong>
-                    </td>
-                    <td style="text-align: right; vertical-align: middle;">
-                      <span style="color: ${badgeColor}; background-color: ${badgeBg}; border: 1px solid ${badgeColor}; border-radius: 4px; padding: 2px 8px; font-size: 9px; font-weight: bold; text-transform: uppercase; font-family: monospace; display: inline-block;">${
-              h.status
-            }</span>
-                    </td>
-                  </tr>
-                </table>
-                <p style="margin: 4px 0; font-size: 11px; color: #cbd5e1; font-family: sans-serif; line-height: 1.4;">${
-                  h.description || "No description provided."
-                }</p>
-                ${
-                  h.status === "present"
-                    ? `<p style="margin: 6px 0 0 0; font-size: 10px; font-family: monospace; color: #39ff14; background-color: rgba(57, 255, 20, 0.05); padding: 6px; border: 1px solid rgba(57, 255, 20, 0.2); border-radius: 4px; word-break: break-all;"><strong>Value:</strong> ${h.value}</p>`
-                    : `<p style="margin: 6px 0 0 0; font-size: 10px; font-family: monospace; color: #ff3d00; background-color: rgba(255, 61, 0, 0.05); padding: 6px; border: 1px solid rgba(255, 61, 0, 0.2); border-radius: 4px; font-style: italic;"><strong>Fix:</strong> ${
-                        h.recommendation || "Implement this security header."
-                      }</p>`
-                }
-              </div>
-            `;
-          })
-          .join("")}
-      </div>
-    </div>
-  `;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(primaryColor);
+    doc.text(header.title || header.name, 15, yOffset);
 
-  // HTML Email Template
+    let statusText = "Failed";
+    let statusColor = dangerColor;
+    if (header.status === "present" || header.status === "passed") {
+      statusText = "Passed";
+      statusColor = successColor;
+    } else if (header.status === "weak" || header.status === "warning") {
+      statusText = "Warning";
+      statusColor = warningColor;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(statusColor);
+    doc.text(statusText, 130, yOffset);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(textLightColor);
+    doc.text(`Severity: ${(header.severity || "info").toUpperCase()}`, 165, yOffset);
+
+    yOffset += 6;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(textColor);
+
+    const splitDesc = doc.splitTextToSize(header.description || "", 180);
+    doc.text(splitDesc, 15, yOffset);
+    yOffset += splitDesc.length * 4 + 2;
+
+    if ((header.status !== "present" && header.status !== "passed") && header.recommendation) {
+      const recText = doc.splitTextToSize(header.recommendation, 140);
+      const blockHeight = Math.max(10, recText.length * 4 + 4);
+
+      if (yOffset + blockHeight > 275) {
+        doc.addPage();
+        yOffset = 25;
+      }
+
+      doc.setFillColor("#fffbeb");
+      doc.setDrawColor("#fef3c7");
+      doc.roundedRect(15, yOffset - 2, 180, blockHeight, 1.5, 1.5, "FD");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor("#b45309");
+      doc.text("REMEDIATION:", 18, yOffset + 2);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor("#78350f");
+      doc.text(recText, 45, yOffset + 2);
+
+      yOffset += blockHeight + 6;
+    } else {
+      yOffset += 4;
+    }
+  });
+
+  const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+
+  // HTML Email Template (Simplified)
   const htmlContent = `
     <div style="background-color: #050d05; color: #e2e8f0; font-family: 'Courier New', Courier, monospace; padding: 25px; border: 2px solid #1a3d1a; border-radius: 8px; max-width: 600px; margin: 0 auto;">
       <div style="border-bottom: 2px solid #1a3d1a; padding-bottom: 15px; margin-bottom: 20px; text-align: center;">
@@ -165,14 +219,15 @@ export async function sendAuditReportEmail(toEmail, scan) {
           </tr>
           <tr style="border-top: 1px solid #1a3d1a;">
             <td style="padding: 6px 0 2px 0; font-weight: bold;">Total Inspected:</td>
-            <td style="text-align: right; padding: 6px 0 2px 0; color: #00ff41; font-weight: bold;">${scan.headers?.length || 0}</td>
+            <td style="text-align: right; padding: 6px 0 2px 0; color: #00ff41; font-weight: bold;">${unifiedFindings.length || 0}</td>
           </tr>
         </table>
       </div>
 
-      ${actionItemsHTML}
-
-      ${headersBreakdownHTML}
+      <div style="margin: 25px 0; border: 1px dashed #10b981; border-radius: 6px; padding: 15px; background-color: rgba(16, 185, 129, 0.05); text-align: center;">
+        <p style="color: #10b981; font-size: 13px; margin: 0; font-weight: bold;">Full Report Attached</p>
+        <p style="color: #94a3b8; font-size: 11px; margin: 5px 0 0 0;">Please see the attached PDF document for the full comprehensive breakdown and remediation steps.</p>
+      </div>
       
       <div style="margin-top: 30px; padding-top: 15px; border-top: 1px dashed #1a3d1a; text-align: center; font-size: 9px; color: #94a3b8;">
         <p style="margin: 0;">This email was dispatched securely by HeaderGuard HTTP Response Header Scanner.</p>
@@ -202,39 +257,9 @@ Grade: ${grade}
 Safe/Configured Headers: ${scan.summary?.present || 0}
 Weak Configurations: ${scan.summary?.weak || 0}
 Missing/Vulnerable: ${scan.summary?.missing || 0}
-Total Headers Inspected: ${scan.headers?.length || 0}
+Total Items Inspected: ${unifiedFindings.length || 0}
 
-## 3. Vulnerable Headers & Action Items
---------------------------------------
-${
-  vulnerableHeaders.length > 0
-    ? vulnerableHeaders
-        .map(
-          (h) => `
-* Header: ${h.name}
-  Status: ${h.status.toUpperCase()}
-  Severity: ${h.severity.toUpperCase()}
-  Recommendation: ${h.recommendation || "Implement this security header."}
-  Description: ${h.description || "No description provided."}
-`
-        )
-        .join("\n")
-    : "Perfect Security Posture. All 8 essential HTTP security response headers are properly configured."
-}
-
-## 4. Full Header Analysis Breakdown
------------------------------------
-${scan.headers
-  .map(
-    (h) => `
-* ${h.name}
-  Status: ${h.status.toUpperCase()}
-  Severity: ${h.severity.toUpperCase()}
-  Description: ${h.description || "No description provided."}
-  ${h.status === "present" ? `Value: ${h.value}` : `Fix: ${h.recommendation || "Not configured"}`}
-`
-  )
-  .join("\n")}
+Please see the attached PDF document for the full comprehensive breakdown and remediation steps.
 
 ========================================
 This email was dispatched securely by HeaderGuard HTTP Response Header Scanner.
@@ -247,6 +272,13 @@ This email was dispatched securely by HeaderGuard HTTP Response Header Scanner.
     subject: `[HeaderGuard] HTTP Security Audit Report for ${domain} (${grade})`,
     text: markdownText,
     html: htmlContent,
+    attachments: [
+      {
+        filename: `HeaderGuard_Report_${domain}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf'
+      }
+    ]
   };
 
   return transporter.sendMail(mailOptions);

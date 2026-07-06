@@ -221,6 +221,73 @@ const WhoisDetailsSchema = new mongoose.Schema({
   isExpiringSoon: Boolean,
 });
 
+// ── New scanner extension schemas ──────────────────────────────────────────────
+
+const NmapPortSchema = new mongoose.Schema({
+  port: Number,
+  protocol: String,
+  service: String,
+  version: String,
+  state: String,
+  banner: String,
+});
+
+const NucleiVulnSchema = new mongoose.Schema({
+  title: String,
+  severity: { type: String, enum: ["critical", "high", "medium", "low", "info"] },
+  cve: String,
+  cvss: Number,
+  template: String,
+  description: String,
+  matchedUrl: String,
+  evidence: String,
+  recommendation: String,
+});
+
+const NiktoFindingSchema = new mongoose.Schema({
+  id: String,
+  title: String,
+  severity: String,
+  description: String,
+  url: String,
+  remedy: String,
+});
+
+const HttpxHostSchema = new mongoose.Schema({
+  url: String,
+  status: Number,
+  title: String,
+  technologies: [String],
+  cdn: String,
+  waf: String,
+  responseTime: Number,
+  https: Boolean,
+  server: String,
+  contentType: String,
+});
+
+const DnsxRecordsSchema = new mongoose.Schema({
+  A: [String],
+  AAAA: [String],
+  CNAME: [String],
+  MX: [mongoose.Schema.Types.Mixed],
+  TXT: [String],
+  NS: [String],
+  SOA: mongoose.Schema.Types.Mixed,
+  CAA: [String],
+  PTR: [String],
+  resolveTime: Number,
+});
+
+const CrawlDataSchema = new mongoose.Schema({
+  urls: [String],
+  jsFiles: [String],
+  apiEndpoints: [String],
+  loginPages: [String],
+  forms: [mongoose.Schema.Types.Mixed],
+  sitemap: [String],
+});
+
 
 const ScanSchema = new mongoose.Schema(
   {
@@ -287,6 +354,25 @@ const ScanSchema = new mongoose.Schema(
       compliance: Number,
       performance: Number,
       exposure: Number,
+    },
+
+    // ── Advanced scanner extensions ────────────────────────────────────────────
+    nmapPorts: [NmapPortSchema],
+    nucleiFindings: [NucleiVulnSchema],
+    niktoFindings: [NiktoFindingSchema],
+    httpxHosts: [HttpxHostSchema],
+    dnsxRecords: DnsxRecordsSchema,
+    crawl: CrawlDataSchema,
+    advancedScanMeta: {
+      naabuSource: String,
+      nmapSource: String,
+      nucleiSource: String,
+      niktoSource: String,
+      subfinderSource: String,
+      httpxSource: String,
+      dnsxSource: String,
+      katanaSource: String,
+      advancedScanDuration: Number,
     }
   },
   { timestamps: true }
