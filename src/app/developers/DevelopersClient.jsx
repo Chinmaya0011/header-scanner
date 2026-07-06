@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useToast } from "@/components/common/Toast";
 import Loading from "@/components/common/Loading";
 import Card from "@/components/ui/Card";
@@ -281,7 +282,10 @@ export default function DevelopersPage() {
     },
     {
       group: "API Reference",
-      items: [{ id: "api-reference", label: "POST Scan Endpoint", icon: Terminal }],
+      items: [
+        { id: "api-reference", label: "POST Scan Endpoint", icon: Terminal },
+        { id: "full-redoc", label: "Full Redoc Specs", icon: ExternalLink, href: "/redoc", external: true }
+      ],
     },
   ];
 
@@ -396,6 +400,20 @@ export default function DevelopersPage() {
                       {group.items.map((item) => {
                         const IconComponent = item.icon;
                         const isSelected = activeSection === item.id;
+                        if (item.href) {
+                          return (
+                            <Link
+                              key={item.id}
+                              href={item.href}
+                              target={item.external ? "_blank" : undefined}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg font-bold uppercase tracking-wider transition-all duration-200 text-left text-text-dim hover:text-text hover:bg-white/5 border border-transparent`}
+                            >
+                              <IconComponent className="h-4 w-4 flex-shrink-0" />
+                              <span>{item.label}</span>
+                            </Link>
+                          );
+                        }
+
                         return (
                           <button
                             key={item.id}

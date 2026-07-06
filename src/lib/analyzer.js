@@ -901,3 +901,189 @@ export function runSecurityAudit(headers, url = "", statusCode = null) {
     checks
   };
 }
+
+export function getUnifiedFindings(scan) {
+  const { url, statusCode, ssl, dns, emailSecurity, privacy, exposedServices, sensitiveFiles } = scan;
+  // If scan is coming from database, scan.headers is an array, let's normalize
+  let headers = scan.headers || [];
+
+  let activeChecks = scan.checks;
+  if (!activeChecks || activeChecks.length === 0) {
+    try {
+      const headerMap = {};
+      if (headers && Array.isArray(headers)) {
+        headers.forEach(h => {
+          headerMap[h.name.toLowerCase()] = h.value;
+        });
+      }
+      const audit = runSecurityAudit(headerMap, url, statusCode);
+      activeChecks = audit.checks || [];
+    } catch (e) {
+      activeChecks = [];
+    }
+  }
+
+  const list = [];
+  
+  if (activeChecks && Array.isArray(activeChecks)) {
+    activeChecks.forEach(c => {
+      list.push({
+        title: c.title || c.name || "HTTP Security Header Check",
+        status: c.status || "failed",
+        severity: c.severity || "medium",
+        category: "Security Headers",
+        description: c.description || "Evaluates security headers configuration.",
+        evidence: c.evidence || "No evidence recorded.",
+        recommendation: c.recommendation || null,
+        impact: c.impact || "Lack of headers exposes pages to framing, injection or hijack vectors.",
+        name: c.name || c.title || "HTTP Security Header Check",
+        value: c.value || ""
+      });
+    });
+  }
+
+  if (ssl && ssl.expirationDate !== null) {
+      list.push({
+        title: "SSL/TLS Certificate Trusted Status",
+        status: ssl.valid ? "passed" : "failed",
+        severity: ssl.valid ? "info" : "critical",
+        category: "SSL/TLS Health",
+        description: "Checks if the domain's certificate is signed by a globally trusted Certificate Authority.",
+        evidence: `CA Issuer: ${ssl.issuer || "Unknown"}. Valid: ${ssl.valid ? "Yes" : "No"}`,
+        recommendation: ssl.valid ? null : "Install a trusted SSL certificate immediately.",
+        impact: ssl.valid ? "Secures connection trust." : "Connections expose warning pages and invite intercepts.",
+        name: "SSL/TLS Certificate Trusted Status"
+      });
+
+      if (ssl.daysRemaining !== null) {
+        const isExpiring = ssl.daysRemaining < 30;
+        list.push({
+          title: "SSL/TLS Certificate Validity Window",
+          status: isExpiring ? "failed" : "passed",
+          severity: isExpiring ? "high" : "info",
+          category: "SSL/TLS Health",
+          description: "Tracks certificate validity duration to ensure continuity.",
+          evidence: `${ssl.daysRemaining} days remaining before expiration.`,
+          recommendation: isExpiring ? "Renew the SSL/TLS certificate immediately." : null,
+          impact: isExpiring ? "Service downtime when certificate expires." : "Sufficient active validity.",
+          name: "SSL/TLS Certificate Validity Window"
+        });
+      }
+    }
+
+    if (dns) {
+      const dnssecValid = dns.dnssec;
+      list.push({
+        title: "DNSSEC Zone Authentication Protection",
+        status: dnssecValid ? "passed" : "warning",
+        severity: dnssecValid ? "info" : "low",
+        category: "DNS Security",
+        description: "Protects zones from spoofing and cache poisoning by cryptographically validating DNS queries.",
+        evidence: dnssecValid ? "DNSSEC keys configured." : "DNSSEC is disabled.",
+        recommendation: dnssecValid ? null : "Enable DNSSEC key signing at your registrar.",
+        impact: dnssecValid ? "Authenticated zone resolution." : "Risk of DNS cache poisoning redirects.",
+        name: "DNSSEC Zone Authentication Protection"
+      });
+    }
+
+    if (emailSecurity) {
+      list.push({
+        title: "SPF Authentication Policy",
+        status: emailSecurity.spfPresent ? "passed" : "failed",
+        severity: emailSecurity.spfPresent ? "info" : "high",
+        category: "Email Integrity",
+        description: "SPF defines mail relay servers permitted to send domain's emails.",
+        evidence: emailSecurity.spfPresent ? "SPF TXT record resolved." : "SPF TXT record missing.",
+        recommendation: emailSecurity.spfPresent ? null : "Publish a standard SPF record.",
+        impact: emailSecurity.spfPresent ? "Prevents unauthenticated relay." : "Spoofing templates invite spam.",
+        name: "SPF Authentication Policy"
+      });
+
+      list.push({
+        title: "DMARC Spoofing Quarantine Policy",
+        status: emailSecurity.dmarcPresent ? "passed" : "failed",
+        severity: emailSecurity.dmarcPresent ? "info" : "high",
+        category: "Email Integrity",
+        description: "DMARC controls recipient actions when SPF/DKIM validations fail.",
+        evidence: emailSecurity.dmarcPresent ? "DMARC TXT record resolved." : "DMARC TXT record missing.",
+        recommendation: emailSecurity.dmarcPresent ? null : "Configure a DMARC policy with quarantine/reject mode.",
+        impact: emailSecurity.dmarcPresent ? "Enforces validation rules." : "Allows spoofed mail relays directly to user inboxes.",
+        name: "DMARC Spoofing Quarantine Policy"
+      });
+
+      list.push({
+        title: "MTA-STS Strict Mail Handshake",
+        status: emailSecurity.mtaStsPresent ? "passed" : "warning",
+        severity: emailSecurity.mtaStsPresent ? "info" : "medium",
+        category: "Email Integrity",
+        description: "Enforces TLS encryption on inbound mail server relays.",
+        evidence: emailSecurity.mtaStsPresent ? "MTA-STS policy configured." : "MTA-STS check omitted.",
+        recommendation: emailSecurity.mtaStsPresent ? null : "Enable MTA-STS DNS key and policies.",
+        impact: emailSecurity.mtaStsPresent ? "Encrypted SMTP traffic." : "SMTP fallback allows plaintext sniffing.",
+        name: "MTA-STS Strict Mail Handshake"
+      });
+    }
+
+    if (privacy) {
+      list.push({
+        title: "Linked Privacy Policy Document",
+        status: privacy.privacyPolicyPresent ? "passed" : "warning",
+        severity: privacy.privacyPolicyPresent ? "info" : "medium",
+        category: "Compliance & Privacy",
+        description: "Verifies if the website links to transparent legal terms.",
+        evidence: privacy.privacyPolicyPresent ? `URL: ${privacy.privacyPolicyUrl}` : "Privacy policy links absent.",
+        recommendation: privacy.privacyPolicyPresent ? null : "Link a standard compliance Privacy Policy in page footers.",
+        impact: privacy.privacyPolicyPresent ? "Legal compliance active." : "GDPR/CCPA penalty audit risk.",
+        name: "Linked Privacy Policy Document"
+      });
+
+      list.push({
+        title: "Cookie Consent Alert System",
+        status: privacy.cookieBannerPresent ? "passed" : "warning",
+        severity: privacy.cookieBannerPresent ? "info" : "low",
+        category: "Compliance & Privacy",
+        description: "Ensures standard cookie notification prompts exist.",
+        evidence: privacy.cookieBannerPresent ? "Consent alert verified." : "Consent alert not discovered.",
+        recommendation: privacy.cookieBannerPresent ? null : "Integrate a modern cookie consent banner.",
+        impact: privacy.cookieBannerPresent ? "Interactive consent resolved." : "Inability to document compliance consent.",
+        name: "Cookie Consent Alert System"
+      });
+    }
+
+    if (exposedServices && exposedServices.length > 0) {
+      exposedServices.forEach(srv => {
+        const isOpen = srv.status === "open";
+        list.push({
+          title: `Administrative Interface Port Exposure (Port ${srv.port})`,
+          status: isOpen ? "failed" : "passed",
+          severity: isOpen ? (srv.port === 80 ? "medium" : "high") : "info",
+          category: "Attack Surface",
+          description: `Checks for open TCP ports that invite brute-force and port mapping scanning.`,
+          evidence: `Port: ${srv.port} | Service: ${srv.service} | Status: ${srv.status}`,
+          recommendation: isOpen ? `Apply firewall whitelisting constraints to block public ports exposure.` : null,
+          impact: isOpen ? "Daemon vulnerabilities search vectors exposed." : "Port securely filtered.",
+          name: `Administrative Interface Port Exposure (Port ${srv.port})`
+        });
+      });
+    }
+
+    if (sensitiveFiles && sensitiveFiles.length > 0) {
+      sensitiveFiles.forEach(file => {
+        if (file.exists) {
+          list.push({
+            title: `Exposed Administrative Path: ${file.path}`,
+            status: "failed",
+            severity: "critical",
+            category: "Attack Surface",
+            description: "Detects exposed administrative console or backup folders.",
+            evidence: `Path resolved with status HTTP ${file.status || 200}`,
+            recommendation: `Add access rules to deny public requests to this directory.`,
+            impact: "Severe credentials leaks or server takeover vectors.",
+            name: `Exposed Administrative Path: ${file.path}`
+          });
+        }
+      });
+    }
+
+  return list;
+}

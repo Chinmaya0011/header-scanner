@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getUnifiedFindings } from "@/lib/analyzer";
 import ScanResults from "@/components/ui/ScanResults";
 import Loading from "@/components/common/Loading";
 import Button from "@/components/ui/Button";
@@ -168,11 +169,13 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
       doc.setTextColor(primaryColor);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.text("Detailed Response Headers Evaluation", 15, 105);
+      doc.text("Detailed Response Evaluation", 15, 105);
 
       let yOffset = 115;
+      
+      const unifiedFindings = getUnifiedFindings(scan);
 
-      scan.headers.forEach((header) => {
+      unifiedFindings.forEach((header) => {
         if (yOffset > 265) {
           doc.addPage();
           yOffset = 25;
@@ -184,15 +187,15 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(primaryColor);
-        doc.text(header.name, 15, yOffset);
+        doc.text(header.title || header.name, 15, yOffset);
 
-        let statusText = "Missing";
+        let statusText = "Failed";
         let statusColor = dangerColor;
-        if (header.status === "present") {
-          statusText = "Present";
+        if (header.status === "present" || header.status === "passed") {
+          statusText = "Passed";
           statusColor = successColor;
-        } else if (header.status === "weak") {
-          statusText = "Weak Configuration";
+        } else if (header.status === "weak" || header.status === "warning") {
+          statusText = "Warning";
           statusColor = warningColor;
         }
 
@@ -216,7 +219,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
         doc.text(splitDesc, 15, yOffset);
         yOffset += splitDesc.length * 4 + 2;
 
-        if (header.status !== "present" && header.recommendation) {
+        if ((header.status !== "present" && header.status !== "passed") && header.recommendation) {
           const recText = doc.splitTextToSize(header.recommendation, 140);
           const blockHeight = Math.max(10, recText.length * 4 + 4);
 

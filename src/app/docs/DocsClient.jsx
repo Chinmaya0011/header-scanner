@@ -28,7 +28,8 @@ import {
   Wrench,
   Search,
   ChevronRight,
-  ArrowUp
+  ArrowUp,
+  ExternalLink
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -65,6 +66,7 @@ const docCategories = [
     name: "Developer API Integration",
     sections: [
       { id: "api-documentation", title: "API Reference", icon: FileCode, desc: "Securely query domain security postures using HTTP endpoints." },
+      { id: "full-redoc", title: "Full Redoc Specs", icon: ExternalLink, desc: "Interactive API Documentation", href: "/redoc", external: true },
       { id: "auth-authorization", title: "API Authentication", icon: Lock, desc: "Pass token credentials via X-API-Key request headers." },
       { id: "roles-permissions", title: "Roles & Permissions", icon: UserCheck, desc: "How permissions divide standard Developer accounts and Administrators." },
       { id: "developer-api-keys", title: "Keys Whitelisting & Locks", icon: Key, desc: "Issue developer credentials, restrict domains, and toggle webhook URLs." }
@@ -146,7 +148,7 @@ export default function DocumentationPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
           
           {/* LEFT SIDEBAR COLUMN */}
-          <aside className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-[#030712]/95 border-r border-white/[0.06] p-6 transition-transform duration-300 lg:sticky lg:top-24 lg:z-0 lg:w-auto lg:translate-x-0 lg:border-none lg:p-0 ${
+          <aside className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-bg/95 backdrop-blur-sm border-r border-border p-6 transition-transform duration-300 lg:sticky lg:top-24 lg:z-0 lg:w-auto lg:translate-x-0 lg:border-none lg:p-0 lg:bg-transparent ${
             mobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:col-span-3"
           }`}>
             {/* Search Box */}
@@ -170,6 +172,20 @@ export default function DocumentationPage() {
                     {cat.sections.map(sec => {
                       const Icon = sec.icon;
                       const isSelected = activeSection === sec.id;
+                      if (sec.href) {
+                        return (
+                          <Link
+                            key={sec.id}
+                            href={sec.href}
+                            target={sec.external ? "_blank" : undefined}
+                            className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-xs rounded-lg font-semibold tracking-wide transition-all text-left uppercase text-text-dim hover:text-text hover:bg-white/[0.02] border border-transparent`}
+                          >
+                            <Icon className="h-4.5 w-4.5 shrink-0 text-text-muted" />
+                            <span>{sec.title}</span>
+                          </Link>
+                        );
+                      }
+
                       return (
                         <button
                           key={sec.id}

@@ -15,7 +15,6 @@ import {
   runSecurityAudit,
 } from "@/lib/analyzer";
 
-// EASM scanner imports
 import { scanSSL } from "@/lib/scanners/sslScanner";
 import { scanDNS } from "@/lib/scanners/dnsScanner";
 import { scanInfraAndTech } from "@/lib/scanners/infraTechScanner";
@@ -23,6 +22,17 @@ import { scanPaths, checkExposedServices, checkSubdomains, discoverPublicPages }
 import { scanWhois } from "@/lib/scanners/whoisScanner";
 import { generateAIAdvice } from "@/lib/aiAssistant";
 import { sendScanStatusToUser } from "@/server/socketServer";
+
+// Advanced security scanner imports
+import { scanNaabu } from "@/lib/scanners/naabuScanner";
+import { scanNmap } from "@/lib/scanners/nmapScanner";
+import { scanNuclei } from "@/lib/scanners/nucleiScanner";
+import { scanNikto } from "@/lib/scanners/niktoScanner";
+import { scanSubfinder } from "@/lib/scanners/subfinderScanner";
+import { scanHttpx } from "@/lib/scanners/httpxScanner";
+import { scanDnsx } from "@/lib/scanners/dnsxScanner";
+import { scanKatana } from "@/lib/scanners/katanaScanner";
+
 
 // Configuration constants
 const SCAN_CONFIG = {
@@ -484,6 +494,75 @@ export async function POST(request) {
 
     const performanceMs = Date.now() - perfStart;
 
+    // ── Advanced Scanner Pipeline ────────────────────────────────────────────
+    // All advanced scanners run sequentially in waves with graceful fallbacks.
+    // Results default to empty so existing scans are never broken.
+    let nmapPorts = [];
+    let nucleiFindings = [];
+    let niktoFindings = [];
+    let advSubdomains = [];
+    let httpxHosts = [];
+    let dnsxRecords = null;
+    let crawlData = null;
+    let advancedScanMeta = {};
+
+    const advStart = Date.now();
+    try {
+      // Wave 1: Subdomain + DNS (parallel)
+      sendScanStatusToUser(user._id, { status: "progress", domain, progress: 60, message: "Enumerating subdomains via certificate transparency & brute-force..." });
+      const [subfinderResult, dnsxResult] = await Promise.all([
+        scanSubfinder(url).catch(() => ({ subdomains: [], source: "error", scanTime: 0 })),
+        scanDnsx(url).catch(() => ({ dns: null, source: "error", scanTime: 0 })),
+      ]);
+      advSubdomains = subfinderResult.subdomains || [];
+      dnsxRecords = dnsxResult.dns;
+      advancedScanMeta.subfinderSource = subfinderResult.source;
+      advancedScanMeta.dnsxSource = dnsxResult.source;
+
+      // Wave 2: Live host detection (uses subdomains)
+      sendScanStatusToUser(user._id, { status: "progress", domain, progress: 67, message: "Probing live hosts and detecting technologies, WAF & CDN..." });
+      const httpxResult = await scanHttpx(url, domain, advSubdomains).catch(() => ({ liveHosts: [], source: "error", scanTime: 0 }));
+      httpxHosts = httpxResult.liveHosts || [];
+      advancedScanMeta.httpxSource = httpxResult.source;
+
+      // Wave 3: Fast port discovery
+      sendScanStatusToUser(user._id, { status: "progress", domain, progress: 73, message: "Running fast port discovery across common service ports..." });
+      const naabuResult = await scanNaabu(domain).catch(() => ({ openPorts: [], source: "error", scanTime: 0 }));
+      advancedScanMeta.naabuSource = naabuResult.source;
+
+      // Wave 4: Deep service fingerprinting with discovered ports
+      sendScanStatusToUser(user._id, { status: "progress", domain, progress: 79, message: "Deep service fingerprinting & banner grabbing..." });
+      const nmapResult = await scanNmap(domain, naabuResult.openPorts).catch(() => ({ ports: [], source: "error", scanTime: 0 }));
+      nmapPorts = nmapResult.ports || [];
+      advancedScanMeta.nmapSource = nmapResult.source;
+
+      // Wave 5: Vulnerability scanning + web crawl (parallel)
+      sendScanStatusToUser(user._id, { status: "progress", domain, progress: 85, message: "Executing vulnerability templates and crawling attack surface..." });
+      const [nucleiResult, niktoResult, katanaResult] = await Promise.all([
+        scanNuclei(url, domain, headersObj).catch(() => ({ vulnerabilities: [], source: "error", scanTime: 0 })),
+        scanNikto(url, domain, headersObj).catch(() => ({ serverIssues: [], source: "error", scanTime: 0 })),
+        scanKatana(url, domain).catch(() => ({ crawl: null, source: "error", scanTime: 0 })),
+      ]);
+      nucleiFindings = nucleiResult.vulnerabilities || [];
+      niktoFindings = niktoResult.serverIssues || [];
+      crawlData = katanaResult.crawl;
+      advancedScanMeta.nucleiSource = nucleiResult.source;
+      advancedScanMeta.niktoSource = niktoResult.source;
+      advancedScanMeta.katanaSource = katanaResult.source;
+      advancedScanMeta.advancedScanDuration = Date.now() - advStart;
+
+      // Merge advanced subdomains with existing (deduplicate)
+      if (advSubdomains.length > 0) {
+        const existingHosts = new Set((subdomains || []).map(s => s.host || s));
+        for (const s of advSubdomains) {
+          if (!existingHosts.has(s.host)) subdomains.push(s);
+        }
+      }
+    } catch (advErr) {
+      console.error("Advanced scanner pipeline error:", advErr.message);
+    }
+    // ── End Advanced Scanner Pipeline ───────────────────────────────────────
+
     // Detect HTTP protocol version and compression parameters dynamically
     const httpInfo = await getHttpVersionAndCompression(url);
     const privacyDetails = await parsePrivacyDetails(url);
@@ -492,7 +571,7 @@ export async function POST(request) {
     const cookiesParsed = parseCookies(headersObj["set-cookie"], domain);
     const cspParsed = parseCSP(headersObj["content-security-policy"]);
 
-    // Calculate category scores
+    // Calculate category scores (existing)
     const categoryScores = calculateCategoryScores({
       headersObj,
       ssl,
@@ -502,6 +581,24 @@ export async function POST(request) {
       exposedServices,
       performanceMs
     });
+
+    // ── Advanced scoring factors ─────────────────────────────────────────────
+    // Vulnerability score (25% weight) — penalise critical/high nuclei+nikto findings
+    const allVulnFindings = [...nucleiFindings, ...niktoFindings];
+    let vulnScore = 100;
+    for (const v of allVulnFindings) {
+      if (v.severity === "critical") vulnScore -= 25;
+      else if (v.severity === "high") vulnScore -= 15;
+      else if (v.severity === "medium") vulnScore -= 7;
+      else if (v.severity === "low") vulnScore -= 3;
+    }
+    vulnScore = Math.max(0, vulnScore);
+
+    // Port risk score (10% weight) — penalise dangerous open ports beyond 80/443
+    let portScore = 100;
+    const riskyPorts = (nmapPorts || []).filter(p => p.port !== 80 && p.port !== 443 && p.state === "open");
+    portScore -= riskyPorts.length * 10;
+    portScore = Math.max(0, portScore);
 
     // Dynamic Weighted Overall Score normalization
     let totalWeight = 0;
@@ -516,26 +613,30 @@ export async function POST(request) {
       totalWeight += 20;
     }
     if (categoryScores.dns !== null) {
-      weightedSum += categoryScores.dns * 15;
-      totalWeight += 15;
+      weightedSum += categoryScores.dns * 10;
+      totalWeight += 10;
     }
     if (categoryScores.cookies !== null) {
-      weightedSum += categoryScores.cookies * 15;
-      totalWeight += 15;
+      weightedSum += categoryScores.cookies * 10;
+      totalWeight += 10;
     }
     if (categoryScores.compliance !== null) {
-      weightedSum += categoryScores.compliance * 10;
-      totalWeight += 10;
+      weightedSum += categoryScores.compliance * 5;
+      totalWeight += 5;
     }
     if (categoryScores.performance !== null) {
       weightedSum += categoryScores.performance * 5;
       totalWeight += 5;
     }
     if (categoryScores.exposure !== null) {
-      weightedSum += categoryScores.exposure * 10;
-      totalWeight += 10;
+      weightedSum += categoryScores.exposure * 5;
+      totalWeight += 5;
     }
-    
+    // New: vulnerability and port risk
+    weightedSum += vulnScore * 15;
+    totalWeight += 15;
+    weightedSum += portScore * 10;
+    totalWeight += 10;
     const finalScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
 
     const grade = scoreToGrade(finalScore);
@@ -667,7 +768,15 @@ export async function POST(request) {
       loginSurfaces: paths ? paths.loginSurfaces : [],
       benchmarks: null,
       whois,
-      categoryScores
+      categoryScores,
+      // Advanced scanner new fields
+      nmapPorts,
+      nucleiFindings,
+      niktoFindings,
+      httpxHosts,
+      dnsxRecords,
+      crawl: crawlData,
+      advancedScanMeta,
     });
 
     // Increment daily usage in database for user
@@ -783,7 +892,15 @@ export async function POST(request) {
       benchmarks: scan.benchmarks,
       whois,
       categoryScores,
-      aiAdvice
+      aiAdvice,
+      // Advanced scanner results
+      nmapPorts,
+      nucleiFindings,
+      niktoFindings,
+      httpxHosts,
+      dnsxRecords,
+      crawl: crawlData,
+      advancedScanMeta,
     });
     
   } catch (error) {

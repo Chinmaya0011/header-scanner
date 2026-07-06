@@ -158,7 +158,15 @@ export default function ScanResults({ result }) {
     whois,
     categoryScores,
     seo,
-    metadata
+    metadata,
+    // Advanced scanner fields
+    nmapPorts = [],
+    nucleiFindings = [],
+    niktoFindings = [],
+    httpxHosts = [],
+    dnsxRecords,
+    crawl,
+    advancedScanMeta,
   } = localResult || {};
 
   // Resolve fallbacks for SEO details if null/undefined in database
@@ -652,7 +660,7 @@ export default function ScanResults({ result }) {
 
       let yOffset = 111;
 
-      activeChecks.forEach((header) => {
+      unifiedFindings.forEach((header) => {
         if (yOffset > 265) {
           doc.addPage();
           yOffset = 25;
@@ -852,6 +860,7 @@ export default function ScanResults({ result }) {
 
   // Define tab navigation elements dynamically based on what data is present
   const availableTabs = useMemo(() => {
+    const allVulns = [...(nucleiFindings || []), ...(niktoFindings || [])];
     return [
       { id: "overview", label: "Overview", icon: Layout, show: true },
       { id: "headers", label: "Security Headers", icon: ShieldCheck, show: headers && headers.length > 0, count: headers.filter(h => h.status !== "present").length },
@@ -866,9 +875,15 @@ export default function ScanResults({ result }) {
       { id: "performance", label: "Performance", icon: Activity, show: true },
       { id: "tech", label: "Tech Stack", icon: Cpu, show: true },
       { id: "recommendations", label: "Guidelines", icon: BookOpen, show: true, count: failedCount + warningCount },
+      // Advanced scanner tabs
+      { id: "advanced-ports", label: "Nmap Ports", icon: Server, show: true, count: nmapPorts?.length || 0, badge: "new" },
+      { id: "vulnerabilities", label: "Vulnerabilities", icon: ShieldAlert, show: true, count: allVulns.filter(v => v.severity === "critical" || v.severity === "high").length || allVulns.length, badge: "new" },
+      { id: "live-hosts", label: "Live Hosts", icon: Radio, show: true, count: httpxHosts?.length || 0, badge: "new" },
+      { id: "advanced-dns", label: "DNS Records", icon: FileCode, show: true, badge: "new" },
+      { id: "crawl", label: "Web Crawl", icon: Link2, show: true, count: crawl?.urls?.length || 0, badge: "new" },
       { id: "raw", label: "Raw JSON", icon: Code, show: true }
     ].filter(tab => tab.show);
-  }, [headers, ssl, dns, exposedServices, subdomains, publicPages, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount, whois]);
+  }, [headers, ssl, dns, exposedServices, subdomains, publicPages, sensitiveFiles, loginSurfaces, seo, performance, techStack, failedCount, warningCount, whois, nmapPorts, nucleiFindings, niktoFindings, httpxHosts, crawl]);
 
   const isFirewallProtected = localResult?.isFirewallProtected || localResult?.statusCode === 403 || localResult?.statusCode === 401;
 
@@ -1043,6 +1058,11 @@ export default function ScanResults({ result }) {
             >
               <Icon className={`h-4 w-4 transition-transform duration-300 ${isActive ? "rotate-3 scale-110" : ""}`} />
               <span>{item.label}</span>
+              {item.badge === "new" && (
+                <span className="text-[8px] font-black font-mono px-1.5 py-0.5 rounded-md bg-accent/20 text-accent border border-accent/30 animate-pulse-accent">
+                  NEW
+                </span>
+              )}
               {item.count !== undefined && item.count > 0 && (
                 <span className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded-md ${isActive ? "bg-accent/30 text-accent" : "bg-white/5 text-text-dim"}`}>
                   {item.count}
@@ -2835,6 +2855,416 @@ Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"`
               </button>
               <pre className="max-h-[500px] overflow-y-auto pr-2 select-text whitespace-pre-wrap font-bold leading-normal">{JSON.stringify(localResult, null, 2)}</pre>
             </Card>
+          </div>
+        )}
+
+        {/* ==================== ADVANCED: NMAP PORTS TAB ==================== */}
+        {activeTab === "advanced-ports" && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-text uppercase tracking-wider font-mono">Service Port Fingerprinting</h3>
+                <p className="text-[10px] text-text-muted mt-0.5">Deep TCP service scan with banner grabbing and version detection</p>
+              </div>
+              {advancedScanMeta?.nmapSource && (
+                <Badge variant="info" className="text-[8px] uppercase font-mono">
+                  Engine: {advancedScanMeta.nmapSource}
+                </Badge>
+              )}
+            </div>
+
+            {nmapPorts && nmapPorts.length > 0 ? (
+              <div className="grid gap-3">
+                {nmapPorts.map((port, i) => {
+                  const isRisky = port.port !== 80 && port.port !== 443;
+                  const severityClass = isRisky
+                    ? ["22", "21", "23", "3389", "5900", "6379", "27017"].includes(String(port.port))
+                      ? "border-danger/20 bg-danger/5"
+                      : "border-warning/20 bg-warning/5"
+                    : "border-success/15 bg-success/5";
+                  const textClass = isRisky
+                    ? ["22", "21", "23", "3389", "5900", "6379", "27017"].includes(String(port.port))
+                      ? "text-danger"
+                      : "text-warning"
+                    : "text-success";
+                  return (
+                    <Card key={i} className={`p-4 border ${severityClass} rounded-xl flex items-start justify-between gap-4`}>
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className={`text-2xl font-black font-mono w-16 text-right shrink-0 ${textClass}`}>{port.port}</div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black text-text font-mono uppercase">{port.service || "unknown"}</span>
+                            <Badge variant={isRisky ? "danger" : "success"} className="text-[8px]">{port.state}</Badge>
+                            <span className="text-[9px] text-text-muted font-mono">{port.protocol?.toUpperCase()}</span>
+                          </div>
+                          {port.version && <p className="text-[10px] text-text-dim mt-0.5 font-mono">{port.version}</p>}
+                          {port.banner && (
+                            <p className="text-[9px] text-text-muted mt-1 font-mono bg-bg/50 px-2 py-1 rounded-lg border border-white/[0.03] truncate max-w-[400px]">
+                              {port.banner}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {isRisky && (
+                        <div className="text-[9px] text-text-dim text-right shrink-0 max-w-[140px] leading-relaxed">
+                          Restrict via firewall to authorised IPs
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="p-10 text-center border border-white/[0.04] bg-surface/30 rounded-2xl">
+                <Server className="h-10 w-10 text-text-muted mx-auto mb-3 opacity-40" />
+                <p className="text-xs font-bold text-text-dim">No open service ports detected beyond standard web ports</p>
+                <p className="text-[10px] text-text-muted mt-1">Port scan completed — surface appears clean</p>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ==================== ADVANCED: VULNERABILITIES TAB ==================== */}
+        {activeTab === "vulnerabilities" && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-black text-text uppercase tracking-wider font-mono">Vulnerability Assessment</h3>
+                <p className="text-[10px] text-text-muted mt-0.5">Combined Nuclei template checks + Nikto web server analysis</p>
+              </div>
+              <div className="flex gap-2">
+                {advancedScanMeta?.nucleiSource && (
+                  <Badge variant="info" className="text-[8px] uppercase font-mono">Nuclei: {advancedScanMeta.nucleiSource}</Badge>
+                )}
+                {advancedScanMeta?.niktoSource && (
+                  <Badge variant="info" className="text-[8px] uppercase font-mono">Nikto: {advancedScanMeta.niktoSource}</Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Severity summary */}
+            {(nucleiFindings.length > 0 || niktoFindings.length > 0) && (() => {
+              const all = [...nucleiFindings, ...niktoFindings];
+              const counts = all.reduce((acc, v) => { acc[v.severity] = (acc[v.severity] || 0) + 1; return acc; }, {});
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {["critical", "high", "medium", "low", "info"].map(sev => (
+                    <Card key={sev} className={`p-3 text-center border rounded-xl ${
+                      sev === "critical" ? "border-danger/25 bg-danger/5" :
+                      sev === "high" ? "border-warning/25 bg-warning/5" :
+                      sev === "medium" ? "border-yellow-500/20 bg-yellow-500/5" :
+                      "border-white/[0.04] bg-surface/30"
+                    }`}>
+                      <div className={`text-xl font-black font-mono ${
+                        sev === "critical" ? "text-danger" :
+                        sev === "high" ? "text-warning" :
+                        sev === "medium" ? "text-yellow-400" :
+                        sev === "low" ? "text-accent" : "text-text-muted"
+                      }`}>{counts[sev] || 0}</div>
+                      <div className="text-[8px] font-bold uppercase tracking-widest text-text-muted mt-0.5">{sev}</div>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Nuclei Findings */}
+            {nucleiFindings.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted font-mono flex items-center gap-2">
+                  <ShieldAlert className="h-3 w-3" /> Nuclei Vulnerability Templates ({nucleiFindings.length})
+                </h4>
+                {nucleiFindings.map((v, i) => (
+                  <Card key={i} className={`p-4 border rounded-xl ${
+                    v.severity === "critical" ? "border-danger/25 bg-danger/5" :
+                    v.severity === "high" ? "border-warning/25 bg-warning/5" :
+                    v.severity === "medium" ? "border-yellow-500/20 bg-yellow-500/5" :
+                    "border-white/[0.04] bg-surface/30"
+                  }`}>
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <Badge variant={v.severity === "critical" ? "danger" : v.severity === "high" ? "warning" : "info"} className="text-[8px] uppercase font-mono">{v.severity}</Badge>
+                          {v.cve && <span className="text-[8px] font-mono bg-danger/10 text-danger px-1.5 py-0.5 rounded border border-danger/20">{v.cve}</span>}
+                          {v.template && <span className="text-[8px] font-mono text-text-muted">{v.template}</span>}
+                        </div>
+                        <p className="text-xs font-bold text-text">{v.title}</p>
+                        {v.description && <p className="text-[10px] text-text-dim mt-1 leading-relaxed">{v.description}</p>}
+                        {v.evidence && <p className="text-[9px] text-text-muted mt-1 font-mono bg-bg/50 px-2 py-1 rounded-lg border border-white/[0.03] truncate">{v.evidence}</p>}
+                        {v.matchedUrl && <p className="text-[9px] text-accent mt-1 font-mono truncate">{v.matchedUrl}</p>}
+                        {v.recommendation && (
+                          <p className="text-[9px] text-success mt-2 leading-relaxed">
+                            <span className="font-bold uppercase">Fix: </span>{v.recommendation}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Nikto Findings */}
+            {niktoFindings.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted font-mono flex items-center gap-2 mt-4">
+                  <Terminal className="h-3 w-3" /> Nikto Web Server Analysis ({niktoFindings.length})
+                </h4>
+                {niktoFindings.map((v, i) => (
+                  <Card key={i} className="p-4 border border-white/[0.05] bg-surface/30 rounded-xl">
+                    <div className="flex items-start gap-3 flex-wrap">
+                      <Badge variant={v.severity === "high" || v.severity === "critical" ? "danger" : v.severity === "medium" ? "warning" : "info"} className="text-[8px] uppercase font-mono shrink-0">{v.severity}</Badge>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-text">{v.title || v.id}</p>
+                        {v.description && <p className="text-[10px] text-text-dim mt-1 leading-relaxed">{v.description}</p>}
+                        {v.url && <p className="text-[9px] text-accent mt-1 font-mono truncate">{v.url}</p>}
+                        {v.remedy && <p className="text-[9px] text-success mt-1.5"><span className="font-bold">Fix: </span>{v.remedy}</p>}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {nucleiFindings.length === 0 && niktoFindings.length === 0 && (
+              <Card className="p-10 text-center border border-white/[0.04] bg-surface/30 rounded-2xl">
+                <ShieldCheck className="h-10 w-10 text-success mx-auto mb-3 opacity-60" />
+                <p className="text-xs font-bold text-text-dim">No vulnerabilities detected</p>
+                <p className="text-[10px] text-text-muted mt-1">All checked templates passed — surface appears hardened</p>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ==================== ADVANCED: LIVE HOSTS TAB ==================== */}
+        {activeTab === "live-hosts" && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-black text-text uppercase tracking-wider font-mono">Live Host Discovery</h3>
+                <p className="text-[10px] text-text-muted mt-0.5">Active HTTP/HTTPS probe with technology, CDN and WAF fingerprinting</p>
+              </div>
+              {advancedScanMeta?.httpxSource && (
+                <Badge variant="info" className="text-[8px] uppercase font-mono">Engine: {advancedScanMeta.httpxSource}</Badge>
+              )}
+            </div>
+
+            {httpxHosts && httpxHosts.length > 0 ? (
+              <div className="grid gap-3">
+                {httpxHosts.map((host, i) => (
+                  <Card key={i} className="p-4 border border-white/[0.05] bg-surface/30 rounded-xl">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                          <span className={`text-[10px] font-black font-mono px-2 py-0.5 rounded border ${
+                            host.status >= 200 && host.status < 300 ? "text-success border-success/20 bg-success/10" :
+                            host.status >= 300 && host.status < 400 ? "text-accent border-accent/20 bg-accent/10" :
+                            "text-danger border-danger/20 bg-danger/10"
+                          }`}>{host.status}</span>
+                          {host.https && <Badge variant="success" className="text-[8px]">HTTPS</Badge>}
+                          {host.cdn && <Badge variant="info" className="text-[8px]">{host.cdn}</Badge>}
+                          {host.waf && <Badge variant="warning" className="text-[8px]">WAF: {host.waf}</Badge>}
+                        </div>
+                        <p className="text-xs font-mono text-text truncate">{host.url}</p>
+                        {host.title && <p className="text-[10px] text-text-dim mt-0.5 italic">"{host.title}"</p>}
+                        {host.server && <p className="text-[9px] text-text-muted mt-1 font-mono">Server: {host.server}</p>}
+                        {host.technologies && host.technologies.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {host.technologies.slice(0, 8).map((tech, j) => (
+                              <span key={j} className="text-[8px] font-mono bg-accent/10 text-accent px-1.5 py-0.5 rounded border border-accent/15">{tech}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {host.responseTime && (
+                        <div className="text-right shrink-0">
+                          <span className={`text-[10px] font-black font-mono ${host.responseTime < 500 ? "text-success" : host.responseTime < 1500 ? "text-warning" : "text-danger"}`}>
+                            {host.responseTime}ms
+                          </span>
+                          <p className="text-[8px] text-text-muted">Response</p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="p-10 text-center border border-white/[0.04] bg-surface/30 rounded-2xl">
+                <Radio className="h-10 w-10 text-text-muted mx-auto mb-3 opacity-40" />
+                <p className="text-xs font-bold text-text-dim">No live hosts detected beyond the primary target</p>
+                <p className="text-[10px] text-text-muted mt-1">Host probe completed — no additional surfaces found</p>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ==================== ADVANCED: DNS RECORDS TAB ==================== */}
+        {activeTab === "advanced-dns" && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-black text-text uppercase tracking-wider font-mono">Comprehensive DNS Records</h3>
+                <p className="text-[10px] text-text-muted mt-0.5">All DNS record types resolved — A, AAAA, CNAME, MX, TXT, NS, SOA, CAA, PTR</p>
+              </div>
+              {advancedScanMeta?.dnsxSource && (
+                <Badge variant="info" className="text-[8px] uppercase font-mono">Engine: {advancedScanMeta.dnsxSource}</Badge>
+              )}
+            </div>
+
+            {dnsxRecords ? (
+              <div className="grid gap-3">
+                {[
+                  { key: "A", label: "A Records", desc: "IPv4 addresses", icon: "🌐" },
+                  { key: "AAAA", label: "AAAA Records", desc: "IPv6 addresses", icon: "🌐" },
+                  { key: "CNAME", label: "CNAME Records", desc: "Canonical name aliases", icon: "↩" },
+                  { key: "NS", label: "NS Records", desc: "Authoritative nameservers", icon: "🏛" },
+                  { key: "MX", label: "MX Records", desc: "Mail exchange servers", icon: "✉" },
+                  { key: "TXT", label: "TXT Records", desc: "Text records (SPF, DMARC, etc)", icon: "📝" },
+                  { key: "CAA", label: "CAA Records", desc: "Certificate authority authorization", icon: "🔒" },
+                  { key: "PTR", label: "PTR Records", desc: "Reverse DNS", icon: "↔" },
+                ].map(({ key, label, desc, icon }) => {
+                  const records = dnsxRecords[key];
+                  if (!records || records.length === 0) return null;
+                  return (
+                    <Card key={key} className="p-4 border border-white/[0.05] bg-surface/30 rounded-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm">{icon}</span>
+                        <div>
+                          <span className="text-[10px] font-black font-mono text-accent uppercase">{label}</span>
+                          <span className="text-[8px] text-text-muted ml-2">{desc}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        {records.map((r, i) => (
+                          <div key={i} className="font-mono text-[10px] text-text-dim bg-bg/40 px-3 py-1.5 rounded-lg border border-white/[0.03] select-all">
+                            {typeof r === "object" ? `${r.priority} ${r.exchange}` : r}
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  );
+                })}
+
+                {dnsxRecords.SOA && (
+                  <Card className="p-4 border border-white/[0.05] bg-surface/30 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm">📋</span>
+                      <span className="text-[10px] font-black font-mono text-accent uppercase">SOA Record</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 font-mono text-[9px]">
+                      {Object.entries(dnsxRecords.SOA).map(([k, v]) => (
+                        <div key={k} className="flex justify-between px-2 py-1 bg-bg/40 rounded border border-white/[0.03]">
+                          <span className="text-text-muted uppercase">{k}</span>
+                          <span className="text-text-dim">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            ) : (
+              <Card className="p-10 text-center border border-white/[0.04] bg-surface/30 rounded-2xl">
+                <FileCode className="h-10 w-10 text-text-muted mx-auto mb-3 opacity-40" />
+                <p className="text-xs font-bold text-text-dim">DNS records not yet resolved</p>
+                <p className="text-[10px] text-text-muted mt-1">Run a full scan to populate DNS record data</p>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ==================== ADVANCED: WEB CRAWL TAB ==================== */}
+        {activeTab === "crawl" && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-black text-text uppercase tracking-wider font-mono">Web Surface Crawl</h3>
+                <p className="text-[10px] text-text-muted mt-0.5">Attack surface crawl — discovered URLs, API endpoints, JS files, login pages, and forms</p>
+              </div>
+              {advancedScanMeta?.katanaSource && (
+                <Badge variant="info" className="text-[8px] uppercase font-mono">Engine: {advancedScanMeta.katanaSource}</Badge>
+              )}
+            </div>
+
+            {crawl ? (
+              <div className="grid gap-4">
+                {/* Stats row */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[
+                    { label: "URLs", count: crawl.urls?.length || 0, icon: Link2, color: "text-accent" },
+                    { label: "JS Files", count: crawl.jsFiles?.length || 0, icon: FileCode, color: "text-blue-400" },
+                    { label: "API Endpoints", count: crawl.apiEndpoints?.length || 0, icon: Server, color: "text-warning" },
+                    { label: "Login Pages", count: crawl.loginPages?.length || 0, icon: Lock, color: "text-danger" },
+                    { label: "Forms", count: crawl.forms?.length || 0, icon: FileText, color: "text-text-dim" },
+                  ].map(({ label, count, icon: Icon, color }) => (
+                    <Card key={label} className="p-3 text-center border border-white/[0.04] bg-surface/30 rounded-xl">
+                      <Icon className={`h-4 w-4 ${color} mx-auto mb-1`} />
+                      <div className={`text-xl font-black font-mono ${color}`}>{count}</div>
+                      <div className="text-[8px] font-bold uppercase tracking-widest text-text-muted mt-0.5">{label}</div>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Login pages — high visibility */}
+                {crawl.loginPages && crawl.loginPages.length > 0 && (
+                  <Card className="p-4 border border-danger/20 bg-danger/5 rounded-xl">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-danger font-mono flex items-center gap-1.5 mb-2">
+                      <Lock className="h-3 w-3" /> Login Surfaces Discovered ({crawl.loginPages.length})
+                    </h4>
+                    {crawl.loginPages.map((u, i) => (
+                      <div key={i} className="font-mono text-[10px] text-text-dim bg-bg/40 px-2 py-1 rounded border border-white/[0.03] mb-1 truncate">{u}</div>
+                    ))}
+                  </Card>
+                )}
+
+                {/* API Endpoints */}
+                {crawl.apiEndpoints && crawl.apiEndpoints.length > 0 && (
+                  <Card className="p-4 border border-warning/20 bg-warning/5 rounded-xl">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-warning font-mono flex items-center gap-1.5 mb-2">
+                      <Server className="h-3 w-3" /> API Endpoints ({crawl.apiEndpoints.length})
+                    </h4>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {crawl.apiEndpoints.map((u, i) => (
+                        <div key={i} className="font-mono text-[10px] text-text-dim bg-bg/40 px-2 py-1 rounded border border-white/[0.03] truncate">{u}</div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* JS Files */}
+                {crawl.jsFiles && crawl.jsFiles.length > 0 && (
+                  <Card className="p-4 border border-white/[0.05] bg-surface/30 rounded-xl">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400 font-mono flex items-center gap-1.5 mb-2">
+                      <FileCode className="h-3 w-3" /> JavaScript Files ({crawl.jsFiles.length})
+                    </h4>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {crawl.jsFiles.map((u, i) => (
+                        <div key={i} className="font-mono text-[10px] text-text-dim bg-bg/40 px-2 py-1 rounded border border-white/[0.03] truncate">{u}</div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* All URLs */}
+                {crawl.urls && crawl.urls.length > 0 && (
+                  <Card className="p-4 border border-white/[0.05] bg-surface/30 rounded-xl">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-text-muted font-mono flex items-center gap-1.5 mb-2">
+                      <Globe className="h-3 w-3" /> Discovered URLs ({crawl.urls.length})
+                    </h4>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {crawl.urls.map((u, i) => (
+                        <div key={i} className="font-mono text-[10px] text-text-dim bg-bg/40 px-2 py-1 rounded border border-white/[0.03] truncate">{u}</div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            ) : (
+              <Card className="p-10 text-center border border-white/[0.04] bg-surface/30 rounded-2xl">
+                <Search className="h-10 w-10 text-text-muted mx-auto mb-3 opacity-40" />
+                <p className="text-xs font-bold text-text-dim">Web surface crawl data not available</p>
+                <p className="text-[10px] text-text-muted mt-1">Run a full scan to crawl the web attack surface</p>
+              </Card>
+            )}
           </div>
         )}
 
