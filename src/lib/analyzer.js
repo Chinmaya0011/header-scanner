@@ -290,6 +290,27 @@ export function analyzeHeaders(headersObj) {
   };
 }
 
+export function isIPv4(str) {
+  const parts = str.split(".");
+  if (parts.length !== 4) return false;
+  return parts.every(p => {
+    if (!/^\d+$/.test(p)) return false;
+    const val = parseInt(p, 10);
+    return val >= 0 && val <= 255;
+  });
+}
+
+export function isIPv6(str) {
+  const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
+  return ipv6Regex.test(str);
+}
+
+export function isIP(str) {
+  if (isIPv4(str)) return 4;
+  if (isIPv6(str)) return 6;
+  return 0;
+}
+
 /**
  * Masks domain for privacy (e.g., example.com -> ex***.com)
  * @param {string} domain - Domain name to mask
@@ -298,19 +319,78 @@ export function analyzeHeaders(headersObj) {
 export function maskDomain(domain) {
   if (!domain) return "";
   
-  const parts = domain.split(".");
-  if (parts.length < 2) return domain;
+  // Extract host and port
+  let host = domain;
+  let port = "";
   
-  const ext = parts.slice(-1)[0];
-  const main = parts[parts.length - 2] || parts[0];
-  const subdomain = parts.length > 2 ? parts.slice(0, -2).join(".") + "." : "";
-  
-  if (main.length <= 2) {
-    return `${subdomain}${main}***${ext ? "." + ext : ""}`;
+  if (host.startsWith("[")) {
+    // IPv6 with optional port: [2001:db8::1]:3000 or [2001:db8::1]
+    const closeBracket = host.indexOf("]");
+    if (closeBracket !== -1) {
+      const rest = host.substring(closeBracket + 1);
+      if (rest.startsWith(":")) {
+        port = rest;
+      }
+      host = host.substring(1, closeBracket);
+    }
+  } else {
+    // Domain or IPv4 with optional port
+    const colonIdx = host.lastIndexOf(":");
+    const colonsCount = (host.match(/:/g) || []).length;
+    if (colonsCount === 1 && colonIdx !== -1) {
+      port = host.substring(colonIdx);
+      host = host.substring(0, colonIdx);
+    }
   }
   
-  const masked = main.slice(0, 2) + "*".repeat(Math.min(main.length - 2, 5)) + "." + ext;
-  return subdomain + masked;
+  let maskedHost = host;
+  
+  // Check if host is IPv4
+  if (isIPv4(host)) {
+    const parts = host.split(".");
+    if (parts.length === 4) {
+      maskedHost = `${parts[0]}.***.***.${parts[3]}`;
+    }
+  } 
+  // Check if host is IPv6
+  else if (isIPv6(host)) {
+    if (host.includes("::")) {
+      const halves = host.split("::");
+      const leftParts = halves[0].split(":");
+      const rightParts = halves[1].split(":");
+      const leftFirst = leftParts[0] || "";
+      const rightLast = rightParts[rightParts.length - 1] || "";
+      maskedHost = `${leftFirst}:***::${rightLast}`;
+    } else {
+      const parts = host.split(":");
+      maskedHost = `${parts[0]}:***:${parts[parts.length - 1]}`;
+    }
+  }
+  // Otherwise, treat as domain
+  else {
+    const parts = host.split(".");
+    if (parts.length < 2) {
+      maskedHost = host;
+    } else {
+      const ext = parts.slice(-1)[0];
+      const main = parts[parts.length - 2] || parts[0];
+      const subdomain = parts.length > 2 ? parts.slice(0, -2).join(".") + "." : "";
+      
+      if (main.length <= 2) {
+        maskedHost = `${subdomain}${main}***${ext ? "." + ext : ""}`;
+      } else {
+        const masked = main.slice(0, 2) + "*".repeat(Math.min(main.length - 2, 5)) + "." + ext;
+        maskedHost = subdomain + masked;
+      }
+    }
+  }
+  
+  // Re-append brackets if it was IPv6
+  if (isIPv6(host)) {
+    return `[${maskedHost}]${port}`;
+  }
+  
+  return maskedHost + port;
 }
 
 /**
@@ -322,17 +402,45 @@ export function normalizeUrl(input) {
   if (!input) return "";
   
   let url = input.trim();
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    url = "https://" + url;
+  
+  // Check if it has protocol
+  const hasProtocol = url.startsWith("http://") || url.startsWith("https://");
+  let protocol = "https://";
+  let rest = url;
+  if (hasProtocol) {
+    const protocolMatch = url.match(/^(https?:\/\/)(.*)$/i);
+    if (protocolMatch) {
+      protocol = protocolMatch[1];
+      rest = protocolMatch[2];
+    }
   }
-  return url;
+  
+  // Check if rest is a bare IPv6 (contains colons, not enclosed in brackets, doesn't contain a port suffix with brackets)
+  if (rest.includes(":") && !rest.includes("[") && !rest.includes("]")) {
+    const colonsCount = (rest.match(/:/g) || []).length;
+    if (colonsCount > 1) {
+      if (isIPv6(rest)) {
+        rest = `[${rest}]`;
+      } else {
+        const lastColonIndex = rest.lastIndexOf(":");
+        if (lastColonIndex > 0 && rest[lastColonIndex - 1] !== ":") {
+          const ipPart = rest.substring(0, lastColonIndex);
+          const possiblePort = rest.substring(lastColonIndex + 1);
+          if (isIPv6(ipPart) && /^\d+$/.test(possiblePort)) {
+            rest = `[${ipPart}]:${possiblePort}`;
+          } else if (isIPv6(rest)) {
+            rest = `[${rest}]`;
+          }
+        } else if (isIPv6(rest)) {
+          rest = `[${rest}]`;
+        }
+      }
+    }
+  }
+  
+  return protocol + rest;
 }
 
-/**
- * Extracts domain from URL
- * @param {string} url - Full URL
- * @returns {string} Domain name
- */
 export function extractDomain(url) {
   if (!url) return "";
   
@@ -341,6 +449,49 @@ export function extractDomain(url) {
   } catch {
     return url;
   }
+}
+
+export function isValidTarget(target) {
+  if (!target || typeof target !== "string") return false;
+  
+  let host = target.trim();
+  if (host.startsWith("http://")) host = host.substring(7);
+  else if (host.startsWith("https://")) host = host.substring(8);
+  
+  let port = null;
+  if (host.startsWith("[")) {
+    const closeBracket = host.indexOf("]");
+    if (closeBracket === -1) return false;
+    const rest = host.substring(closeBracket + 1);
+    if (rest.startsWith(":")) {
+      const portStr = rest.substring(1);
+      if (!/^\d+$/.test(portStr)) return false;
+      port = parseInt(portStr, 10);
+    } else if (rest.length > 0) {
+      return false;
+    }
+    host = host.substring(1, closeBracket);
+  } else {
+    const colonIdx = host.lastIndexOf(":");
+    const colonsCount = (host.match(/:/g) || []).length;
+    if (colonsCount > 1) {
+      if (!isIPv6(host)) return false;
+    } else if (colonIdx !== -1) {
+      const portStr = host.substring(colonIdx + 1);
+      if (!/^\d+$/.test(portStr)) return false;
+      port = parseInt(portStr, 10);
+      host = host.substring(0, colonIdx);
+    }
+  }
+  
+  if (port !== null && (port <= 0 || port > 65535)) return false;
+  
+  if (isIP(host)) {
+    return true;
+  }
+  
+  const domainRegex = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/i;
+  return domainRegex.test(host);
 }
 
 /**

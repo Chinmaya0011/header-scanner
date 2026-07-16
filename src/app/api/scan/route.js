@@ -13,7 +13,10 @@ import {
   extractDomain,
   generateRecommendations,
   runSecurityAudit,
+  isValidTarget,
 } from "@/lib/analyzer";
+import { isPrivateHost } from "@/lib/server/ipUtils";
+import net from "net";
 
 import { scanSSL } from "@/lib/scanners/sslScanner";
 import { scanDNS } from "@/lib/scanners/dnsScanner";
@@ -51,34 +54,7 @@ const RATE_LIMIT = {
   MAX_REQUESTS: 10, // 10 requests per minute
 };
 
-/**
- * Validate private IP addresses
- */
-async function isPrivateIP(domain) {
-  const privatePatterns = [
-    /^localhost$/i,
-    /^127\.\d+\.\d+\.\d+$/,
-    /^192\.168\.\d+\.\d+$/,
-    /^10\.\d+\.\d+\.\d+$/,
-    /^172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+$/,
-    /^::1$/,
-    /^fc00:/,
-    /^fe80:/,
-  ];
-  
-  if (privatePatterns.some(pattern => pattern.test(domain))) {
-    return true;
-  }
-
-  try {
-    const lookupResult = await dns.promises.lookup(domain, { all: true });
-    return lookupResult.some(addr => 
-      privatePatterns.some(pattern => pattern.test(addr.address))
-    );
-  } catch {
-    return false;
-  }
-}
+// Private IP validation moved to analyzer.js
 
 /**
  * Fetch headers with fallback strategy
@@ -270,6 +246,16 @@ export async function POST(request) {
       );
     }
 
+    if (!isValidTarget(trimmed)) {
+      return NextResponse.json(
+        { 
+          error: "Invalid target format. Please enter a valid domain or public IP address (with optional port).",
+          code: "INVALID_URL"
+        },
+        { status: 400 }
+      );
+    }
+
     // Normalize URL
     const url = normalizeUrl(trimmed);
     
@@ -287,15 +273,25 @@ export async function POST(request) {
       );
     }
 
-    const domain = extractDomain(url);
+    const domain = parsedUrl.host;
 
     // Enforce Domain Ownership Verification
     const cleanDomain = domain.toLowerCase();
-    const isLocalhost = cleanDomain === "localhost" || cleanDomain === "127.0.0.1" || cleanDomain.startsWith("192.168.");
+    let cleanDomainHostname = cleanDomain;
+    if (cleanDomainHostname.includes("[")) {
+      const close = cleanDomainHostname.indexOf("]");
+      cleanDomainHostname = close !== -1 ? cleanDomainHostname.substring(1, close) : cleanDomainHostname;
+    } else {
+      const colon = cleanDomainHostname.indexOf(":");
+      cleanDomainHostname = colon !== -1 ? cleanDomainHostname.substring(0, colon) : cleanDomainHostname;
+    }
+
+    const isIP = net.isIP(cleanDomainHostname) !== 0;
+    const isLocalhost = cleanDomainHostname === "localhost" || cleanDomainHostname === "127.0.0.1" || cleanDomainHostname.startsWith("192.168.");
     const isAdmin = user && user.role === "admin";
     const bypassVerification = process.env.BYPASS_VERIFICATION === "true";
 
-    if (!isLocalhost && !isAdmin && !bypassVerification) {
+    if (!isIP && !isLocalhost && !isAdmin && !bypassVerification) {
       const AssetVerification = (await import("@/lib/models/AssetVerification")).default;
       await connectDB();
       const verification = await AssetVerification.findOne({ domain: cleanDomain, owner: user._id, verified: true });
@@ -312,7 +308,7 @@ export async function POST(request) {
     }
 
     // Security: Block private IPs and localhost
-    if (await isPrivateIP(domain) && !isLocalhost) {
+    if (await isPrivateHost(domain) && !isLocalhost) {
       await logFailedScan(user, url, domain, "Scanning private/local addresses is not allowed.", 400);
       return NextResponse.json(
         { 
