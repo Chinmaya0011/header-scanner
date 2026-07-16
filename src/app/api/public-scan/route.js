@@ -7,7 +7,9 @@ import {
   normalizeUrl,
   extractDomain,
   generateRecommendations,
+  isValidTarget,
 } from "@/lib/analyzer";
+import { isPrivateHost } from "@/lib/server/ipUtils";
 
 // Basic IP rate limiting in memory (resets on server restart)
 // For production you'd use Redis; this is lightweight and sufficient for demo
@@ -115,26 +117,32 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid request body.", code: "BAD_REQUEST" }, { status: 400 });
   }
 
-  if (!rawUrl || typeof rawUrl !== "string" || rawUrl.trim().length === 0) {
+  const trimmed = rawUrl ? rawUrl.trim() : "";
+  if (!trimmed) {
     return NextResponse.json({ error: "URL is required.", code: "MISSING_URL" }, { status: 400 });
+  }
+
+  if (!isValidTarget(trimmed)) {
+    return NextResponse.json({ error: "Invalid target format. Please enter a valid domain or public IP address (with optional port).", code: "INVALID_URL" }, { status: 400 });
   }
 
   // Normalize + validate URL
   let url;
   let domain;
   try {
-    url = normalizeUrl(rawUrl.trim());
+    url = normalizeUrl(trimmed);
     const parsed = new URL(url);
-    domain = extractDomain(url);
-    // Block private IPs
-    if (/^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(parsed.hostname)) {
-      return NextResponse.json({ error: "Scanning private/local addresses is not allowed.", code: "PRIVATE_IP_BLOCKED" }, { status: 400 });
-    }
+    domain = parsed.host;
   } catch {
     return NextResponse.json(
-      { error: "Invalid URL format. Please enter a valid domain (e.g., example.com).", code: "INVALID_URL" },
+      { error: "Invalid URL format.", code: "INVALID_URL" },
       { status: 400 }
     );
+  }
+
+  const isPrivate = await isPrivateHost(domain);
+  if (isPrivate) {
+    return NextResponse.json({ error: "Scanning private or local addresses is not allowed.", code: "PRIVATE_IP_BLOCKED" }, { status: 400 });
   }
 
   const startTime = Date.now();

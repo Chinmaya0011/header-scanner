@@ -12,7 +12,9 @@ import {
   maskDomain,
   generateRecommendations,
   runSecurityAudit,
+  isValidTarget,
 } from "@/lib/analyzer";
+import { isPrivateHost } from "@/lib/server/ipUtils";
 
 // EASM scanner imports
 import { scanSSL } from "@/lib/scanners/sslScanner";
@@ -569,42 +571,25 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid request body.", code: "BAD_REQUEST" }, { status: 400 });
   }
 
-  if (!rawUrl || typeof rawUrl !== "string" || !rawUrl.trim()) {
+  const trimmed = rawUrl ? rawUrl.trim() : "";
+  if (!trimmed) {
     return NextResponse.json({ error: "URL is required.", code: "MISSING_URL" }, { status: 400 });
+  }
+
+  if (!isValidTarget(trimmed)) {
+    return NextResponse.json({ error: "Invalid target format. Please enter a valid domain or public IP address (with optional port).", code: "INVALID_URL" }, { status: 400 });
   }
 
   let url, domain;
   try {
-    url = normalizeUrl(rawUrl.trim());
-    domain = extractDomain(url);
-    new URL(url);
+    url = normalizeUrl(trimmed);
+    const parsed = new URL(url);
+    domain = parsed.host;
   } catch {
     return NextResponse.json({ error: "Invalid URL format.", code: "INVALID_URL" }, { status: 400 });
   }
 
-  const privatePatterns = [
-    /^localhost$/i,
-    /^127\.\d+\.\d+\.\d+$/,
-    /^192\.168\.\d+\.\d+$/,
-    /^10\.\d+\.\d+\.\d+$/,
-    /^172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+$/,
-    /^::1$/,
-    /^fc00:/,
-    /^fe80:/,
-  ];
-
-  let isPrivate = privatePatterns.some((p) => p.test(domain));
-  if (!isPrivate) {
-    try {
-      const lookupResult = await dns.promises.lookup(domain, { all: true });
-      isPrivate = lookupResult.some(addr => 
-        privatePatterns.some(pattern => pattern.test(addr.address))
-      );
-    } catch {
-      // Ignore resolution errors; handled later in fetch headers
-    }
-  }
-
+  const isPrivate = await isPrivateHost(domain);
   if (isPrivate) {
     return NextResponse.json({ error: "Scanning private or local addresses is not allowed.", code: "PRIVATE_IP_BLOCKED" }, { status: 400 });
   }
