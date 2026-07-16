@@ -301,8 +301,36 @@ export function isIPv4(str) {
 }
 
 export function isIPv6(str) {
-  const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
-  return ipv6Regex.test(str);
+  if (!str) return false;
+  
+  if (!/^[0-9a-fA-F:.]+$/.test(str)) return false;
+  
+  const colons = str.split(":");
+  if (colons.length < 3 || colons.length > 9) return false;
+  
+  const doubleColons = str.split("::");
+  if (doubleColons.length > 2) return false;
+  
+  const hasDoubleColon = doubleColons.length === 2;
+  if (!hasDoubleColon && colons.length !== 8) return false;
+  
+  for (let i = 0; i < colons.length; i++) {
+    const block = colons[i];
+    if (block === "") {
+      if (!hasDoubleColon) return false;
+      continue;
+    }
+    
+    if (block.includes(".")) {
+      if (i !== colons.length - 1) return false;
+      if (!isIPv4(block)) return false;
+      continue;
+    }
+    
+    if (block.length > 4 || !/^[0-9a-fA-F]+$/.test(block)) return false;
+  }
+  
+  return true;
 }
 
 export function isIP(str) {
@@ -419,21 +447,19 @@ export function normalizeUrl(input) {
   if (rest.includes(":") && !rest.includes("[") && !rest.includes("]")) {
     const colonsCount = (rest.match(/:/g) || []).length;
     if (colonsCount > 1) {
-      if (isIPv6(rest)) {
-        rest = `[${rest}]`;
-      } else {
-        const lastColonIndex = rest.lastIndexOf(":");
-        if (lastColonIndex > 0 && rest[lastColonIndex - 1] !== ":") {
-          const ipPart = rest.substring(0, lastColonIndex);
-          const possiblePort = rest.substring(lastColonIndex + 1);
-          if (isIPv6(ipPart) && /^\d+$/.test(possiblePort)) {
-            rest = `[${ipPart}]:${possiblePort}`;
-          } else if (isIPv6(rest)) {
-            rest = `[${rest}]`;
-          }
-        } else if (isIPv6(rest)) {
-          rest = `[${rest}]`;
+      const lastColonIndex = rest.lastIndexOf(":");
+      let splitSuccess = false;
+      if (lastColonIndex > 0 && rest[lastColonIndex - 1] !== ":") {
+        const ipPart = rest.substring(0, lastColonIndex);
+        const possiblePort = rest.substring(lastColonIndex + 1);
+        if (isIPv6(ipPart) && /^\d+$/.test(possiblePort)) {
+          rest = `[${ipPart}]:${possiblePort}`;
+          splitSuccess = true;
         }
+      }
+      
+      if (!splitSuccess && isIPv6(rest)) {
+        rest = `[${rest}]`;
       }
     }
   }
