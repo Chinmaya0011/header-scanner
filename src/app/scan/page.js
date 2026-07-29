@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import ScanResultsDashboard from "@/components/ui/ScanResultsDashboard";
 import {
   Shield,
   Search,
@@ -204,81 +205,10 @@ export default function PublicScanPage() {
 
         {/* Results */}
         {result && (
-          <div className="space-y-5 animate-fadeInUp">
-
-            {/* Score card */}
-            <div className="bg-surface/60 border border-border rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6 backdrop-blur-sm shadow-lg">
-              <ScoreRing score={result.score} grade={result.grade} />
-              <div className="flex-1 text-center sm:text-left w-full min-w-0">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1 font-bold">Scanned URL</p>
-                <p className="font-mono text-sm text-accent-light mb-3 break-all font-semibold select-all">{result.url}</p>
-                <div className="flex flex-wrap gap-2 justify-center sm:justify-start text-[10px] font-bold uppercase">
-                  <span className="bg-panel/40 border border-border/80 rounded-lg px-2.5 py-1.5 font-mono text-text/90">
-                    HTTP <span className="text-accent">{result.statusCode}</span>
-                  </span>
-                  <span className="bg-panel/40 border border-border/80 rounded-lg px-2.5 py-1.5 font-mono text-success">
-                    {result.summary.present} present
-                  </span>
-                  <span className="bg-panel/40 border border-border/80 rounded-lg px-2.5 py-1.5 font-mono text-danger">
-                    {result.summary.missing} missing
-                  </span>
-                  <span className="bg-panel/40 border border-border/80 rounded-lg px-2.5 py-1.5 font-mono text-warning">
-                    {result.summary.weak} weak
-                  </span>
-                  <span className="bg-panel/40 border border-border/80 rounded-lg px-2.5 py-1.5 font-mono text-text-muted">
-                    {result.scanDuration}ms
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Header results table */}
-            <div className="bg-surface/50 border border-border rounded-2xl overflow-hidden shadow-lg">
-              <div className="px-5 py-3.5 border-b border-border/80 flex items-center justify-between bg-panel/20 select-none">
-                <h2 className="text-xs font-bold text-text uppercase tracking-wider flex items-center gap-2">
-                  <Shield className="w-3.5 h-3.5 text-accent animate-pulse" />
-                  Security Header Analysis
-                </h2>
-                <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider">{result.headers.length} headers checked</span>
-              </div>
-              <div className="divide-y divide-border/40">
-                {result.headers.map((h, i) => (
-                  <div key={i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-white/[0.01] transition duration-200">
-                    <div className="mt-0.5 shrink-0">{statusIcon(h.status)}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-mono font-semibold text-text truncate">{h.name}</p>
-                      <p className="text-[11px] text-text-dim mt-0.5 leading-relaxed line-clamp-2">{h.description}</p>
-                    </div>
-                    <span className={`text-[10px] font-bold uppercase shrink-0 mt-0.5 ${severityColor(h.severity)}`}>
-                      {h.severity}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top recommendations */}
-            {result.recommendations.length > 0 && (
-              <div className="bg-surface/50 border border-border rounded-2xl overflow-hidden shadow-lg">
-                <div className="px-5 py-3.5 border-b border-border/80 bg-panel/20 select-none">
-                  <h2 className="text-xs font-bold text-text uppercase tracking-wider flex items-center gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-warning animate-pulse" />
-                    Top Recommendations
-                  </h2>
-                </div>
-                <div className="divide-y divide-border/40">
-                  {result.recommendations.map((r, i) => (
-                    <div key={i} className="px-5 py-4 hover:bg-white/[0.01] transition duration-200">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-white/5 border border-white/5 ${severityColor(r.severity)}`}>{r.severity}</span>
-                        <span className="text-xs font-mono font-semibold text-text">{r.header}</span>
-                      </div>
-                      <p className="text-xs text-text-dim leading-relaxed">{r.recommendation}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="animate-fadeInUp space-y-6">
+            <ScanResultsDashboard result={result} />
+          </div>
+        )}
 
             {/* Upsell CTA */}
             <div className="bg-gradient-to-br from-accent/10 to-accent-light/5 border border-accent/20 rounded-2xl p-6 text-center shadow-lg relative overflow-hidden">
@@ -312,9 +242,6 @@ export default function PublicScanPage() {
                 </div>
               </div>
             </div>
-
-          </div>
-        )}
 
         {/* Features preview — shown when no result yet */}
         {!result && !loading && (

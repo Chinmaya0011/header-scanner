@@ -53,7 +53,8 @@ export function initSocketServer() {
 
       let decoded;
       try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET || "headerguard-secret-key-17-secure-jwt-matrix");
+        const secretKey = process.env.JWT_SECRET || "headerguard-dev-secret-key-17";
+        decoded = jwt.verify(token, secretKey);
         console.log(`[WebSocket] Handshake accepted: Token verified from ${source} for user ${decoded.userId || decoded.id}`);
       } catch (err) {
         console.error(`[WebSocket] Handshake rejected: Token verification failed (${err.message})`);
