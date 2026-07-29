@@ -54,7 +54,7 @@ export default function TerminalConsole() {
     <div className="space-y-5">
       {/* Metrics Stats Row */}
       <div className="grid grid-cols-2 gap-3.5">
-        <Card className="p-3 bg-surface/30 border border-white/[0.03] backdrop-blur-md flex items-center gap-3">
+        <Card className="p-3 bg-surface/30 border border-border/30 backdrop-blur-md flex items-center gap-3">
           <div className="p-2 rounded bg-success/10 text-success">
             <Shield className="h-4.5 w-4.5" />
           </div>
@@ -64,7 +64,7 @@ export default function TerminalConsole() {
           </div>
         </Card>
         
-        <Card className="p-3 bg-surface/30 border border-white/[0.03] backdrop-blur-md flex items-center gap-3">
+        <Card className="p-3 bg-surface/30 border border-border/30 backdrop-blur-md flex items-center gap-3">
           <div className="p-2 rounded bg-accent/10 text-accent">
             <Radio className="h-4.5 w-4.5 animate-pulse" />
           </div>
@@ -76,9 +76,9 @@ export default function TerminalConsole() {
       </div>
 
       {/* Terminal Log Shell */}
-      <Card className="border border-white/[0.05] bg-bg/90 shadow-2xl relative overflow-hidden font-mono text-[9px] text-accent-light rounded-xl">
+      <Card className="border border-border/30 bg-bg/90 shadow-2xl relative overflow-hidden font-mono text-[9px] text-accent-light rounded-xl">
         {/* Terminal Header */}
-        <div className="bg-surface/50 border-b border-white/[0.04] px-4.5 py-2.5 flex items-center justify-between text-text-dim">
+        <div className="bg-surface/50 border-b border-border/30 px-4.5 py-2.5 flex items-center justify-between text-text-dim">
           <div className="flex items-center gap-2">
             <Terminal className="h-3.5 w-3.5 text-accent" />
             <span className="text-[8.5px] font-bold uppercase tracking-wider">guard-engine-feed.log</span>
@@ -113,7 +113,7 @@ export default function TerminalConsole() {
       </Card>
       
       {/* Subtext info */}
-      <div className="flex items-center gap-2 bg-surface/20 border border-white/[0.02] p-3 rounded-lg text-[9px] text-text-dim leading-relaxed font-sans">
+      <div className="flex items-center gap-2 bg-surface/20 border border-border/30 p-3 rounded-lg text-[9px] text-text-dim leading-relaxed font-sans">
         <Cpu className="h-4.5 w-4.5 text-accent flex-shrink-0" />
         <span>Deploying multi-layered network audits dynamically over standard port bindings to identify SSL, DNS, CSP, and Cookie security postures.</span>
       </div>

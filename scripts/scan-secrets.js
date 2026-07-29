@@ -53,7 +53,8 @@ const IGNORED_PATHS = [
   'run.sh',
   'run.bat',
   'run.ps1',
-  'scripts' // ignore scanner scripts
+  'scripts', // ignore scanner scripts
+  'subfinder.exe'
 ];
 
 // Files containing mock secrets for testing only

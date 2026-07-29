@@ -330,7 +330,7 @@ export default function ScanDetailClient({ scan: initialScan, id }) {
   return (
     <div className="min-h-screen bg-bg font-sans text-text">
       
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 space-y-4">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-4">
         {/* Sleek Breadcrumb / Back Navigation */}
         <div className="flex items-center gap-2 text-xs text-text-dim">
           <Link href="/history" className="hover:text-accent font-semibold transition-colors flex items-center gap-1.5 font-mono uppercase">

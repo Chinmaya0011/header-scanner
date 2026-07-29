@@ -10,10 +10,9 @@
   --surface: #05120f;
   /* Tech Deep Forest Card */
   --panel: #081a17;
-  /* Radiant Forest Panel */
-  --border: rgba(16, 185, 129, 0.08);
-  /* Neon Emerald Border */
-  --border-hover: rgba(6, 182, 212, 0.3);
+  /* Borderless Cards & Containers */
+  --border: transparent;
+  --border-hover: rgba(16, 185, 129, 0.15);
   /* Neon Cyan Hover Border */
 
   /* Cyber Neon Accent Colors */
@@ -51,9 +50,8 @@
   --surface: #f1faf7;
   /* Soft Light Mint Card */
   --panel: #dbece8;
-  /* Soft Mint Panel */
-  --border: rgba(16, 185, 129, 0.12);
-  --border-hover: rgba(6, 182, 212, 0.25);
+  --border: rgba(0, 0, 0, 0.05);
+  --border-hover: rgba(5, 150, 105, 0.2);
 
   --accent: #059669;
   /* Cyber Mint Green */
@@ -261,3 +259,60 @@ body {
   animation: shake 0.6s ease-in-out;
   transform-origin: top center;
 }
+
+/* Glassmorphism & Enterprise SaaS Card Utilities */
+.glass-card {
+  background: rgba(8, 26, 23, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: none;
+}
+
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: none;
+}
+
+.glass-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card-hover:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 12px 30px -8px rgba(16, 185, 129, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Skeleton Loading Shimmer Effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite linear;
+}
+
+[data-theme="light"] .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite linear;
+}

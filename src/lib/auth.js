@@ -4,7 +4,8 @@ import crypto from "crypto";
 import connectDB from "./mongodb";
 import User from "./models/User";
 
-const JWT_SECRET = process.env.JWT_SECRET || "headerguard-secret-key-17-secure-jwt-matrix";
+const DEV_FALLBACK_KEY = "headerguard-dev-secret-key-17";
+const JWT_SECRET = process.env.JWT_SECRET || DEV_FALLBACK_KEY;
 
 export function signToken(user) {
   return jwt.sign(
