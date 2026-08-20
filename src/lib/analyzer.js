@@ -410,18 +410,28 @@ export function maskDomain(domain) {
   else {
     const parts = host.split(".");
     if (parts.length < 2) {
-      maskedHost = host;
+      if (host.length <= 2) {
+        maskedHost = host.slice(0, 1) + "**" + host.slice(-1);
+      } else {
+        const mid = Math.floor(host.length / 2);
+        maskedHost = host.slice(0, Math.max(1, mid - 1)) + "**" + host.slice(mid + 1);
+      }
     } else {
       const ext = parts.slice(-1)[0];
       const main = parts[parts.length - 2] || parts[0];
       const subdomain = parts.length > 2 ? parts.slice(0, -2).join(".") + "." : "";
       
+      let maskedMain = "";
       if (main.length <= 2) {
-        maskedHost = `${subdomain}${main}***${ext ? "." + ext : ""}`;
+        maskedMain = main.slice(0, 1) + "**" + main.slice(-1);
+      } else if (main.length <= 4) {
+        maskedMain = main.slice(0, 1) + "**" + main.slice(-1);
       } else {
-        const masked = main.slice(0, 2) + "*".repeat(Math.min(main.length - 2, 5)) + "." + ext;
-        maskedHost = subdomain + masked;
+        const firstTwo = main.slice(0, 2);
+        const lastTwo = main.slice(-2);
+        maskedMain = `${firstTwo}**${lastTwo}`;
       }
+      maskedHost = subdomain + maskedMain + (ext ? "." + ext : "");
     }
   }
   
@@ -431,6 +441,37 @@ export function maskDomain(domain) {
   }
   
   return maskedHost + port;
+}
+
+/**
+ * Masks full URL for privacy by placing ** in the middle of domain and path
+ * @param {string} url - Full target URL
+ * @returns {string} Privacy-masked URL
+ */
+export function maskUrl(url) {
+  if (!url) return "";
+  
+  try {
+    const hasProtocol = url.startsWith("http://") || url.startsWith("https://");
+    const fullUrl = hasProtocol ? url : `https://${url}`;
+    const parsed = new URL(fullUrl);
+    
+    const maskedHost = maskDomain(parsed.hostname);
+    let path = parsed.pathname;
+    
+    if (path && path.length > 2 && path !== "/") {
+      const mid = Math.floor(path.length / 2);
+      path = path.slice(0, Math.max(1, mid - 1)) + "**" + path.slice(mid + 1);
+    }
+    
+    const portStr = parsed.port ? `:${parsed.port}` : "";
+    const protocolStr = hasProtocol ? `${parsed.protocol}//` : "";
+    const queryStr = parsed.search ? "?**" : "";
+    
+    return `${protocolStr}${maskedHost}${portStr}${path}${queryStr}`;
+  } catch {
+    return maskDomain(url);
+  }
 }
 
 /**

@@ -111,8 +111,8 @@ describe("analyzer utilities", () => {
 
   describe("maskDomain", () => {
     test("should mask domains and subdomains", () => {
-      expect(maskDomain("example.com")).toBe("ex*****.com");
-      expect(maskDomain("sub.example.com")).toBe("sub.ex*****.com");
+      expect(maskDomain("example.com")).toBe("ex**le.com");
+      expect(maskDomain("sub.example.com")).toBe("sub.ex**le.com");
     });
 
     test("should mask IPv4 addresses", () => {
@@ -125,7 +125,7 @@ describe("analyzer utilities", () => {
     });
 
     test("should preserve ports during masking", () => {
-      expect(maskDomain("example.com:3000")).toBe("ex*****.com:3000");
+      expect(maskDomain("example.com:3000")).toBe("ex**le.com:3000");
       expect(maskDomain("1.2.3.4:5000")).toBe("1.***.***.4:5000");
       expect(maskDomain("[2001:db8::1]:8080")).toBe("[2001:***::1]:8080");
     });

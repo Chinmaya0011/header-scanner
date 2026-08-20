@@ -25,12 +25,14 @@ import {
   RefreshCw,
   Clock,
   Layers,
-  FileText
+  FileText,
+  Trash2
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { useToast } from "@/components/common/Toast";
+import OtpVerificationModal from "@/components/common/OtpVerificationModal";
 
 export default function AdminActivityLogs({ usersList = [] }) {
   const toast = useToast();
@@ -56,6 +58,29 @@ export default function AdminActivityLogs({ usersList = [] }) {
 
   // Selected detail modal log
   const [detailLog, setDetailLog] = useState(null);
+
+  // OTP Verification Purge Modal State
+  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
+  const [purging, setPurging] = useState(false);
+
+  const handlePurgeLogs = async () => {
+    setPurging(true);
+    try {
+      const res = await fetch("/api/activity-logs?all=true", { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || "All activity logs purged successfully.");
+        fetchLogs();
+        setPurgeModalOpen(false);
+      } else {
+        toast.error("Failed to purge logs: " + data.error);
+      }
+    } catch (err) {
+      toast.error("Error connecting to activity logs API.");
+    } finally {
+      setPurging(false);
+    }
+  };
 
   // Quick stats computed locally or from api
   const [stats, setStats] = useState({
@@ -292,7 +317,28 @@ export default function AdminActivityLogs({ usersList = [] }) {
               <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setPurgeModalOpen(true)}
+              disabled={loading || pagination.totalLogs === 0}
+              icon={Trash2}
+            >
+              Purge All Logs
+            </Button>
           </div>
+
+          {/* OTP Verification Modal for Activity Logs Purge */}
+          <OtpVerificationModal
+            isOpen={purgeModalOpen}
+            onClose={() => setPurgeModalOpen(false)}
+            onConfirm={handlePurgeLogs}
+            title="Purge System Activity Logs"
+            description="You are about to permanently purge all system activity logs. This action cannot be reversed."
+            warningDetails={`Total Logs to Purge: ${pagination.totalLogs} records`}
+            actionName="Purge All Activity Logs"
+            loading={purging}
+          />
         </div>
 
         {/* Filter Selectors Grid */}

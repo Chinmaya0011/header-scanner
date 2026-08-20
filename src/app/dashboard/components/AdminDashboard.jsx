@@ -31,6 +31,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import AdminActivityLogs from "@/components/activity/AdminActivityLogs";
+import AdminDbCollections from "@/components/admin/AdminDbCollections";
+import OtpVerificationModal from "@/components/common/OtpVerificationModal";
 import { useToast } from "@/components/common/Toast";
 import {
   ResponsiveContainer,
@@ -64,9 +66,20 @@ export default function AdminDashboard({
 }) {
   const toast = useToast();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "activity-logs"
+  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "activity-logs" | "db-collections"
   const [adminStats, setAdminStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+
+  // OTP Verification Modal state for dashboard operations
+  const [otpModal, setOtpModal] = useState({
+    isOpen: false,
+    title: "",
+    description: "",
+    warningDetails: "",
+    actionName: "",
+    onConfirm: null,
+  });
+  const [otpLoading, setOtpLoading] = useState(false);
   
   // Verification states
   const [verifyingDomainId, setVerifyingDomainId] = useState(null);
@@ -81,6 +94,83 @@ export default function AdminDashboard({
 
   // Scan owner-type filter (client-side)
   const [ownerTypeFilter, setOwnerTypeFilter] = useState("all"); // "all" | "public" | "own" | "users"
+
+  // OTP Verification Action Triggers
+  const triggerPurgeHistory = () => {
+    setOtpModal({
+      isOpen: true,
+      title: "Purge Global Audit Scan History",
+      description: "WARNING: You are about to permanently purge all security scan records from the database. This action cannot be reversed.",
+      warningDetails: `Total Scan History Records: ${totalScans || scans.length}`,
+      actionName: "Purge All Scan History",
+      onConfirm: async () => {
+        setOtpLoading(true);
+        try {
+          await handleClearAllHistory();
+          setOtpModal((prev) => ({ ...prev, isOpen: false }));
+        } finally {
+          setOtpLoading(false);
+        }
+      },
+    });
+  };
+
+  const triggerDeleteUser = (userId, userEmail) => {
+    setOtpModal({
+      isOpen: true,
+      title: "Delete User Account",
+      description: `WARNING: You are about to permanently delete user account '${userEmail}' and all associated scans.`,
+      warningDetails: `User Email: ${userEmail}\nUser ID: ${userId}`,
+      actionName: "Delete User Account",
+      onConfirm: async () => {
+        setOtpLoading(true);
+        try {
+          await handleDeleteUser(userId, userEmail);
+          setOtpModal((prev) => ({ ...prev, isOpen: false }));
+        } finally {
+          setOtpLoading(false);
+        }
+      },
+    });
+  };
+
+  const triggerDeleteAllUsers = () => {
+    setOtpModal({
+      isOpen: true,
+      title: "Delete All Non-Admin Users",
+      description: "CAUTION: You are about to permanently delete all registered user profiles and their scan histories.",
+      warningDetails: `Total Users to Delete: ${usersList.length} accounts`,
+      actionName: "Delete All User Accounts",
+      onConfirm: async () => {
+        setOtpLoading(true);
+        try {
+          await handleDeleteAllUsers();
+          setOtpModal((prev) => ({ ...prev, isOpen: false }));
+        } finally {
+          setOtpLoading(false);
+        }
+      },
+    });
+  };
+
+  const triggerDeleteScan = (scanId, scanDomain) => {
+    setOtpModal({
+      isOpen: true,
+      title: "Delete Audit Scan Log",
+      description: `You are about to permanently delete scan log for target domain '${scanDomain}'.`,
+      warningDetails: `Target Host: ${scanDomain}\nScan ID: ${scanId}`,
+      actionName: "Delete Scan Log",
+      onConfirm: async () => {
+        setOtpLoading(true);
+        try {
+          await handleDeleteScan(scanId);
+          setOtpModal((prev) => ({ ...prev, isOpen: false }));
+        } finally {
+          setOtpLoading(false);
+        }
+      },
+    });
+  };
 
   const handleConfirmVerification = async (verifyId, domainName) => {
     setVerifyingDomainId(verifyId);
@@ -199,6 +289,18 @@ export default function AdminDashboard({
 
   return (
     <div className="space-y-6 font-sans text-text">
+      {/* Dashboard OTP Verification Modal */}
+      <OtpVerificationModal
+        isOpen={otpModal.isOpen}
+        onClose={() => setOtpModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={otpModal.onConfirm}
+        title={otpModal.title}
+        description={otpModal.description}
+        warningDetails={otpModal.warningDetails}
+        actionName={otpModal.actionName}
+        loading={otpLoading}
+      />
+
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.05]">
         <div>
@@ -216,7 +318,7 @@ export default function AdminDashboard({
         </div>
         <div className="flex gap-2.5 flex-wrap">
           <Button
-            onClick={handleClearAllHistory}
+            onClick={triggerPurgeHistory}
             variant="danger"
             size="sm"
             icon={Trash2}
@@ -235,7 +337,7 @@ export default function AdminDashboard({
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
+      <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 flex-wrap gap-y-2">
         <button
           onClick={() => setActiveTab("overview")}
           className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
@@ -260,10 +362,25 @@ export default function AdminDashboard({
           <span>Activity & Audit Logs</span>
           <Badge className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 text-[10px] ml-1 py-0 px-1.5">Live</Badge>
         </button>
+
+        <button
+          onClick={() => setActiveTab("db-collections")}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "db-collections"
+              ? "bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 shadow-lg shadow-cyan-500/10"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+          }`}
+        >
+          <Database className="w-4 h-4 text-cyan-400" />
+          <span>DB Collections Monitor</span>
+          <Badge className="bg-cyan-500/10 border-cyan-500/30 text-cyan-400 text-[10px] ml-1 py-0 px-1.5">Docs</Badge>
+        </button>
       </div>
 
       {activeTab === "activity-logs" ? (
         <AdminActivityLogs usersList={usersList} />
+      ) : activeTab === "db-collections" ? (
+        <AdminDbCollections />
       ) : (
         <>
           {/* Admin stats loading */}
@@ -595,7 +712,7 @@ export default function AdminDashboard({
                               </Button>
                             </Link>
                             <Button
-                              onClick={() => handleDeleteScan(scan._id)}
+                              onClick={() => triggerDeleteScan(scan._id, scan.domain || scan.maskedDomain)}
                               variant="danger"
                               size="sm"
                               icon={Trash2}
@@ -649,9 +766,7 @@ export default function AdminDashboard({
               </div>
               {usersList.length > 1 && (
                 <button
-                  onClick={() => {
-                    handleDeleteAllUsers();
-                  }}
+                  onClick={triggerDeleteAllUsers}
                   className="flex items-center gap-1.5 px-2 py-1 bg-danger/5 border border-danger/20 rounded text-[9px] font-bold text-danger hover:bg-danger/10 transition-colors flex-shrink-0 uppercase"
                 >
                   <UserX className="h-3.5 w-3.5" />
@@ -688,9 +803,7 @@ export default function AdminDashboard({
                           </Badge>
                           {u.email !== user?.email && (
                             <button
-                              onClick={() => {
-                                handleDeleteUser(u._id, u.email);
-                              }}
+                              onClick={() => triggerDeleteUser(u._id, u.email)}
                               disabled={deletingUser === u._id}
                               className="text-danger hover:bg-danger/10 p-1.5 rounded transition-all"
                               title="Delete user profile and history"
