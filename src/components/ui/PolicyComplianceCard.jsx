@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldCheck, CheckCircle2, AlertTriangle, XCircle, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function PolicyComplianceCard({ compliance = {} }) {
   const [expandedKey, setExpandedKey] = useState(null);
@@ -48,7 +48,7 @@ export default function PolicyComplianceCard({ compliance = {} }) {
       clauses: [
         { code: "ASVS V14.4.1", title: "HTTP Response Headers Security Control", status: "passed", detail: "Security headers evaluated against ASVS Level 2 requirements." },
         { code: "ASVS V14.4.2", title: "Content Security Policy (CSP) Directives", status: "warning", detail: "CSP header is configured but contains 'unsafe-inline' directive." },
-        { code: "ASVS V14.4.3", title: "Cross-Origin Resource Sharing (CORS) Policy", status: "passed", detail: "Access-Control-Allow-Origin restricts unauthenticated Origins." },
+        { code: "ASVS V14.4.3", title: "CORS Policy Directives", status: "passed", detail: "Access-Control-Allow-Origin restricts unauthenticated Origins." },
         { code: "ASVS V14.4.4", title: "Referrer Information Leak Protection", status: "passed", detail: "Referrer-Policy: strict-origin-when-cross-origin verified." }
       ]
     },
@@ -87,82 +87,68 @@ export default function PolicyComplianceCard({ compliance = {} }) {
   };
 
   return (
-    <div className="glass-card rounded-2xl p-5">
-      <div className="flex items-center justify-between pb-3.5 mb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-accent" />
-            <h3 className="font-bold text-xs text-text uppercase tracking-wider">
-              Regulatory Policy & Standard Compliance Matrix
-            </h3>
-          </div>
-          <p className="text-xs text-text-dim mt-0.5">
-            Click any regulatory framework card to inspect specific clauses, control standards, and audit evidence
-          </p>
+    <div className="glass-card p-4 space-y-4 font-sans">
+      <div className="flex flex-row items-center justify-between pb-3 border-b border-border">
+        <div className="inline-flex flex-row items-center gap-2">
+          <FileText className="w-4 h-4 text-accent shrink-0" />
+          <h3 className="font-bold text-xs text-text uppercase tracking-wider whitespace-nowrap">
+            Regulatory Policy & Compliance Standards
+          </h3>
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {frameworks.map(fw => {
           const isExpanded = expandedKey === fw.key;
           const isPassed = fw.compliant;
-          const statusText = isPassed ? "Compliant" : "Gaps Detected";
-          const borderClass = isPassed ? "bg-success/5" : "bg-warning/5";
-          const badgeClass = isPassed ? "bg-success/10 text-success" : "bg-warning/10 text-warning";
 
           return (
-            <div
-              key={fw.key}
-              className={`rounded-xl transition-all duration-200 ${borderClass}`}
-            >
-              {/* Summary Header */}
+            <div key={fw.key} className="border border-border rounded bg-panel/40 overflow-hidden">
               <div
                 onClick={() => toggleExpand(fw.key)}
-                className="p-4 cursor-pointer hover:bg-white/[0.015] flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none"
+                className="p-3 cursor-pointer hover:bg-panel/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 select-none"
               >
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-text font-mono">{fw.name}</span>
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${badgeClass}`}>
-                      {statusText}
+                <div className="space-y-0.5 min-w-0 flex-1">
+                  <div className="flex flex-row items-center gap-2">
+                    <span className="font-bold text-xs font-mono text-text shrink-0 whitespace-nowrap">{fw.name}</span>
+                    <span className={`inline-flex flex-row items-center px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase shrink-0 whitespace-nowrap ${
+                      isPassed ? "badge-passed" : "badge-medium"
+                    }`}>
+                      {isPassed ? "Compliant" : "Gaps Detected"}
                     </span>
                   </div>
-                  <p className="text-[11px] text-text-dim leading-relaxed truncate">
-                    {fw.desc}
-                  </p>
+                  <p className="text-[11px] font-mono text-text-dim truncate">{fw.desc}</p>
                 </div>
 
-                <div className="flex items-center gap-4 shrink-0">
-                  <div className="text-right">
-                    <div className="text-[10px] font-mono font-bold text-text-muted">Controls: {fw.passed}/{fw.total}</div>
-                    <div className={`text-xs font-mono font-bold ${isPassed ? "text-success" : "text-warning"}`}>{fw.score}% Compliant</div>
+                <div className="flex flex-row items-center gap-3 shrink-0">
+                  <div className="text-right font-mono">
+                    <div className="text-[10px] text-text-muted whitespace-nowrap">Score: {fw.score}%</div>
+                    <div className="text-[11px] text-text font-bold whitespace-nowrap">{fw.passed}/{fw.total} Controls</div>
                   </div>
-                  <div className="text-text-muted">
-                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  <div className="text-text-muted shrink-0">
+                    {isExpanded ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
                   </div>
                 </div>
               </div>
 
-              {/* Expanded Regulatory Clause Details */}
               {isExpanded && (
-                <div className="p-4 bg-panel/40 border-t border-border/30 space-y-3 font-sans text-xs animate-fadeIn">
-                  <span className="text-[10px] font-mono font-bold text-text-muted uppercase tracking-wider block mb-1">
-                    Evaluated Control Clauses & Evidence ({fw.clauses.length})
+                <div className="p-3 bg-surface border-t border-border space-y-2 font-mono text-xs">
+                  <span className="text-[10px] uppercase text-text-muted font-bold block whitespace-nowrap">
+                    Control Clauses & Audit Evidence ({fw.clauses.length})
                   </span>
 
-                  <div className="space-y-2 font-mono">
+                  <div className="space-y-1.5">
                     {fw.clauses.map((clause, i) => (
-                      <div key={i} className="p-3 rounded-lg bg-surface/60 border border-border/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-accent font-bold text-xs">{clause.code}</span>
-                            <span className="text-text font-semibold">{clause.title}</span>
+                      <div key={i} className="p-2.5 rounded bg-panel border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex flex-row items-center gap-2">
+                            <span className="text-accent font-bold shrink-0 whitespace-nowrap">{clause.code}</span>
+                            <span className="text-text font-semibold truncate">{clause.title}</span>
                           </div>
                           <p className="text-[11px] font-sans text-text-dim">{clause.detail}</p>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border shrink-0 ${
-                          clause.status === 'passed' ? 'bg-success/10 border-success/30 text-success' :
-                          clause.status === 'warning' ? 'bg-warning/10 border-warning/30 text-warning' : 'bg-danger/10 border-danger/30 text-danger'
+                        <span className={`inline-flex flex-row items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap ${
+                          clause.status === 'passed' ? 'badge-passed' : 'badge-critical'
                         }`}>
                           {clause.status}
                         </span>

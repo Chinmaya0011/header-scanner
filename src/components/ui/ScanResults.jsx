@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import ScanResultsDashboard from "./ScanResultsDashboard";
 import { useToast } from "@/components/common/Toast";
-import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { Mail, Share2, Copy, Check, Lock, Globe, X } from "lucide-react";
+import { Mail, Share2, Copy, Check, X } from "lucide-react";
 
 export default function ScanResults({ result }) {
   const toast = useToast();
@@ -52,8 +51,8 @@ export default function ScanResults({ result }) {
       const { jsPDF } = await import("jspdf");
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       
-      const primaryColor = "#0f172a";
-      const accentColor = "#10b981";
+      const primaryColor = "#090d16";
+      const accentColor = "#0ea5e9";
 
       doc.setFillColor(primaryColor);
       doc.rect(0, 0, 210, 40, "F");
@@ -170,31 +169,31 @@ export default function ScanResults({ result }) {
 
       {/* Share & Export Modal */}
       {shareModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="glass-card rounded-2xl p-6 border border-border max-w-md w-full relative space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="glass-card rounded p-5 border border-border max-w-md w-full relative space-y-4 font-mono">
             <button
               onClick={() => setShareModalOpen(false)}
-              className="absolute top-4 right-4 text-text-dim hover:text-text p-1"
+              className="absolute top-3.5 right-3.5 text-text-dim hover:text-text p-1"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
 
             <div className="flex items-center gap-2">
-              <Share2 className="w-5 h-5 text-accent" />
-              <h3 className="font-bold text-base text-text">Share Security Audit Report</h3>
+              <Share2 className="w-4 h-4 text-accent" />
+              <h3 className="font-bold text-sm text-text uppercase">Share Security Audit Report</h3>
             </div>
 
             {/* Copy Public Link */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono font-bold text-text-muted uppercase">Public Link</label>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-text-muted uppercase">Public Link</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   readOnly
                   value={shareUrl}
-                  className="flex-1 bg-surface border border-border rounded-xl px-3 py-2 text-xs font-mono text-text select-all"
+                  className="flex-1 bg-surface border border-border rounded px-2.5 py-1.5 text-xs text-text select-all focus:outline-none"
                 />
-                <Button onClick={handleCopyShareLink} variant="accent" size="sm" className="gap-1 font-mono">
+                <Button onClick={handleCopyShareLink} variant="accent" size="sm" className="gap-1 font-mono text-xs">
                   {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiedLink ? "Copied" : "Copy"}
                 </Button>
@@ -202,19 +201,19 @@ export default function ScanResults({ result }) {
             </div>
 
             {/* Email Report Form */}
-            <form onSubmit={handleSendEmail} className="space-y-3 pt-2 border-t border-border/60">
-              <label className="text-xs font-mono font-bold text-text-muted uppercase block">Send Report via Email</label>
+            <form onSubmit={handleSendEmail} className="space-y-2.5 pt-2 border-t border-border">
+              <label className="text-[10px] font-bold text-text-muted uppercase block">Send Report via Email</label>
               <input
                 type="email"
                 required
                 value={recipientEmail}
                 onChange={e => setRecipientEmail(e.target.value)}
                 placeholder="colleague@security.com"
-                className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-xs font-mono text-text placeholder:text-text-muted/60"
+                className="w-full bg-surface border border-border rounded px-2.5 py-1.5 text-xs text-text placeholder:text-text-muted/60 focus:outline-none focus:border-accent"
               />
-              <Button type="submit" disabled={emailLoading} variant="secondary" size="sm" className="w-full gap-2 font-mono">
-                <Mail className="w-4 h-4" />
-                {emailLoading ? "Sending Email..." : "Send Audit Email"}
+              <Button type="submit" disabled={emailLoading} variant="secondary" size="sm" className="w-full gap-2 font-mono text-xs">
+                <Mail className="w-3.5 h-3.5" />
+                {emailLoading ? "Sending..." : "Send Audit Email"}
               </Button>
             </form>
           </div>
