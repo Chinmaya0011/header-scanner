@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getUserFromRequest } from "@/lib/auth";
 import { checkRateLimitDB } from "@/lib/rateLimit";
+import { logActivity } from "@/lib/server/activityLogger";
 import https from "https";
 import http from "http";
 import dns from "dns";
@@ -131,6 +132,16 @@ async function logFailedScan(user, url, domain, reason, statusCode) {
         apiKeyId: user.authMethod === "api-key" ? user.apiKeyId : null,
         isSuccess: false,
         failReason: reason,
+      });
+
+      await logActivity({
+        user,
+        eventType: "SCAN_EXECUTION_FAILED",
+        description: `Security scan failed on ${domain || "unknown"}: ${reason}`,
+        status: "failed",
+        resourceType: "scan",
+        isPublic: false,
+        metadata: { domain, url, reason, statusCode },
       });
 
       // Trigger admin alert notification
@@ -789,6 +800,19 @@ export async function POST(request) {
 
     // Log successful scan
     console.log(`[${requestId}] Scan completed for ${domain} | Score: ${finalScore} | Grade: ${grade} | Duration: ${Date.now() - startTime}ms`);
+
+    // Log successful scan in activity log
+    await logActivity({
+      req: request,
+      user,
+      eventType: user.authMethod === "api-key" ? "API_KEY_USED" : "SCAN_EXECUTION_SUCCESS",
+      description: `Security scan executed on ${domain} (Score: ${finalScore}, Grade: ${grade})`,
+      status: "success",
+      resourceType: "scan",
+      resourceId: scan._id.toString(),
+      isPublic: false,
+      metadata: { domain, score: finalScore, grade, scanDuration: Date.now() - startTime, authMethod: user.authMethod || "web" },
+    });
 
     // Trigger user notification on scan completion
     try {

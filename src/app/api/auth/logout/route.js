@@ -1,7 +1,21 @@
 import { NextResponse } from "next/server";
+import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
-export async function POST() {
+export async function POST(request) {
   try {
+    const user = await getUserFromRequest(request);
+    if (user) {
+      await logActivity({
+        req: request,
+        user,
+        eventType: "USER_LOGOUT",
+        description: `User ${user.email} logged out`,
+        status: "info",
+        resourceType: "auth",
+      });
+    }
+
     const response = NextResponse.json({ success: true, message: "Logged out successfully" });
     
     // Clear cookie by setting maxAge to 0 and an expired date
@@ -23,3 +37,4 @@ export async function POST() {
     );
   }
 }
+

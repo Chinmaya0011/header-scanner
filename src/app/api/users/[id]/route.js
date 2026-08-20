@@ -4,6 +4,7 @@ import User from "@/lib/models/User";
 import Scan from "@/lib/models/Scan";
 import Monitor from "@/lib/models/Monitor";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 /**
  * DELETE /api/users/[id]
@@ -51,6 +52,16 @@ export async function DELETE(request, { params }) {
 
     // Delete the user
     await User.findByIdAndDelete(id);
+
+    await logActivity({
+      req: request,
+      user: currentUser,
+      eventType: "USER_DELETED_BY_ADMIN",
+      description: `User account (${userToDelete.email}) deleted by admin (${currentUser.email})`,
+      status: "warning",
+      resourceType: "user",
+      resourceId: id,
+    });
 
     return NextResponse.json({
       success: true,
@@ -108,6 +119,16 @@ export async function PUT(request, { params }) {
     }
 
     await userToEdit.save();
+
+    await logActivity({
+      req: request,
+      user: currentUser,
+      eventType: "USER_UPDATED_BY_ADMIN",
+      description: `User ${userToEdit.email} settings updated by admin (Daily Limit: ${userToEdit.dailyLimit}, API Access: ${userToEdit.apiAccessEnabled})`,
+      status: "info",
+      resourceType: "user",
+      resourceId: id,
+    });
 
     return NextResponse.json({
       success: true,

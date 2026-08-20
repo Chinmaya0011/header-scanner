@@ -4,6 +4,7 @@ import User from "@/lib/models/User";
 import Scan from "@/lib/models/Scan";
 import Monitor from "@/lib/models/Monitor";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 /**
  * GET /api/users
@@ -78,6 +79,15 @@ export async function DELETE(request) {
     // Delete all users except the current admin
     await User.deleteMany({ _id: { $ne: currentUser._id } });
 
+    await logActivity({
+      req: request,
+      user: currentUser,
+      eventType: "ALL_USERS_DELETED_BY_ADMIN",
+      description: `Bulk deletion of ${usersToDelete.length} user account(s) executed by admin (${currentUser.email})`,
+      status: "warning",
+      resourceType: "user",
+    });
+
     return NextResponse.json({
       success: true,
       message: `Successfully deleted ${usersToDelete.length} user(s) and all their associated scans and monitors.`,
@@ -90,3 +100,4 @@ export async function DELETE(request) {
     );
   }
 }
+

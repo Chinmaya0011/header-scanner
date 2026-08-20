@@ -6,6 +6,7 @@ import Scan from "@/lib/models/Scan";
 import Monitor from "@/lib/models/Monitor";
 import RateLimit from "@/lib/models/RateLimit";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 /**
  * POST /api/auth/delete-account
@@ -30,6 +31,17 @@ export async function POST(request) {
     }
 
     await connectDB();
+
+    // Log self account deletion event before removing user document
+    await logActivity({
+      req: request,
+      user,
+      eventType: "ACCOUNT_DELETED",
+      description: `User ${user.email} deleted their account and associated data`,
+      status: "warning",
+      resourceType: "user",
+      resourceId: user._id.toString(),
+    });
 
     // 1. Delete all user-associated security logs (Scan history)
     await Scan.deleteMany({ owner: user._id });
@@ -60,3 +72,4 @@ export async function POST(request) {
     );
   }
 }
+

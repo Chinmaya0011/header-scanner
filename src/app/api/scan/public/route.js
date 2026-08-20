@@ -5,6 +5,7 @@ import dns from "dns";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import SiteStats from "@/lib/models/SiteStats";
+import { logActivity } from "@/lib/server/activityLogger";
 import {
   analyzeHeaders,
   normalizeUrl,
@@ -731,6 +732,18 @@ export async function POST(request) {
     } catch (notifErr) {
       console.error("Failed to trigger public scan admin notification:", notifErr);
     }
+
+    await logActivity({
+      req: request,
+      eventType: "PUBLIC_SCAN_EXECUTION",
+      description: `Public scan executed on ${domain} (Score: ${finalScore}, Grade: ${grade})`,
+      status: "info",
+      resourceType: "scan",
+      isPublic: true,
+      userEmail: "Guest User",
+      userRole: "guest",
+      metadata: { domain, score: finalScore, grade, scanDuration: Date.now() - startTime },
+    });
 
     // Save public scan to database
     let savedScan = null;

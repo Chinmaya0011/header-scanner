@@ -3,6 +3,7 @@ import crypto from "crypto";
 import connectDB from "@/lib/mongodb";
 import User from "@/lib/models/User";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 /**
  * GET /api/auth/api-keys
@@ -76,6 +77,16 @@ export async function POST(request) {
       await dbUser.save();
       const updatedKey = dbUser.apiKeys[keyIndex];
 
+      await logActivity({
+        req: request,
+        user,
+        eventType: "API_KEY_REGENERATED",
+        description: `API key "${updatedKey.name}" was regenerated`,
+        status: "info",
+        resourceType: "api_key",
+        resourceId: updatedKey._id.toString(),
+      });
+
       return NextResponse.json({
         success: true,
         message: "API key successfully regenerated.",
@@ -110,6 +121,16 @@ export async function POST(request) {
 
     await dbUser.save();
     const addedKey = dbUser.apiKeys[dbUser.apiKeys.length - 1];
+
+    await logActivity({
+      req: request,
+      user,
+      eventType: "API_KEY_CREATED",
+      description: `New API key created: "${keyName}"`,
+      status: "success",
+      resourceType: "api_key",
+      resourceId: addedKey._id.toString(),
+    });
 
     return NextResponse.json({
       success: true,
@@ -166,6 +187,16 @@ export async function PUT(request) {
     await dbUser.save();
     const updatedKey = dbUser.apiKeys[keyIndex];
 
+    await logActivity({
+      req: request,
+      user,
+      eventType: "API_KEY_UPDATED",
+      description: `Settings updated for API key "${updatedKey.name}"`,
+      status: "info",
+      resourceType: "api_key",
+      resourceId: updatedKey._id.toString(),
+    });
+
     return NextResponse.json({
       success: true,
       message: "API key settings updated.",
@@ -213,13 +244,26 @@ export async function DELETE(request) {
       return NextResponse.json({ success: false, error: "API key not found." }, { status: 404 });
     }
 
+    const targetKeyName = dbUser.apiKeys[keyIndex].name;
+
     // Set key status as deleted
     dbUser.apiKeys[keyIndex].status = "deleted";
     dbUser.apiKeys[keyIndex].isActive = false;
     await dbUser.save();
+
+    await logActivity({
+      req: request,
+      user,
+      eventType: "API_KEY_DELETED",
+      description: `API key "${targetKeyName}" was revoked/deleted`,
+      status: "warning",
+      resourceType: "api_key",
+      resourceId: keyId,
+    });
 
     return NextResponse.json({ success: true, message: "API key successfully deleted." });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+

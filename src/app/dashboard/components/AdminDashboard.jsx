@@ -24,11 +24,13 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Info
+  Info,
+  Activity
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import AdminActivityLogs from "@/components/activity/AdminActivityLogs";
 import { useToast } from "@/components/common/Toast";
 import {
   ResponsiveContainer,
@@ -62,6 +64,7 @@ export default function AdminDashboard({
 }) {
   const toast = useToast();
   const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "activity-logs"
   const [adminStats, setAdminStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   
@@ -231,8 +234,40 @@ export default function AdminDashboard({
         </div>
       </div>
 
-      {/* Admin stats loading */}
-      {statsLoading ? (
+      {/* Tab Navigation */}
+      <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "overview"
+              ? "bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 shadow-lg shadow-indigo-500/10"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          <span>Console Overview</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("activity-logs")}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "activity-logs"
+              ? "bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 shadow-lg shadow-indigo-500/10"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+          }`}
+        >
+          <Activity className="w-4 h-4 text-emerald-400" />
+          <span>Activity & Audit Logs</span>
+          <Badge className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 text-[10px] ml-1 py-0 px-1.5">Live</Badge>
+        </button>
+      </div>
+
+      {activeTab === "activity-logs" ? (
+        <AdminActivityLogs usersList={usersList} />
+      ) : (
+        <>
+          {/* Admin stats loading */}
+          {statsLoading ? (
         <Card className="text-center py-10 text-xs text-text-dim italic">
           Fetching system aggregations...
         </Card>
@@ -898,6 +933,8 @@ export default function AdminDashboard({
           </div>
         </Card>
       </div>
+        </>
+      )}
     </div>
   );
 }

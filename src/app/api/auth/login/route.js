@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/lib/models/User";
 import { signToken } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 export async function POST(request) {
   try {
@@ -21,6 +22,14 @@ export async function POST(request) {
     // Find user
     const user = await User.findOne({ email });
     if (!user) {
+      await logActivity({
+        req: request,
+        eventType: "USER_LOGIN_FAILED",
+        description: `Failed login attempt for nonexistent user email (${email})`,
+        status: "failed",
+        resourceType: "auth",
+        userEmail: email,
+      });
       return NextResponse.json(
         { error: "Invalid email or password." },
         { status: 401 }
@@ -30,6 +39,14 @@ export async function POST(request) {
     // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      await logActivity({
+        req: request,
+        user,
+        eventType: "USER_LOGIN_FAILED",
+        description: `Failed login attempt for user ${user.email} (incorrect password)`,
+        status: "failed",
+        resourceType: "auth",
+      });
       return NextResponse.json(
         { error: "Invalid email or password." },
         { status: 401 }
@@ -38,6 +55,14 @@ export async function POST(request) {
 
     // Block unverified users from logging in
     if (user.isVerified === false) {
+      await logActivity({
+        req: request,
+        user,
+        eventType: "USER_LOGIN_FAILED",
+        description: `Login blocked for unverified user account (${user.email})`,
+        status: "warning",
+        resourceType: "auth",
+      });
       return NextResponse.json(
         { error: "Account verification required. Please complete OTP verification." },
         { status: 403 }
@@ -46,6 +71,15 @@ export async function POST(request) {
 
     // Generate token
     const token = signToken(user);
+
+    await logActivity({
+      req: request,
+      user,
+      eventType: "USER_LOGIN_SUCCESS",
+      description: `User ${user.email} logged in successfully`,
+      status: "success",
+      resourceType: "auth",
+    });
 
     // Set cookie
     const response = NextResponse.json({
@@ -77,3 +111,4 @@ export async function POST(request) {
     );
   }
 }
+
