@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import ActivityLog from "@/lib/models/ActivityLog";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 /**
  * GET /api/activity-logs
@@ -141,3 +142,71 @@ export async function GET(request) {
     );
   }
 }
+
+/**
+ * DELETE /api/activity-logs
+ * Purge / clear activity logs (Admin only)
+ */
+export async function DELETE(request) {
+  try {
+    const user = await getUserFromRequest(request);
+
+    if (!user || user.role !== "admin") {
+      return NextResponse.json(
+        { success: false, error: "Forbidden. Admin privileges required." },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const logId = searchParams.get("id");
+    const purgeAll = searchParams.get("all") === "true";
+
+    await connectDB();
+
+    if (logId) {
+      const deleted = await ActivityLog.findByIdAndDelete(logId);
+      if (!deleted) {
+        return NextResponse.json({ success: false, error: "Activity log record not found." }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Activity log record deleted successfully.",
+      });
+    }
+
+    if (purgeAll) {
+      const result = await ActivityLog.deleteMany({});
+
+      // Record the purge event log after clearing
+      await logActivity({
+        req: request,
+        user,
+        eventType: "ACTIVITY_LOGS_PURGED",
+        description: `Admin purged all ${result.deletedCount} system activity logs.`,
+        status: "warning",
+        resourceType: "activity_logs",
+        metadata: { deletedCount: result.deletedCount },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Successfully purged all ${result.deletedCount} activity logs.`,
+        deletedCount: result.deletedCount,
+      });
+    }
+
+    return NextResponse.json(
+      { success: false, error: "Specify log 'id' or 'all=true' parameter." },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error("Delete activity logs API error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to delete activity logs: " + error.message },
+      { status: 500 }
+    );
+  }
+}
+
