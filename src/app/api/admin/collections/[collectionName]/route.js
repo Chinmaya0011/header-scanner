@@ -19,7 +19,8 @@ export async function GET(request, { params }) {
       );
     }
 
-    const { collectionName } = params;
+    const resolvedParams = await params;
+    const collectionName = resolvedParams?.collectionName;
     if (!collectionName) {
       return NextResponse.json({ success: false, error: "Collection name required." }, { status: 400 });
     }
@@ -101,7 +102,8 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const { collectionName } = params;
+    const resolvedParams = await params;
+    const collectionName = resolvedParams?.collectionName;
     if (!collectionName) {
       return NextResponse.json({ success: false, error: "Collection name required." }, { status: 400 });
     }
