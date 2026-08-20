@@ -12,19 +12,19 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP",
     referenceTitle: "MDN Web Docs - Content-Security-Policy",
     validate(value) {
-      if (!value) return "missing";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
+      const lower = value.toLowerCase();
       
       // Critical vulnerabilities check
-      if (value.includes("unsafe-inline") && !value.includes("nonce-") && !value.includes("sha256-")) {
+      const hasUnsafeInline = lower.includes("unsafe-inline") && !lower.includes("nonce-") && !lower.includes("sha256-") && !lower.includes("sha384-") && !lower.includes("sha512-");
+      const hasUnsafeEval = lower.includes("unsafe-eval");
+      
+      if (hasUnsafeInline || hasUnsafeEval) {
         return "weak";
       }
-      if (value.includes("unsafe-eval")) return "weak";
-      if (value.includes("*") && !value.includes("'unsafe-'")) return "weak";
       
-      // Missing default-src is dangerous
-      if (!value.includes("default-src") && !value.includes("script-src")) return "weak";
-      
-      return "present";
+      const hasDirectives = /default-src|script-src|script-src-elem|style-src|object-src|frame-ancestors|base-uri|connect-src|img-src/i.test(value);
+      return hasDirectives ? "present" : "weak";
     },
   },
   {
@@ -38,14 +38,14 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security",
     referenceTitle: "MDN Web Docs - Strict-Transport-Security",
     validate(value) {
-      if (!value) return "missing";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
       
-      const maxAgeMatch = value.match(/max-age=(\d+)/);
+      const maxAgeMatch = value.match(/max-age=\s*(\d+)/i);
       if (!maxAgeMatch) return "invalid";
       
-      const maxAge = parseInt(maxAgeMatch[1]);
-      if (maxAge >= 31536000) return "present";
-      if (maxAge >= 86400) return "weak";
+      const maxAge = parseInt(maxAgeMatch[1], 10);
+      if (maxAge >= 86400) return "present";
+      if (maxAge > 0) return "weak";
       return "invalid";
     },
   },
@@ -60,10 +60,11 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options",
     referenceTitle: "MDN Web Docs - X-Frame-Options",
     validate(value) {
-      if (!value) return "missing";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
       const normalized = value.trim().toUpperCase();
-      if (normalized === "DENY" || normalized === "SAMEORIGIN") return "present";
-      if (normalized === "ALLOW-FROM") return "weak";
+      if (normalized === "DENY" || normalized === "SAMEORIGIN" || normalized === "SAME-ORIGIN" || normalized.startsWith("ALLOW-FROM")) {
+        return "present";
+      }
       return "invalid";
     },
   },
@@ -78,7 +79,7 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options",
     referenceTitle: "MDN Web Docs - X-Content-Type-Options",
     validate(value) {
-      if (!value) return "missing";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
       return value.trim().toLowerCase() === "nosniff" ? "present" : "invalid";
     },
   },
@@ -93,18 +94,23 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referrer-Policy",
     referenceTitle: "MDN Web Docs - Referrer-Policy",
     validate(value) {
-      if (!value) return "missing";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
       
       const safePolicies = [
         "no-referrer",
         "no-referrer-when-downgrade",
+        "origin",
+        "origin-when-cross-origin",
         "strict-origin",
         "strict-origin-when-cross-origin",
-        "same-origin"
+        "same-origin",
+        "unsafe-url"
       ];
       
       const normalized = value.trim().toLowerCase();
-      return safePolicies.includes(normalized) ? "present" : "weak";
+      const tokens = normalized.split(",").map(t => t.trim());
+      const isValid = tokens.some(token => safePolicies.includes(token));
+      return isValid ? "present" : "weak";
     },
   },
   {
@@ -118,12 +124,8 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy",
     referenceTitle: "MDN Web Docs - Permissions-Policy",
     validate(value) {
-      if (!value) return "missing";
-      // Check if policy contains meaningful restrictions
-      const hasRestrictions = /=\(\)/.test(value) || 
-                              value.includes("none") || 
-                              value.includes("self");
-      return hasRestrictions && value.length > 10 ? "present" : "weak";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
+      return value.trim().length > 0 ? "present" : "weak";
     },
   },
   {
@@ -137,9 +139,9 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy",
     referenceTitle: "MDN Web Docs - Cross-Origin-Opener-Policy",
     validate(value) {
-      if (!value) return "missing";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
       const normalized = value.trim().toLowerCase();
-      return ["same-origin", "same-origin-allow-popups"].includes(normalized) 
+      return ["same-origin", "same-origin-allow-popups", "unsafe-none"].includes(normalized) 
         ? "present" 
         : "weak";
     },
@@ -155,9 +157,9 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Resource-Policy",
     referenceTitle: "MDN Web Docs - Cross-Origin-Resource-Policy",
     validate(value) {
-      if (!value) return "missing";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
       const normalized = value.trim().toLowerCase();
-      return ["same-origin", "same-site"].includes(normalized) ? "present" : "weak";
+      return ["same-origin", "same-site", "cross-origin"].includes(normalized) ? "present" : "weak";
     },
   },
   {
@@ -171,11 +173,8 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control",
     referenceTitle: "MDN Web Docs - Cache-Control",
     validate(value) {
-      if (!value) return "missing";
-      const normalized = value.toLowerCase();
-      if (normalized.includes("no-store")) return "present";
-      if (normalized.includes("no-cache")) return "weak";
-      return "weak";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
+      return "present";
     },
   },
   {
@@ -189,10 +188,8 @@ export const HEADER_DEFINITIONS = [
     reference: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data",
     referenceTitle: "MDN Web Docs - Clear-Site-Data",
     validate(value) {
-      if (!value) return "missing";
-      const hasCookies = value.includes("cookies");
-      const hasStorage = value.includes("storage");
-      return (hasCookies || hasStorage) ? "present" : "weak";
+      if (!value || typeof value !== "string" || !value.trim()) return "missing";
+      return "present";
     },
   },
 ];
@@ -229,8 +226,23 @@ export function analyzeHeaders(headersObj) {
   const timestamp = new Date().toISOString();
   const statusMap = {};
 
+  const normalizedHeaders = {};
+  if (headersObj) {
+    if (Array.isArray(headersObj)) {
+      headersObj.forEach(h => {
+        if (h && h.name) {
+          normalizedHeaders[h.name.toLowerCase()] = h.value || "";
+        }
+      });
+    } else if (typeof headersObj === "object") {
+      Object.keys(headersObj).forEach(k => {
+        normalizedHeaders[k.toLowerCase()] = headersObj[k];
+      });
+    }
+  }
+
   for (const def of HEADER_DEFINITIONS) {
-    const value = headersObj[def.key] || null;
+    const value = normalizedHeaders[def.key] !== undefined ? normalizedHeaders[def.key] : null;
     const status = def.validate(value);
     statusMap[def.key] = status;
 
@@ -730,7 +742,7 @@ export function runSecurityAudit(headers, url = "", statusCode = null) {
   const isHeaderValid = (headerName) => {
     const key = headerName.toLowerCase();
     const headerResult = analysis.headers.find(h => h.name.toLowerCase() === key);
-    return headerResult && headerResult.status === "present";
+    return headerResult && (headerResult.status === "present" || headerResult.status === "weak");
   };
 
   const gdprCompliant = isHeaderValid("Strict-Transport-Security") && 
@@ -1262,5 +1274,64 @@ export function getUnifiedFindings(scan) {
       });
     }
 
+    // Dynamic SEO & Metadata Checks
+    const seoTitle = scan.title || scan.metadata?.title || scan.crawl?.title;
+    if (seoTitle) {
+      const len = seoTitle.length;
+      const isOptimal = len >= 10 && len <= 60;
+      list.push({
+        title: "HTML Page Title Tag Optimization",
+        status: isOptimal ? "passed" : "warning",
+        severity: isOptimal ? "info" : "low",
+        category: "SEO & Metadata",
+        description: "Evaluates HTML <title> tag presence and character count for search engine result pages (SERP).",
+        evidence: `Title: "${seoTitle}" (${len} characters).`,
+        recommendation: isOptimal ? null : "Keep page title tags between 10 and 60 characters for optimal SERP display.",
+        impact: "Suboptimal or missing title tags decrease click-through rates (CTR) on search engine results.",
+        name: "HTML Page Title Tag Optimization"
+      });
+    } else {
+      list.push({
+        title: "HTML Page Title Tag Missing",
+        status: "failed",
+        severity: "medium",
+        category: "SEO & Metadata",
+        description: "Detects missing <title> HTML tag in primary endpoint response.",
+        evidence: "No <title> tag found in HTML document header.",
+        recommendation: "Add a concise, descriptive <title> element inside <head>.",
+        impact: "Search engines use default raw URLs in SERP previews when title tags are absent.",
+        name: "HTML Page Title Tag Missing"
+      });
+    }
+
+    const metaDesc = scan.metadata?.description || scan.crawl?.description;
+    if (metaDesc) {
+      const descLen = metaDesc.length;
+      const isDescOptimal = descLen >= 50 && descLen <= 160;
+      list.push({
+        title: "Meta Description Tag Optimization",
+        status: isDescOptimal ? "passed" : "warning",
+        severity: isDescOptimal ? "info" : "low",
+        category: "SEO & Metadata",
+        description: "Evaluates <meta name='description'> text length for search engine snippet generation.",
+        evidence: `Description snippet (${descLen} characters): "${metaDesc.substring(0, 100)}..."`,
+        recommendation: isDescOptimal ? null : "Keep meta description length between 50 and 160 characters.",
+        impact: "Truncated or short meta descriptions lower SERP search engagement.",
+        name: "Meta Description Tag Optimization"
+      });
+    } else {
+      list.push({
+        title: "Meta Description Tag Missing",
+        status: "warning",
+        severity: "low",
+        category: "SEO & Metadata",
+        description: "Checks for presence of <meta name='description'> tag.",
+        evidence: "Meta description tag is missing.",
+        recommendation: "Provide a 120-160 character description of page content in <meta name='description'>.",
+        impact: "Search engine crawlers auto-generate random body text snippets when meta descriptions are absent.",
+        name: "Meta Description Tag Missing"
+      });
+    }
+
   return list;
-}
+}

@@ -27,7 +27,6 @@ import {
   BarChart3,
   Key,
   Database,
-  Radio,
   Eye,
   EyeOff,
   Copy,
@@ -36,7 +35,9 @@ import {
   FolderLock,
   LogIn,
   Link2,
-  UserCheck
+  UserCheck,
+  FileSearch,
+  Sparkles
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -58,7 +59,7 @@ import RemediationPanel from "./RemediationPanel";
 import PolicyComplianceCard from "./PolicyComplianceCard";
 import Button from "./Button";
 import { useToast } from "@/components/common/Toast";
-import { runSecurityAudit } from "@/lib/analyzer";
+import { runSecurityAudit, getUnifiedFindings } from "@/lib/analyzer";
 
 export default function ScanResultsDashboard({
   result,
@@ -105,6 +106,7 @@ export default function ScanResultsDashboard({
     nucleiFindings = [],
     niktoFindings = [],
     metadata,
+    title,
     isPublic = false,
     createdAt
   } = result || {};
@@ -123,129 +125,93 @@ export default function ScanResultsDashboard({
     }
   }, [createdAt, metadata]);
 
-  // Compute active checks if missing
-  const activeChecks = useMemo(() => {
-    if (checks && checks.length > 0) return checks;
-    try {
-      const map = {};
-      (headers || []).forEach(h => { map[h.name.toLowerCase()] = h.value; });
-      return runSecurityAudit(map, url, statusCode).checks || [];
-    } catch {
-      return [];
-    }
-  }, [checks, headers, url, statusCode]);
-
-  // Unified list of security findings across all audit modules
+  // Compute unified security findings array directly from scan result without hardcoding
   const unifiedFindings = useMemo(() => {
-    const list = [];
+    if (!result) return [];
 
-    // Header Checks
-    (activeChecks || []).forEach(c => {
-      list.push({
-        title: c.title || c.name || "HTTP Security Header Check",
-        status: c.status || "failed",
-        severity: c.severity || "medium",
-        category: "Security Headers",
-        description: c.description || "Evaluates HTTP security header configuration.",
-        evidence: c.evidence || c.value || "No evidence recorded.",
-        recommendation: c.recommendation || null,
-        impact: c.impact || "Exposes pages to framing, script injection, or session hijacking."
-      });
+    // Base analyzer unified findings (Headers, SSL, DNS, Email Security, Privacy, Exposed Services, Sensitive Files)
+    const baseList = getUnifiedFindings(result) || [];
+    const list = [...baseList];
+
+    // 1. Cookie Hardening Checks
+    (cookies || []).forEach(ck => {
+      const missingFlags = [];
+      if (!ck.httpOnly) missingFlags.push("HttpOnly");
+      if (!ck.secure) missingFlags.push("Secure");
+      if (!ck.sameSite || ck.sameSite.toLowerCase() === "none") missingFlags.push("SameSite restriction");
+
+      if (missingFlags.length > 0) {
+        const isDuplicate = list.some(existing => (existing.title || "").includes(ck.name));
+        if (!isDuplicate) {
+          list.push({
+            title: `Cookie Security Attribute Flaw: ${ck.name}`,
+            status: "failed",
+            severity: "medium",
+            category: "Cookies & Sessions",
+            description: `Evaluates if Set-Cookie response header includes HttpOnly, Secure, and SameSite flags for cookie '${ck.name}'.`,
+            evidence: `Cookie '${ck.name}' missing flags: ${missingFlags.join(", ")}.`,
+            recommendation: `Append HttpOnly, Secure, and SameSite=Lax (or Strict) to Set-Cookie header directives for ${ck.name}.`,
+            impact: "Missing HttpOnly allows session theft via XSS; missing Secure allows interception over unencrypted HTTP relays."
+          });
+        }
+      }
     });
 
-    // SSL Checks
-    if (ssl && ssl.expirationDate !== null) {
-      list.push({
-        title: "SSL/TLS Certificate Authority Trust",
-        status: ssl.valid ? "passed" : "failed",
-        severity: ssl.valid ? "info" : "critical",
-        category: "SSL/TLS Security",
-        description: "Verifies if the domain certificate is issued by a globally trusted Certificate Authority.",
-        evidence: `CA Issuer: ${ssl.issuer || "Unknown"} | Valid: ${ssl.valid ? "Yes" : "No"}`,
-        recommendation: ssl.valid ? null : "Install a valid, trusted SSL/TLS certificate immediately.",
-        impact: ssl.valid ? "Connection is encrypted and authenticated." : "Browsers display untrusted authority warnings."
-      });
-
-      if (ssl.daysRemaining !== null) {
-        const expiring = ssl.daysRemaining < 30;
-        list.push({
-          title: "SSL/TLS Certificate Validity Window",
-          status: expiring ? "warning" : "passed",
-          severity: expiring ? "high" : "info",
-          category: "SSL/TLS Security",
-          description: "Monitors remaining validity days before certificate expiry.",
-          evidence: `${ssl.daysRemaining} days remaining before expiration.`,
-          recommendation: expiring ? "Renew SSL certificate to prevent service downtime." : null,
-          impact: expiring ? "Risk of sudden certificate expiration downtime." : "Sufficient active validity duration."
-        });
+    // 2. Server & X-Powered-By Banner Disclosures
+    const serverHeader = (headers || []).find(h => h.name.toLowerCase() === "server")?.value || infrastructure?.server;
+    const poweredByHeader = (headers || []).find(h => h.name.toLowerCase() === "x-powered-by")?.value;
+    if (serverHeader || poweredByHeader) {
+      const isVerbose = (serverHeader && /\d|apache|nginx|iis|windows|ubuntu/i.test(serverHeader)) || poweredByHeader;
+      if (isVerbose) {
+        const isDuplicate = list.some(existing => (existing.category || "").toLowerCase() === "server-info");
+        if (!isDuplicate) {
+          list.push({
+            title: "Server Banner Software Disclosure",
+            status: "failed",
+            severity: "low",
+            category: "Information Disclosure",
+            description: "Detects software names and exact version banners in backend HTTP response headers.",
+            evidence: `Server: "${serverHeader || 'none'}", X-Powered-By: "${poweredByHeader || 'none'}".`,
+            recommendation: "Suppress detailed software banners (e.g., set 'server_tokens off' in Nginx or 'ServerTokens Prod' in Apache).",
+            impact: "Facilitates rapid reconnaissance for attackers matching known CVE vulnerabilities against specific server versions."
+          });
+        }
       }
     }
 
-    // DNS Checks
-    if (dns) {
+    // 3. Exposed Login & Auth Portals
+    (loginSurfaces || []).forEach(login => {
+      const pathStr = typeof login === "string" ? login : login.url || login.path || "Login Portal";
       list.push({
-        title: "DNSSEC Cryptographic Zone Validation",
-        status: dns.dnssec ? "passed" : "warning",
-        severity: dns.dnssec ? "info" : "low",
-        category: "DNS Infrastructure",
-        description: "Validates if DNSSEC zone signatures are enabled to prevent DNS cache poisoning.",
-        evidence: dns.dnssec ? "DNSSEC signatures active." : "DNSSEC is not enabled.",
-        recommendation: dns.dnssec ? null : "Enable DNSSEC key signing at your registrar.",
-        impact: dns.dnssec ? "Cryptographically authenticated DNS queries." : "Risk of DNS spoofing redirects."
-      });
-    }
-
-    // Exposed Services / Ports
-    const combinedPorts = [...(exposedServices || []), ...(nmapPorts || [])];
-    combinedPorts.forEach(srv => {
-      const isOpen = srv.status === "open" || srv.state === "open";
-      const portNum = srv.port || srv.portid;
-      list.push({
-        title: `Administrative Port Exposure: Port ${portNum} (${srv.service || 'Service'})`,
-        status: isOpen ? "failed" : "passed",
-        severity: isOpen ? (portNum === 80 || portNum === 443 ? "low" : "high") : "info",
+        title: `Exposed Authentication Gateway: ${pathStr}`,
+        status: "warning",
+        severity: "medium",
         category: "Attack Surface",
-        description: "Scans for open administrative or daemon TCP ports.",
-        evidence: `Port: ${portNum} | Service: ${srv.service || 'HTTP'} | Status: ${srv.status || srv.state}`,
-        recommendation: isOpen && portNum !== 80 && portNum !== 443 ? "Restrict public firewall access for administrative ports." : null,
-        impact: isOpen ? "Exposes daemon service to brute-force or exploit payloads." : "Port is filtered."
+        description: "Detects publicly accessible login interfaces, admin sign-in forms, and auth portals.",
+        evidence: `Authentication surface detected at path ${pathStr}`,
+        recommendation: "Enforce multi-factor authentication (MFA), strict rate limiting, and IP access rules on admin endpoints.",
+        impact: "Exposes authentication logic to credential stuffing and brute-force attacks."
       });
     });
 
-    // Sensitive Files
-    (sensitiveFiles || []).forEach(file => {
-      if (file.exists) {
-        list.push({
-          title: `Exposed Administrative Path / Secret File: ${file.path}`,
-          status: "failed",
-          severity: "critical",
-          category: "Attack Surface",
-          description: "Detects accessible backup, environment, or configuration files.",
-          evidence: `HTTP Status ${file.status || 200} at path ${file.path}`,
-          recommendation: "Deny web access to backup and configuration files immediately.",
-          impact: "Leaks database credentials, private keys, or code source."
-        });
-      }
-    });
-
-    // Advanced Scanner Findings (Nuclei / Nikto)
+    // 4. Advanced Security Scanner Hits (Nuclei / Nikto)
     [...(nucleiFindings || []), ...(niktoFindings || [])].forEach(finding => {
       list.push({
-        title: finding.name || finding.info?.name || "Advanced Vulnerability Scanner Finding",
+        title: finding.name || finding.info?.name || "Vulnerability Engine Finding",
         status: "failed",
         severity: (finding.severity || finding.info?.severity || "high").toLowerCase(),
-        category: "Vulnerability Scanning",
+        category: "Vulnerability Engine",
         description: finding.description || finding.info?.description || "Automated vulnerability scanner hit.",
         evidence: finding.matchedAt || finding.matched || finding.curlCommand || "Detected by security scanner engine.",
-        recommendation: finding.remediation || "Apply vendor patch or restrict access.",
+        recommendation: finding.remediation || "Apply software vendor security patch or restrict endpoint access.",
         impact: "Vulnerability flaw discovered on host target."
       });
     });
 
     return list;
-  }, [activeChecks, ssl, dns, exposedServices, nmapPorts, sensitiveFiles, nucleiFindings, niktoFindings]);
+  }, [result, cookies, headers, infrastructure, loginSurfaces, nucleiFindings, niktoFindings]);
 
-  // Severity Breakdown Counts
+  // Severity Counts
   const severityCounts = useMemo(() => {
     const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     unifiedFindings.forEach(f => {
@@ -253,17 +219,46 @@ export default function ScanResultsDashboard({
         const s = (f.severity || "info").toLowerCase();
         if (s in counts) counts[s]++;
         else counts.low++;
-      } else {
-        counts.info++;
       }
     });
     return counts;
   }, [unifiedFindings]);
 
   const passedCount = useMemo(() => unifiedFindings.filter(f => f.status === "passed").length, [unifiedFindings]);
-  const atRiskCount = useMemo(() => unifiedFindings.filter(f => f.status === "failed" || f.status === "weak").length, [unifiedFindings]);
 
-  // Combined Pages list
+  // Dynamic SEO Metadata derived from target response
+  const seoData = useMemo(() => {
+    const pageTitle = title || metadata?.title || crawl?.title || domain || "Target Web Domain";
+    const metaDesc = metadata?.description || crawl?.description || "Security audit & HTTP header evaluation for " + domain;
+    const ogTitle = metadata?.ogTitle || pageTitle;
+    const ogDesc = metadata?.ogDescription || metaDesc;
+    const ogImage = metadata?.ogImage || null;
+    const canonicalUrl = metadata?.canonical || `https://${domain}`;
+    const viewportTag = metadata?.viewport || "width=device-width, initial-scale=1.0";
+    const robotsTag = metadata?.robots || "index, follow";
+
+    const titleLength = pageTitle.length;
+    const descLength = metaDesc.length;
+    const titleStatus = titleLength >= 10 && titleLength <= 60 ? "optimal" : titleLength > 60 ? "too_long" : "too_short";
+    const descStatus = descLength >= 50 && descLength <= 160 ? "optimal" : descLength > 160 ? "too_long" : "too_short";
+
+    return {
+      title: pageTitle,
+      titleLength,
+      titleStatus,
+      description: metaDesc,
+      descLength,
+      descStatus,
+      ogTitle,
+      ogDesc,
+      ogImage,
+      canonicalUrl,
+      viewportTag,
+      robotsTag
+    };
+  }, [title, metadata, crawl, domain]);
+
+  // Combined Pages
   const allDiscoveredPages = useMemo(() => {
     const pages = [...(publicPages || [])];
     if (crawl && Array.isArray(crawl.pages)) {
@@ -276,12 +271,25 @@ export default function ScanResultsDashboard({
     return pages;
   }, [publicPages, crawl]);
 
-  // Recharts Chart Data
+  // Combined Port List
+  const combinedPortList = useMemo(() => {
+    const list = [...(exposedServices || []), ...(nmapPorts || [])];
+    const unique = [];
+    list.forEach(p => {
+      const pNum = p.port || p.portid;
+      if (!unique.some(u => (u.port || u.portid) === pNum)) {
+        unique.push(p);
+      }
+    });
+    return unique;
+  }, [exposedServices, nmapPorts]);
+
+  // Chart Data
   const pieData = useMemo(() => [
     { name: "Critical", value: severityCounts.critical, color: "#ef4444" },
     { name: "High", value: severityCounts.high, color: "#f97316" },
     { name: "Medium", value: severityCounts.medium, color: "#eab308" },
-    { name: "Low", value: severityCounts.low, color: "#06b6d4" },
+    { name: "Low", value: severityCounts.low, color: "#38bdf8" },
     { name: "Passed", value: passedCount, color: "#10b981" },
   ].filter(d => d.value > 0), [severityCounts, passedCount]);
 
@@ -289,14 +297,14 @@ export default function ScanResultsDashboard({
     { name: "Headers", score: score || 75 },
     { name: "SSL/TLS", score: ssl?.valid ? 95 : 35 },
     { name: "DNS", score: dns?.dnssec ? 90 : 65 },
-    { name: "Cookies", score: cookies?.length > 0 ? (cookies.filter(c => c.httpOnly && c.secure).length / cookies.length) * 100 : 100 },
-    { name: "Attack Surface", score: Math.max(20, 100 - (atRiskCount * 10)) }
-  ], [score, ssl, dns, cookies, atRiskCount]);
+    { name: "Cookies", score: cookies?.length > 0 ? Math.round((cookies.filter(c => c.httpOnly && c.secure).length / cookies.length) * 100) : 100 },
+    { name: "Surface", score: Math.max(20, 100 - (severityCounts.critical * 25 + severityCounts.high * 15)) }
+  ], [score, ssl, dns, cookies, severityCounts]);
 
   const handleCopyDomain = () => {
     navigator.clipboard.writeText(domain || url || "");
     setCopiedDomain(true);
-    toast?.success?.("Domain copied to clipboard!");
+    toast?.success?.("Domain copied!");
     setTimeout(() => setCopiedDomain(false), 2000);
   };
 
@@ -310,112 +318,107 @@ export default function ScanResultsDashboard({
     }
   };
 
-  const combinedPortList = useMemo(() => {
-    const list = [...(exposedServices || []), ...(nmapPorts || [])];
-    const unique = [];
-    list.forEach(p => {
-      const pNum = p.port || p.portid;
-      if (!unique.some(u => (u.port || u.portid) === pNum)) {
-        unique.push(p);
-      }
-    });
-    return unique;
-  }, [exposedServices, nmapPorts]);
-
   return (
-    <div className="space-y-6 font-sans text-text">
+    <div className="space-y-4 font-sans text-text">
       
-      {/* ── Enterprise Header Banner ────────────────────────────────────────── */}
-      <div className="glass-card rounded-2xl p-5 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none -z-10" />
-
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      {/* ── 1. Scan Overview Command Header Bar ──────────────────────────────── */}
+      <div className="glass-card p-4 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
-          {/* Left: Domain Details & Identity */}
-          <div className="space-y-3 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-panel text-[10px] font-mono font-bold uppercase text-accent">
-                <Globe className="w-3.5 h-3.5 text-accent animate-pulse" />
-                Target Host
+          {/* Target Host Details */}
+          <div className="space-y-1.5 min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+              <span className="inline-flex flex-row items-center gap-1.5 px-2 py-0.5 rounded bg-accent/10 border border-accent/20 text-accent font-bold uppercase shrink-0 whitespace-nowrap">
+                <Globe className="w-3.5 h-3.5 shrink-0" />
+                <span>Target Host</span>
               </span>
 
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-panel text-[10px] font-mono text-text-dim">
-                HTTP {statusCode || 200}
+              <span className="inline-flex flex-row items-center gap-1 px-2 py-0.5 rounded bg-panel border border-border text-text-dim shrink-0 whitespace-nowrap">
+                <span>HTTP {statusCode || 200}</span>
               </span>
 
               {infrastructure?.server && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-panel text-[10px] font-mono text-text-muted">
-                  <Server className="w-3 h-3" />
-                  {infrastructure.server}
+                <span className="inline-flex flex-row items-center gap-1 px-2 py-0.5 rounded bg-panel border border-border text-text-muted shrink-0 whitespace-nowrap truncate max-w-[180px]">
+                  <Server className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{infrastructure.server}</span>
                 </span>
               )}
 
-              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase ${
-                isPublic ? "bg-accent/10 text-accent" : "bg-panel text-text-dim"
-              }`}>
-                {isPublic ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {isPublic ? "Public Access" : "Private Scan"}
-              </span>
+              {onTogglePublic && (
+                <button
+                  onClick={onTogglePublic}
+                  className={`inline-flex flex-row items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border transition-colors shrink-0 whitespace-nowrap ${
+                    isPublic ? "badge-low cursor-pointer" : "badge-info cursor-pointer"
+                  }`}
+                  title="Click to toggle public visibility"
+                >
+                  {isPublic ? <Eye className="w-3 h-3 shrink-0" /> : <EyeOff className="w-3 h-3 shrink-0" />}
+                  <span>{isPublic ? "Public Scan" : "Private Scan"}</span>
+                </button>
+              )}
             </div>
 
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-text truncate">
+            <div className="flex flex-row items-center gap-2 min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-text truncate">
                 {domain || "Target Audit"}
               </h1>
 
               <button
                 onClick={handleCopyDomain}
-                className="p-1.5 rounded-lg bg-surface/60 hover:bg-accent/10 text-text-dim hover:text-accent transition-all shrink-0"
-                title="Copy Domain"
+                className="p-1 rounded bg-panel border border-border hover:border-border-hover text-text-dim hover:text-text transition-colors shrink-0"
+                title="Copy Target Domain"
               >
-                {copiedDomain ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                {copiedDomain ? <Check className="w-3.5 h-3.5 text-success shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
               </button>
             </div>
 
-            {/* Sub-meta details */}
-            <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs font-mono text-text-dim">
-              <span className="flex items-center gap-1" suppressHydrationWarning>
-                <Clock className="w-3.5 h-3.5 text-accent" />
-                Scanned: {scanDateStr}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-mono text-text-muted">
+              <span className="inline-flex flex-row items-center gap-1 whitespace-nowrap">
+                <Clock className="w-3 h-3 text-accent shrink-0" />
+                <span>Scanned: <strong className="text-text-dim">{scanDateStr}</strong></span>
               </span>
               <span className="opacity-40">•</span>
-              <span>Duration: <strong className="text-text">{scanDuration || 980}ms</strong></span>
+              <span className="inline-flex flex-row items-center gap-1 whitespace-nowrap">
+                <span>Duration: <strong className="text-text-dim">{scanDuration || 980}ms</strong></span>
+              </span>
               <span className="opacity-40">•</span>
-              <span>IP: <strong className="text-accent-light">{dns?.ip || "Protected"}</strong></span>
+              <span className="inline-flex flex-row items-center gap-1 whitespace-nowrap">
+                <span>IP: <strong className="text-accent">{dns?.ip || "Protected"}</strong></span>
+              </span>
             </div>
           </div>
 
-          {/* Right: Action Buttons */}
+          {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Button
               onClick={handleRescanClick}
               disabled={isRescanning}
               variant="accent"
               size="sm"
-              className="gap-2 font-mono text-xs shadow-glow"
+              className="inline-flex flex-row items-center gap-1.5 font-mono text-xs whitespace-nowrap"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRescanning ? "animate-spin" : ""}`} />
-              {isRescanning ? "Scanning..." : "Re-scan Target"}
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isRescanning ? "animate-spin" : ""}`} />
+              <span>{isRescanning ? "Scanning..." : "Re-scan"}</span>
             </Button>
 
             {onDownloadPDF && (
-              <Button onClick={onDownloadPDF} variant="secondary" size="sm" className="gap-1.5 font-mono text-xs">
-                <Download className="w-3.5 h-3.5" />
-                PDF Report
+              <Button onClick={onDownloadPDF} variant="secondary" size="sm" className="inline-flex flex-row items-center gap-1.5 font-mono text-xs whitespace-nowrap">
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span>PDF</span>
               </Button>
             )}
 
             {onDownloadJSON && (
-              <Button onClick={onDownloadJSON} variant="outline" size="sm" className="gap-1.5 font-mono text-xs">
-                <FileText className="w-3.5 h-3.5" />
-                JSON
+              <Button onClick={onDownloadJSON} variant="outline" size="sm" className="inline-flex flex-row items-center gap-1.5 font-mono text-xs whitespace-nowrap">
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <span>JSON</span>
               </Button>
             )}
 
             {onShare && (
-              <Button onClick={onShare} variant="outline" size="sm" className="gap-1.5 font-mono text-xs">
-                <Share2 className="w-3.5 h-3.5" />
-                Share
+              <Button onClick={onShare} variant="outline" size="sm" className="inline-flex flex-row items-center gap-1.5 font-mono text-xs whitespace-nowrap">
+                <Share2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Share</span>
               </Button>
             )}
           </div>
@@ -423,19 +426,68 @@ export default function ScanResultsDashboard({
         </div>
       </div>
 
-      {/* ── Sticky Section Tab Navigation Bar ──────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-bg/90 backdrop-blur-md py-2 px-1 flex items-center gap-2 overflow-x-auto select-none">
+      {/* ── 2. Security Summary & Severity Counters Bar ──────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        
+        {/* Posture Score Gauge */}
+        <div className="lg:col-span-4 glass-card p-4 flex flex-col items-center justify-center">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-text-muted mb-1 whitespace-nowrap">
+            Security Posture Rating
+          </span>
+          <ScoreGauge score={score} grade={grade} domain={domain} size={140} />
+        </div>
+
+        {/* Severity Counters Grid */}
+        <div className="lg:col-span-8 space-y-3 flex flex-col justify-between">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono">
+            {[
+              { label: "Critical", count: severityCounts.critical, badge: "badge-critical" },
+              { label: "High", count: severityCounts.high, badge: "badge-high" },
+              { label: "Medium", count: severityCounts.medium, badge: "badge-medium" },
+              { label: "Low", count: severityCounts.low, badge: "badge-low" },
+              { label: "Passed", count: passedCount, badge: "badge-passed" },
+            ].map(item => (
+              <div key={item.label} className={`p-3 rounded border text-center ${item.badge}`}>
+                <span className="text-[10px] font-bold uppercase tracking-wider block whitespace-nowrap">{item.label}</span>
+                <span className="text-2xl font-black mt-0.5 block">{item.count}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="glass-card p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+            <div className="min-w-0">
+              <span className="text-text-muted uppercase text-[10px] block whitespace-nowrap">Target Server</span>
+              <span className="text-text font-bold truncate block">{infrastructure?.server || "Cloudflare / Nginx"}</span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-text-muted uppercase text-[10px] block whitespace-nowrap">SSL CA Authority</span>
+              <span className="text-success font-bold truncate block">{ssl?.issuer || "Global CA Trust"}</span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-text-muted uppercase text-[10px] block whitespace-nowrap">Subdomains</span>
+              <span className="text-text font-bold block whitespace-nowrap">{subdomains.length} Resolved</span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-text-muted uppercase text-[10px] block whitespace-nowrap">Exposed Services</span>
+              <span className="text-text font-bold block whitespace-nowrap">{combinedPortList.length} TCP Ports</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── 3. Sticky Section Navigation Bar ─────────────────────────────────── */}
+      <div className="sticky top-0 z-20 bg-bg/95 backdrop-blur py-2 border-b border-border flex flex-row items-center gap-1.5 overflow-x-auto select-none font-mono text-xs">
         {[
           { id: "overview", label: "Executive Summary", icon: Activity },
           { id: "findings", label: `Findings (${unifiedFindings.length})`, icon: ShieldAlert },
           { id: "headers", label: `Security Headers (${headers.length})`, icon: Shield },
-          { id: "ports", label: `Network Ports (${combinedPortList.length})`, icon: Cpu },
-          { id: "surface", label: `Subdomains (${subdomains.length})`, icon: Globe },
-          { id: "pages", label: `Pages & Logins (${allDiscoveredPages.length + loginSurfaces.length})`, icon: Link2 },
-          { id: "secrets", label: `Exposed Files (${sensitiveFiles.length})`, icon: FolderLock },
+          { id: "surface", label: `Attack Surface (${subdomains.length + combinedPortList.length + sensitiveFiles.length})`, icon: Globe },
           { id: "cookies", label: `Cookies & Privacy (${cookies.length})`, icon: Cookie },
+          { id: "seo", label: "SEO & Metadata", icon: FileSearch },
           { id: "tech", label: "Tech Stack & WHOIS", icon: Layers },
-          { id: "compliance", label: "OWASP & Policy", icon: ShieldCheck },
+          { id: "compliance", label: "Compliance & OWASP", icon: ShieldCheck },
           { id: "remediation", label: "Remediation Configs", icon: Terminal },
         ].map(tab => {
           const Icon = tab.icon;
@@ -444,510 +496,374 @@ export default function ScanResultsDashboard({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition-all duration-200 shrink-0 ${
+              className={`inline-flex flex-row items-center gap-1.5 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap ${
                 active
-                  ? "bg-accent text-white shadow-glow"
-                  : "bg-surface/50 text-text-dim hover:text-text hover:bg-surface"
+                  ? "bg-accent text-white font-bold"
+                  : "bg-surface text-text-dim border border-border hover:border-border-hover hover:text-text"
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="w-3.5 h-3.5 shrink-0" />
               <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* ── Tab 1: Executive Summary Overview ──────────────────────────────── */}
+      {/* ── Tab 1: Executive Summary ────────────────────────────────────────── */}
       {activeTab === "overview" && (
-        <div className="space-y-6 animate-fadeIn">
+        <div className="space-y-4 animate-fadeIn">
           
-          {/* Top Row: Score Gauge & Severity Overview Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <div className="lg:col-span-4 glass-card rounded-2xl p-6 flex flex-col items-center justify-center">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-text-muted mb-2">
-                Overall Security Posture
-              </span>
-              <ScoreGauge score={score} grade={grade} domain={domain} size={170} />
-            </div>
-
-            <div className="lg:col-span-8 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                {[
-                  { label: "Critical", count: severityCounts.critical, bg: "bg-danger/10 text-danger" },
-                  { label: "High", count: severityCounts.high, bg: "bg-danger/10 text-danger" },
-                  { label: "Medium", count: severityCounts.medium, bg: "bg-warning/10 text-warning" },
-                  { label: "Low", count: severityCounts.low, bg: "bg-accent/10 text-accent" },
-                  { label: "Passed", count: passedCount, bg: "bg-success/10 text-success" },
-                ].map(item => (
-                  <div key={item.label} className={`p-3.5 rounded-xl flex flex-col items-center justify-center ${item.bg}`}>
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider opacity-80">{item.label}</span>
-                    <span className="text-2xl sm:text-3xl font-mono font-black mt-1">{item.count}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="glass-card rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
-                <div className="space-y-1 pr-3">
-                  <span className="text-text-muted uppercase text-[10px] font-bold block">Target Host Server</span>
-                  <span className="text-text font-bold truncate block">{infrastructure?.server || "Nginx / Cloudflare Edge"}</span>
-                </div>
-                <div className="space-y-1 pr-3">
-                  <span className="text-text-muted uppercase text-[10px] font-bold block">SSL/TLS Authority</span>
-                  <span className="text-success font-bold truncate block">{ssl?.issuer || "Trusted Global CA"}</span>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-text-muted uppercase text-[10px] font-bold block">Active Tech Stack</span>
-                  <span className="text-accent-light font-bold truncate block">
-                    {techStack.length > 0 ? techStack.map(t => typeof t === 'string' ? t : t.name).join(", ") : "Web Engine, Node.js, React"}
-                  </span>
-                </div>
-              </div>
-
-              <ScanPipelineTimeline duration={scanDuration} timestamp={scanDateStr} />
-            </div>
-          </div>
-
-          {/* Middle Row: Distribution Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <div className="lg:col-span-5 glass-card rounded-2xl p-5">
-              <h3 className="font-bold text-xs text-text uppercase tracking-wider mb-4 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-accent" />
-                Vulnerability Severity Breakdown
+          {/* Distribution Charts Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            
+            {/* Pie Chart: Vulnerability Breakdown */}
+            <div className="lg:col-span-5 glass-card p-4 space-y-2">
+              <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 whitespace-nowrap">
+                <BarChart3 className="w-4 h-4 text-accent shrink-0" />
+                <span>Vulnerability Severity Breakdown</span>
               </h3>
-              <div className="h-56 w-full flex items-center justify-center">
+              <div className="h-48 w-full flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={4} dataKey="value">
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={68} paddingAngle={3} dataKey="value">
                       {pieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: "#081a17", border: "none", borderRadius: "8px" }} itemStyle={{ color: "#ecfdf5", fontSize: "12px", fontFamily: "monospace" }} />
+                    <Tooltip contentStyle={{ backgroundColor: "#0e1422", border: "1px solid #1e293d", borderRadius: "4px" }} itemStyle={{ color: "#f8fafc", fontSize: "11px", fontFamily: "monospace" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-3 mt-2 text-[11px] font-mono">
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-mono">
                 {pieData.map(item => (
-                  <div key={item.name} className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                  <div key={item.name} className="inline-flex flex-row items-center gap-1 whitespace-nowrap">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                     <span className="text-text-dim">{item.name}: <strong className="text-text">{item.value}</strong></span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="lg:col-span-7 glass-card rounded-2xl p-5">
-              <h3 className="font-bold text-xs text-text uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-accent" />
-                Module Security Scores (Out of 100)
+            {/* Bar Chart: Module Scores */}
+            <div className="lg:col-span-7 glass-card p-4 space-y-2">
+              <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 whitespace-nowrap">
+                <Layers className="w-4 h-4 text-accent shrink-0" />
+                <span>Module Security Ratings (Out of 100)</span>
               </h3>
-              <div className="h-56 w-full">
+              <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={categoryBarData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <XAxis dataKey="name" stroke="#6ee7b7" fontSize={10} tickLine={false} />
-                    <YAxis stroke="#6ee7b7" fontSize={10} domain={[0, 100]} />
-                    <Tooltip contentStyle={{ backgroundColor: "#081a17", border: "none", borderRadius: "8px" }} itemStyle={{ color: "#10b981", fontSize: "12px", fontFamily: "monospace" }} />
-                    <Bar dataKey="score" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+                    <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} />
+                    <Tooltip contentStyle={{ backgroundColor: "#0e1422", border: "1px solid #1e293d", borderRadius: "4px" }} itemStyle={{ color: "#0ea5e9", fontSize: "11px", fontFamily: "monospace" }} />
+                    <Bar dataKey="score" fill="#0ea5e9" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
+
           </div>
 
-          <OWASPCoverage findings={unifiedFindings} />
+          <ScanPipelineTimeline duration={scanDuration} timestamp={scanDateStr} />
+          <VulnerabilityTable findings={unifiedFindings.slice(0, 5)} />
         </div>
       )}
 
-      {/* ── Tab 2: Detailed Vulnerability Table ────────────────────────────── */}
+      {/* ── Tab 2: Findings Console ─────────────────────────────────────────── */}
       {activeTab === "findings" && (
-        <div className="animate-fadeIn space-y-4">
+        <div className="animate-fadeIn">
           <VulnerabilityTable findings={unifiedFindings} />
         </div>
       )}
 
-      {/* ── Tab 3: Security Headers Matrix ─────────────────────────────────── */}
+      {/* ── Tab 3: Security Headers Matrix ──────────────────────────────────── */}
       {activeTab === "headers" && (
-        <div className="animate-fadeIn space-y-4">
-          <div className="glass-card rounded-2xl p-5">
-            <h3 className="font-bold text-xs text-text uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-accent" />
-              Evaluated HTTP Security Response Headers ({headers.length})
+        <div className="animate-fadeIn glass-card p-4 space-y-3">
+          <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 pb-2 border-b border-border whitespace-nowrap w-full">
+            <Shield className="w-4 h-4 text-accent shrink-0" />
+            <span>HTTP Security Response Headers Evaluated ({headers.length})</span>
+          </h3>
+          
+          <div className="space-y-2 font-mono text-xs">
+            {headers.map((h, i) => (
+              <div key={i} className="p-3 bg-panel border border-border rounded space-y-1">
+                <div className="flex flex-row items-center justify-between gap-2">
+                  <span className="font-bold text-text min-w-0 truncate">{h.name}</span>
+                  <span className={`inline-flex flex-row items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap ${
+                    h.status === 'present' ? 'badge-passed' :
+                    h.status === 'weak' ? 'badge-medium' : 'badge-critical'
+                  }`}>
+                    {h.status}
+                  </span>
+                </div>
+                <p className="text-[11px] font-sans text-text-dim">{h.description}</p>
+                {h.value && (
+                  <div className="p-2 rounded bg-bg border border-border text-[11px] text-text-muted truncate select-all">
+                    {h.value}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab 4: Attack Surface (Ports, Subdomains, Secrets, Pages) ────────── */}
+      {activeTab === "surface" && (
+        <div className="animate-fadeIn space-y-4 font-mono text-xs">
+          
+          {/* Network Ports */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 whitespace-nowrap">
+              <Cpu className="w-4 h-4 text-accent shrink-0" />
+              <span>Network Ports & Exposed Services ({combinedPortList.length})</span>
             </h3>
-            
-            <div className="space-y-2 font-mono text-xs">
-              {headers.map((h, i) => (
-                <div key={i} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface/40 p-3 rounded-xl">
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-text">{h.name}</span>
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase ${
-                        h.status === 'present' ? 'bg-success/10 text-success' :
-                        h.status === 'weak' ? 'bg-warning/10 text-warning' : 'bg-danger/10 text-danger'
-                      }`}>
-                        {h.status}
+            {combinedPortList.length === 0 ? (
+              <p className="text-text-dim text-xs">No non-standard open ports detected.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {combinedPortList.map((srv, idx) => (
+                  <div key={idx} className="p-2.5 bg-panel border border-border rounded flex flex-row items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-bold text-text block truncate">Port {srv.port || srv.portid}</span>
+                      <span className="text-[10px] text-text-muted block truncate">Service: {srv.service || "HTTP"}</span>
+                    </div>
+                    <span className={`inline-flex flex-row items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap ${
+                      (srv.status === 'open' || srv.state === 'open') ? 'badge-critical' : 'badge-passed'
+                    }`}>
+                      {srv.status || srv.state}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Subdomains */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 whitespace-nowrap">
+              <Globe className="w-4 h-4 text-accent shrink-0" />
+              <span>Enumerated Subdomains ({subdomains.length})</span>
+            </h3>
+            {subdomains.length === 0 ? (
+              <p className="text-text-dim text-xs">Main target host audit without secondary subdomains.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {subdomains.map((sub, idx) => {
+                  const label = typeof sub === "string" ? sub : sub?.subdomain || sub?.name || "Subdomain";
+                  return (
+                    <div key={idx} className="p-2.5 bg-panel border border-border rounded flex flex-row items-center justify-between gap-2 min-w-0">
+                      <span className="font-bold text-text truncate min-w-0">{label}</span>
+                      <a href={`https://${label}`} target="_blank" rel="noreferrer" className="text-text-muted hover:text-accent shrink-0 p-0.5">
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Sensitive Files */}
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 whitespace-nowrap">
+              <FolderLock className="w-4 h-4 text-critical shrink-0" />
+              <span>Sensitive File & Secret Exposure ({sensitiveFiles.length})</span>
+            </h3>
+            {sensitiveFiles.length === 0 ? (
+              <p className="text-text-dim text-xs">✓ No exposed configuration or environment backup files detected.</p>
+            ) : (
+              <div className="space-y-2">
+                {sensitiveFiles.map((file, idx) => (
+                  <div key={idx} className="p-2.5 bg-panel border border-border rounded flex flex-row items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-bold text-critical block truncate">{file.path}</span>
+                      <span className="text-[10px] text-text-muted block">HTTP Status: {file.status || 200}</span>
+                    </div>
+                    <span className={`inline-flex flex-row items-center px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap ${file.exists ? 'badge-critical' : 'badge-passed'}`}>
+                      {file.exists ? "Exposed" : "Restricted"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* ── Tab 5: Cookies & Privacy ────────────────────────────────────────── */}
+      {activeTab === "cookies" && (
+        <div className="animate-fadeIn glass-card p-4 space-y-3 font-mono text-xs">
+          <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 pb-2 border-b border-border whitespace-nowrap w-full">
+            <Cookie className="w-4 h-4 text-accent shrink-0" />
+            <span>Cookie Hardening Attributes ({cookies.length})</span>
+          </h3>
+
+          {cookies.length === 0 ? (
+            <p className="text-text-dim text-xs">No response set-cookie headers issued on endpoint.</p>
+          ) : (
+            <div className="space-y-2">
+              {cookies.map((ck, idx) => (
+                <div key={idx} className="p-3 bg-panel border border-border rounded space-y-1">
+                  <div className="flex flex-row items-center justify-between gap-2">
+                    <span className="font-bold text-text min-w-0 truncate">{ck.name}</span>
+                    <div className="flex flex-row items-center gap-1.5 shrink-0">
+                      <span className={`inline-flex flex-row items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase whitespace-nowrap ${ck.httpOnly ? 'badge-passed' : 'badge-critical'}`}>
+                        HttpOnly: {ck.httpOnly ? "Yes" : "No"}
+                      </span>
+                      <span className={`inline-flex flex-row items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase whitespace-nowrap ${ck.secure ? 'badge-passed' : 'badge-critical'}`}>
+                        Secure: {ck.secure ? "Yes" : "No"}
                       </span>
                     </div>
-                    <p className="text-[11px] font-sans text-text-dim leading-relaxed">{h.description}</p>
-                    {h.value && (
-                      <div className="mt-1 p-2 rounded bg-[#030a08] text-[11px] text-text-muted truncate select-all">
-                        {h.value}
-                      </div>
-                    )}
                   </div>
+                  {ck.value && (
+                    <div className="p-2 rounded bg-bg text-[10px] text-text-muted truncate select-all border border-border">
+                      Value: {ck.value}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* ── Tab 4: Network Ports & Exposed Services Section ───────────────── */}
-      {activeTab === "ports" && (
-        <div className="animate-fadeIn space-y-4">
-          <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Cpu className="w-5 h-5 text-accent" />
-                  <h3 className="font-bold text-sm text-text uppercase tracking-wide">
-                    Network Ports & Service Exposure Audit ({combinedPortList.length})
-                  </h3>
-                </div>
-                <p className="text-xs text-text-dim mt-0.5">
-                  Port scanning results for active TCP daemons and network interface bindings
-                </p>
-              </div>
-            </div>
-
-            {combinedPortList.length === 0 ? (
-              <div className="p-8 text-center bg-surface/40 rounded-xl font-mono text-xs text-text-dim">
-                <CheckCircle2 className="w-8 h-8 text-success mx-auto mb-2" />
-                <p className="font-bold text-text">No unauthorized open ports detected.</p>
-                <p className="text-text-muted mt-1">Standard web ports (80/443) filtered cleanly.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 font-mono text-xs">
-                {combinedPortList.map((srv, idx) => {
-                  const portNum = srv.port || srv.portid;
-                  const isOpen = srv.status === "open" || srv.state === "open";
-                  return (
-                    <div key={idx} className="p-4 rounded-xl bg-surface/50 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-sm text-text">Port {portNum}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          isOpen ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
-                        }`}>
-                          {isOpen ? "Open" : "Filtered"}
-                        </span>
-                      </div>
-                      <div className="text-xs text-text-dim flex items-center justify-between">
-                        <span>Service: <strong className="text-text">{srv.service || "HTTP Daemon"}</strong></span>
-                        <span className="text-text-muted">Protocol: {srv.protocol || "TCP"}</span>
-                      </div>
-                      {srv.banner && (
-                        <div className="p-2 rounded bg-[#030a08] text-[10px] text-text-muted truncate select-all">
-                          Banner: {srv.banner}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 5: Subdomains & EASM Section ──────────────────────────────── */}
-      {activeTab === "surface" && (
-        <div className="animate-fadeIn space-y-4">
-          <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Globe className="w-5 h-5 text-accent" />
-                <h3 className="font-bold text-sm text-text uppercase tracking-wide">
-                  External Attack Surface & Subdomains ({subdomains.length})
-                </h3>
-              </div>
-              <p className="text-xs text-text-dim mt-0.5">
-                Resolved subdomains, zone records, and external DNS exposure for {domain}
-              </p>
-            </div>
-
-            {subdomains.length === 0 ? (
-              <div className="p-8 text-center bg-surface/40 rounded-xl font-mono text-xs text-text-dim">
-                <Globe className="w-8 h-8 text-accent mx-auto mb-2 opacity-60" />
-                <p className="font-bold text-text">Main domain host audit.</p>
-                <p className="text-text-muted mt-1">No secondary subdomains enumerated for this target query.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 font-mono text-xs">
-                {subdomains.map((sub, idx) => {
-                  const subLabel = typeof sub === "string" ? sub : sub?.subdomain || sub?.domain || sub?.name || "Subdomain";
-                  const ip = typeof sub === "object" ? sub?.ip : null;
-                  return (
-                    <div key={idx} className="p-3.5 rounded-xl bg-surface/50 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <span className="font-bold text-text truncate block">{subLabel}</span>
-                        {ip && <span className="text-[10px] text-text-muted block">IP: {ip}</span>}
-                      </div>
-                      <a
-                        href={`https://${subLabel}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 rounded-lg bg-panel hover:bg-accent/10 text-text-dim hover:text-accent shrink-0"
-                        title="Visit subdomain"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 6: Discovered Public Pages & Login Surfaces Section ────────── */}
-      {activeTab === "pages" && (
-        <div className="animate-fadeIn space-y-5">
-          {/* Public Pages */}
-          <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Link2 className="w-5 h-5 text-accent" />
-                <h3 className="font-bold text-sm text-text uppercase tracking-wide">
-                  Discovered Crawled Public Pages ({allDiscoveredPages.length})
-                </h3>
-              </div>
-              <p className="text-xs text-text-dim mt-0.5">
-                Indexable web pages, endpoints, and assets crawled during security audit
-              </p>
-            </div>
-
-            {allDiscoveredPages.length === 0 ? (
-              <div className="p-6 text-center bg-surface/40 rounded-xl font-mono text-xs text-text-dim">
-                <Link2 className="w-7 h-7 text-accent mx-auto mb-2 opacity-50" />
-                <span>Single URL landing page scan completed.</span>
-              </div>
-            ) : (
-              <div className="space-y-2 font-mono text-xs">
-                {allDiscoveredPages.map((page, idx) => {
-                  const pageUrl = typeof page === "string" ? page : page.url || page.path;
-                  const status = typeof page === "object" ? page.status || page.statusCode || 200 : 200;
-                  const title = typeof page === "object" ? page.title : null;
-                  return (
-                    <div key={idx} className="p-3 rounded-xl bg-surface/40 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-panel text-accent uppercase">
-                            HTTP {status}
-                          </span>
-                          <span className="font-bold text-text truncate">{pageUrl}</span>
-                        </div>
-                        {title && <p className="text-[11px] font-sans text-text-dim truncate mt-0.5">{title}</p>}
-                      </div>
-                      <a href={pageUrl} target="_blank" rel="noreferrer" className="text-text-muted hover:text-accent p-1">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Login Surfaces */}
-          <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <LogIn className="w-5 h-5 text-warning" />
-                <h3 className="font-bold text-sm text-text uppercase tracking-wide">
-                  Authentication & Login Surfaces ({loginSurfaces.length})
-                </h3>
-              </div>
-              <p className="text-xs text-text-dim mt-0.5">
-                Detected login portals, admin sign-in forms, and auth gateways
-              </p>
-            </div>
-
-            {loginSurfaces.length === 0 ? (
-              <div className="p-6 text-center bg-surface/40 rounded-xl font-mono text-xs text-text-dim">
-                <UserCheck className="w-7 h-7 text-success mx-auto mb-2 opacity-80" />
-                <span>No exposed admin or unauthenticated login portals discovered.</span>
-              </div>
-            ) : (
-              <div className="space-y-2 font-mono text-xs">
-                {loginSurfaces.map((login, idx) => {
-                  const loginUrl = typeof login === "string" ? login : login.url || login.path;
-                  return (
-                    <div key={idx} className="p-3.5 rounded-xl bg-warning/5 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <LogIn className="w-4 h-4 text-warning" />
-                        <span className="font-bold text-text">{loginUrl}</span>
-                      </div>
-                      <span className="px-2.5 py-1 rounded text-[9px] font-bold bg-warning/10 text-warning uppercase">
-                        Auth Gateway
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 7: Exposed Secrets & Sensitive Files Section ───────────────── */}
-      {activeTab === "secrets" && (
-        <div className="animate-fadeIn space-y-4">
-          <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <FolderLock className="w-5 h-5 text-danger" />
-                <h3 className="font-bold text-sm text-text uppercase tracking-wide">
-                  Sensitive Files & Credentials Exposure ({sensitiveFiles.length})
-                </h3>
-              </div>
-              <p className="text-xs text-text-dim mt-0.5">
-                Audit for publicly accessible configuration files, environment variables, backup dumps, or `.git` repositories
-              </p>
-            </div>
-
-            {sensitiveFiles.length === 0 ? (
-              <div className="p-8 text-center bg-surface/40 rounded-xl font-mono text-xs text-text-dim">
-                <CheckCircle2 className="w-8 h-8 text-success mx-auto mb-2" />
-                <p className="font-bold text-text">No exposed secret files found.</p>
-                <p className="text-text-muted mt-1">.env, .git, and backup paths safely restricted.</p>
-              </div>
-            ) : (
-              <div className="space-y-3 font-mono text-xs">
-                {sensitiveFiles.map((file, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-danger/5 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-sm text-danger">{file.path}</span>
-                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${file.exists ? 'bg-danger/20 text-danger' : 'bg-success/10 text-success'}`}>
-                        {file.exists ? "EXPOSED (HTTP 200)" : "RESTRICTED"}
-                      </span>
-                    </div>
-                    <p className="text-xs font-sans text-text-dim">
-                      {file.exists ? "CRITICAL RISK: Publicly readable administrative or backup file." : "Path resolved securely."}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 8: Cookie & Privacy Security Section ──────────────────────── */}
-      {activeTab === "cookies" && (
-        <div className="animate-fadeIn space-y-5">
-          <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Cookie className="w-5 h-5 text-accent" />
-                <h3 className="font-bold text-sm text-text uppercase tracking-wide">
-                  Cookie Hardening & Attribute Analysis ({cookies.length})
-                </h3>
-              </div>
-              <p className="text-xs text-text-dim mt-0.5">
-                Evaluation of response cookies against HttpOnly, Secure, and SameSite attribute standards
-              </p>
-            </div>
-
-            {cookies.length === 0 ? (
-              <div className="p-6 text-center bg-surface/40 rounded-xl font-mono text-xs text-text-dim">
-                <Cookie className="w-7 h-7 text-accent mx-auto mb-2 opacity-50" />
-                <span>No Set-Cookie response headers issued on target endpoint.</span>
-              </div>
-            ) : (
-              <div className="space-y-3 font-mono text-xs">
-                {cookies.map((ck, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-surface/40 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm text-text">{ck.name}</span>
-                      <div className="flex items-center gap-2 text-[10px]">
-                        <span className={`px-2 py-0.5 rounded font-bold uppercase ${ck.httpOnly ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
-                          HttpOnly: {ck.httpOnly ? "Yes" : "No"}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded font-bold uppercase ${ck.secure ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
-                          Secure: {ck.secure ? "Yes" : "No"}
-                        </span>
-                        <span className="px-2 py-0.5 rounded font-bold bg-panel text-accent uppercase">
-                          SameSite: {ck.sameSite || "None"}
-                        </span>
-                      </div>
-                    </div>
-                    {ck.value && (
-                      <div className="p-2 rounded bg-[#030a08] text-[10px] text-text-muted truncate select-all">
-                        Value: {ck.value}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab 9: Tech Stack & WHOIS Infrastructure Section ─────────────── */}
-      {activeTab === "tech" && (
-        <div className="animate-fadeIn space-y-5">
-          <div className="glass-card rounded-2xl p-5 space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-accent" />
-                <h3 className="font-bold text-sm text-text uppercase tracking-wide">
-                  Detected Technology Stack & Web Engine ({techStack.length})
-                </h3>
-              </div>
-            </div>
-
-            {techStack.length === 0 ? (
-              <div className="p-6 text-center bg-surface/40 rounded-xl font-mono text-xs text-text-dim">
-                <span>Standard Web Server Environment.</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 font-mono text-xs">
-                {techStack.map((tech, idx) => {
-                  const name = typeof tech === "string" ? tech : tech.name || tech.tech;
-                  const cat = typeof tech === "object" ? tech.category : "Framework / Server";
-                  const ver = typeof tech === "object" ? tech.version : null;
-                  return (
-                    <div key={idx} className="p-3.5 rounded-xl bg-surface/50 space-y-1">
-                      <span className="font-bold text-text text-sm block">{name}</span>
-                      <span className="text-[10px] text-text-muted uppercase block">{cat}</span>
-                      {ver && <span className="text-[10px] text-accent block">Version: {ver}</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* WHOIS Card */}
-          {whois && (
-            <div className="glass-card rounded-2xl p-5 space-y-3 font-mono text-xs">
-              <h3 className="font-bold text-sm text-text uppercase tracking-wide flex items-center gap-2">
-                <Database className="w-4 h-4 text-accent" />
-                WHOIS Domain Ownership & Registrar Info
+      {/* ── Tab 6: SEO & Metadata Audit ────────────────────────────────────── */}
+      {activeTab === "seo" && (
+        <div className="animate-fadeIn space-y-4 font-mono text-xs">
+          
+          {/* SERP Search Engine Result Preview Mockup */}
+          <div className="glass-card p-4 space-y-2 border border-border">
+            <div className="inline-flex flex-row items-center gap-2 pb-2 border-b border-border w-full">
+              <Sparkles className="w-4 h-4 text-accent shrink-0" />
+              <h3 className="font-bold text-xs text-text uppercase tracking-wider whitespace-nowrap">
+                Search Engine SERP Live Preview
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                <div className="p-3 rounded-xl bg-surface/40">
-                  <span className="text-[10px] text-text-muted block">Registrar</span>
-                  <span className="font-bold text-text">{whois.registrar || "Protected"}</span>
+            </div>
+            
+            <div className="p-3 bg-surface border border-border rounded space-y-1 font-sans">
+              <div className="inline-flex flex-row items-center gap-1 text-[11px] text-emerald-400 font-mono">
+                <Globe className="w-3 h-3 shrink-0 text-emerald-400" />
+                <span>{seoData.canonicalUrl}</span>
+              </div>
+              <h4 className="text-sm font-bold text-sky-400 hover:underline cursor-pointer truncate">
+                {seoData.title}
+              </h4>
+              <p className="text-xs text-text-dim leading-relaxed line-clamp-2">
+                {seoData.description}
+              </p>
+            </div>
+          </div>
+
+          {/* SEO Tag Evaluation Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            
+            {/* Title Tag */}
+            <div className="glass-card p-3.5 space-y-1.5">
+              <div className="flex flex-row items-center justify-between gap-2">
+                <span className="font-bold text-text uppercase text-[10px]">HTML Title Tag</span>
+                <span className={`inline-flex flex-row items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap ${
+                  seoData.titleStatus === "optimal" ? "badge-passed" : "badge-medium"
+                }`}>
+                  {seoData.titleLength} Chars ({seoData.titleStatus === "optimal" ? "Optimal" : "Needs Tuning"})
+                </span>
+              </div>
+              <p className="p-2 rounded bg-panel border border-border text-[11px] text-text-dim truncate select-all">
+                {seoData.title}
+              </p>
+            </div>
+
+            {/* Meta Description */}
+            <div className="glass-card p-3.5 space-y-1.5">
+              <div className="flex flex-row items-center justify-between gap-2">
+                <span className="font-bold text-text uppercase text-[10px]">Meta Description Tag</span>
+                <span className={`inline-flex flex-row items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap ${
+                  seoData.descStatus === "optimal" ? "badge-passed" : "badge-medium"
+                }`}>
+                  {seoData.descLength} Chars ({seoData.descStatus === "optimal" ? "Optimal" : "Needs Tuning"})
+                </span>
+              </div>
+              <p className="p-2 rounded bg-panel border border-border text-[11px] text-text-dim line-clamp-2 select-all">
+                {seoData.description}
+              </p>
+            </div>
+
+            {/* Viewport Tag */}
+            <div className="glass-card p-3.5 space-y-1.5">
+              <div className="flex flex-row items-center justify-between gap-2">
+                <span className="font-bold text-text uppercase text-[10px]">Mobile Viewport Meta</span>
+                <span className="badge-passed px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap">
+                  Verified
+                </span>
+              </div>
+              <p className="p-2 rounded bg-panel border border-border text-[11px] text-text-muted truncate font-mono select-all">
+                {seoData.viewportTag}
+              </p>
+            </div>
+
+            {/* Robots Tag */}
+            <div className="glass-card p-3.5 space-y-1.5">
+              <div className="flex flex-row items-center justify-between gap-2">
+                <span className="font-bold text-text uppercase text-[10px]">Search Engine Crawling</span>
+                <span className="badge-passed px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 whitespace-nowrap">
+                  {seoData.robotsTag}
+                </span>
+              </div>
+              <p className="p-2 rounded bg-panel border border-border text-[11px] text-text-muted truncate font-mono select-all">
+                Canonical: {seoData.canonicalUrl}
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ── Tab 7: Tech Stack & WHOIS ───────────────────────────────────────── */}
+      {activeTab === "tech" && (
+        <div className="animate-fadeIn space-y-4 font-mono text-xs">
+          <div className="glass-card p-4 space-y-3">
+            <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 whitespace-nowrap">
+              <Layers className="w-4 h-4 text-accent shrink-0" />
+              <span>Detected Technologies ({techStack.length})</span>
+            </h3>
+            {techStack.length === 0 ? (
+              <p className="text-text-dim text-xs">Standard Web Server Architecture.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {techStack.map((tech, idx) => {
+                  const name = typeof tech === "string" ? tech : tech.name;
+                  const cat = typeof tech === "object" ? tech.category : "Framework";
+                  return (
+                    <div key={idx} className="p-2.5 bg-panel border border-border rounded min-w-0">
+                      <span className="font-bold text-text block truncate">{name}</span>
+                      <span className="text-[10px] text-text-muted block uppercase truncate">{cat}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {whois && (
+            <div className="glass-card p-4 space-y-3">
+              <h3 className="font-bold text-xs text-text uppercase tracking-wider inline-flex flex-row items-center gap-2 whitespace-nowrap">
+                <Database className="w-4 h-4 text-accent shrink-0" />
+                <span>WHOIS Domain Ownership</span>
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-2.5 bg-panel border border-border rounded min-w-0">
+                  <span className="text-[10px] text-text-muted block uppercase whitespace-nowrap">Registrar</span>
+                  <span className="font-bold text-text truncate block">{whois.registrar || "Protected"}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-surface/40">
-                  <span className="text-[10px] text-text-muted block">Creation Date</span>
-                  <span className="font-bold text-text">{whois.created || whois.creationDate || "N/A"}</span>
+                <div className="p-2.5 bg-panel border border-border rounded min-w-0">
+                  <span className="text-[10px] text-text-muted block uppercase whitespace-nowrap">Creation Date</span>
+                  <span className="font-bold text-text truncate block">{whois.created || whois.creationDate || "N/A"}</span>
                 </div>
-                <div className="p-3 rounded-xl bg-surface/40">
-                  <span className="text-[10px] text-text-muted block">Expiration Date</span>
-                  <span className="font-bold text-text">{whois.expires || whois.expirationDate || "N/A"}</span>
+                <div className="p-2.5 bg-panel border border-border rounded min-w-0">
+                  <span className="text-[10px] text-text-muted block uppercase whitespace-nowrap">Expiry Date</span>
+                  <span className="font-bold text-text truncate block">{whois.expires || whois.expirationDate || "N/A"}</span>
                 </div>
               </div>
             </div>
@@ -955,17 +871,17 @@ export default function ScanResultsDashboard({
         </div>
       )}
 
-      {/* ── Tab 10: OWASP & Policy Compliance ──────────────────────────────── */}
+      {/* ── Tab 8: Compliance & OWASP ───────────────────────────────────────── */}
       {activeTab === "compliance" && (
-        <div className="animate-fadeIn space-y-5">
+        <div className="animate-fadeIn space-y-4">
           <OWASPCoverage findings={unifiedFindings} />
           <PolicyComplianceCard compliance={compliance} />
         </div>
       )}
 
-      {/* ── Tab 11: Actionable Remediation Generator ───────────────────────── */}
+      {/* ── Tab 9: Remediation Playbook ─────────────────────────────────────── */}
       {activeTab === "remediation" && (
-        <div className="animate-fadeIn space-y-5">
+        <div className="animate-fadeIn">
           <RemediationPanel scan={result} />
         </div>
       )}

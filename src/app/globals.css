@@ -1,78 +1,67 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Colorful Emerald Cyber-Matrix Dark Theme */
-  --bg: #030708;
-  /* Deep Obsidian Charcoal Void */
-  --surface: #05120f;
-  /* Tech Deep Forest Card */
-  --panel: #081a17;
-  /* Borderless Cards & Containers */
-  --border: transparent;
-  --border-hover: rgba(16, 185, 129, 0.15);
-  /* Neon Cyan Hover Border */
+  /* Modern Technical Cybersecurity Dark Theme (Datadog / Snyk / Wiz / Linear Vibe) */
+  --bg: #090d16;
+  --surface: #0e1422;
+  --panel: #131b2e;
+  --border: #1e293d;
+  --border-hover: #334155;
 
-  /* Cyber Neon Accent Colors */
-  --accent: #10b981;
-  /* Neon Emerald Green */
-  --accent-light: #06b6d4;
-  /* Neon Laser Cyan */
-  --accent-dim: rgba(16, 185, 129, 0.35);
-  --accent-glow: rgba(16, 185, 129, 0.12);
+  /* Accent & Brand Colors */
+  --accent: #0ea5e9;         /* Sky / Cyan accent */
+  --accent-light: #38bdf8;
+  --accent-dim: rgba(14, 165, 233, 0.15);
+  --accent-glow: rgba(14, 165, 233, 0.25);
 
-  /* Cyber Neon Status Signals */
-  --success: #22c55e;
-  /* Laser Green Success */
-  --success-dim: rgba(34, 197, 94, 0.15);
-  --warning: #eab308;
-  /* Shock Yellow Warning */
-  --warning-dim: rgba(234, 179, 8, 0.15);
-  --danger: #ef4444;
-  /* Laser Crimson Danger */
-  --danger-dim: rgba(239, 68, 68, 0.15);
+  /* Security Severity Signals */
+  --critical: #ef4444;       /* Critical Crimson */
+  --critical-dim: rgba(239, 68, 68, 0.12);
+  --danger: #f97316;         /* High Orange */
+  --danger-dim: rgba(249, 115, 22, 0.12);
+  --warning: #eab308;        /* Medium Yellow/Amber */
+  --warning-dim: rgba(234, 179, 8, 0.12);
+  --low: #38bdf8;            /* Low Cyan/Blue */
+  --low-dim: rgba(56, 189, 248, 0.12);
+  --success: #10b981;        /* Passed / Info Emerald */
+  --success-dim: rgba(16, 185, 129, 0.12);
 
-  /* Highly Accessible Typography */
-  --text: #ecfdf5;
-  /* Crisp Mint Ice White */
-  --text-dim: #6ee7b7;
-  /* Bright Mint Descriptor Text */
-  --text-muted: #059669;
-  /* Tech Green Label */
+  /* High Contrast Typography */
+  --text: #f8fafc;           /* Primary White Slate */
+  --text-dim: #94a3b8;       /* Secondary Muted Text */
+  --text-muted: #64748b;     /* Tertiary Dim Label */
 }
 
 [data-theme="light"] {
-  /* Elegant Emerald Light Theme variables */
-  --bg: #e6f3f0;
-  /* Soft Light Dim Mint Void */
-  --surface: #f1faf7;
-  /* Soft Light Mint Card */
-  --panel: #dbece8;
-  --border: rgba(0, 0, 0, 0.05);
-  --border-hover: rgba(5, 150, 105, 0.2);
+  /* Clean Professional SaaS Light Theme */
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --panel: #f1f5f9;
+  --border: #e2e8f0;
+  --border-hover: #cbd5e1;
 
-  --accent: #059669;
-  /* Cyber Mint Green */
-  --accent-light: #0891b2;
-  /* Cyber Cyan Blue */
-  --accent-dim: rgba(5, 150, 105, 0.2);
-  --accent-glow: rgba(5, 150, 105, 0.08);
+  --accent: #0284c7;
+  --accent-light: #0369a1;
+  --accent-dim: rgba(2, 132, 199, 0.1);
+  --accent-glow: rgba(2, 132, 199, 0.15);
 
-  --success: #16a34a;
-  --success-dim: rgba(22, 163, 74, 0.1);
+  --critical: #dc2626;
+  --critical-dim: rgba(220, 38, 38, 0.08);
+  --danger: #ea580c;
+  --danger-dim: rgba(234, 88, 12, 0.08);
   --warning: #d97706;
-  --warning-dim: rgba(217, 119, 6, 0.1);
-  --danger: #dc2626;
-  --danger-dim: rgba(220, 38, 38, 0.1);
+  --warning-dim: rgba(217, 119, 6, 0.08);
+  --low: #0284c7;
+  --low-dim: rgba(2, 132, 199, 0.08);
+  --success: #059669;
+  --success-dim: rgba(5, 150, 105, 0.08);
 
-  --text: #022c22;
-  /* Deep Forest Slate Text */
-  --text-dim: #0f766e;
-  /* Teal Descriptor Text */
-  --text-muted: #047857;
-  /* Green Label */
+  --text: #0f172a;
+  --text-dim: #475569;
+  --text-muted: #64748b;
 }
 
 * {
@@ -90,10 +79,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Customized Premium Webkit Scrollbars */
+/* Customized Technical Webkit Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -102,8 +91,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 4px;
-  border: 2px solid var(--bg);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -117,65 +105,41 @@ body {
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
-/* Scanline scanning overlay animation */
-@keyframes scanLine {
-  0% {
-    top: 0%;
-    opacity: 0.8;
-  }
-
-  50% {
-    opacity: 1;
-  }
-
-  100% {
-    top: 100%;
-    opacity: 0;
-  }
+/* Technical Card Utility — Clean, Minimal 1px Border Containers */
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
-.scan-line {
-  animation: scanLine 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.glass-card-hover {
+  transition: all 0.15s ease-in-out;
 }
 
-/* Animations and fading effects */
-@keyframes fadeInUp {
+.glass-card-hover:hover {
+  border-color: var(--border-hover);
+}
+
+/* Animations */
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(4px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-.animate-fadeInUp {
-  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes pulse-accent {
-
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 var(--accent-glow);
-  }
-
-  50% {
-    box-shadow: 0 0 0 6px transparent;
-  }
-}
-
-.pulse-accent {
-  animation: pulse-accent 2s infinite;
+.animate-fadeIn {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes spin {
   from {
     transform: rotate(0deg);
   }
-
   to {
     transform: rotate(360deg);
   }
@@ -185,134 +149,39 @@ body {
   animation: spin 1s linear infinite;
 }
 
-/* Custom delays for grid stagger layout */
-.stagger-1 {
-  animation-delay: 0.05s;
-  opacity: 0;
+/* Severity Pill & Badge Utilities */
+.badge-critical {
+  background-color: var(--critical-dim);
+  color: var(--critical);
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-.stagger-2 {
-  animation-delay: 0.1s;
-  opacity: 0;
+.badge-high {
+  background-color: var(--danger-dim);
+  color: var(--danger);
+  border: 1px solid rgba(249, 115, 22, 0.3);
 }
 
-.stagger-3 {
-  animation-delay: 0.15s;
-  opacity: 0;
+.badge-medium {
+  background-color: var(--warning-dim);
+  color: var(--warning);
+  border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
-.stagger-4 {
-  animation-delay: 0.2s;
-  opacity: 0;
+.badge-low {
+  background-color: var(--low-dim);
+  color: var(--low);
+  border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
-.stagger-5 {
-  animation-delay: 0.25s;
-  opacity: 0;
+.badge-passed {
+  background-color: var(--success-dim);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
-.grade-a {
-  text-shadow: 0 0 15px rgba(57, 255, 20, 0.55);
+.badge-info {
+  background-color: rgba(148, 163, 184, 0.1);
+  color: var(--text-dim);
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
-
-.grade-b {
-  text-shadow: 0 0 15px rgba(0, 240, 255, 0.55);
-}
-
-.grade-c {
-  text-shadow: 0 0 15px rgba(255, 230, 0, 0.55);
-}
-
-.grade-f {
-  text-shadow: 0 0 15px rgba(255, 0, 85, 0.55);
-}
-
-/* WebSocket Notification Bell Shake Keyframes */
-@keyframes shake {
-
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-
-  15%,
-  85% {
-    transform: rotate(-10deg);
-  }
-
-  30%,
-  70% {
-    transform: rotate(12deg);
-  }
-
-  45%,
-  55% {
-    transform: rotate(-14deg);
-  }
-
-  60% {
-    transform: rotate(10deg);
-  }
-}
-
-.animate-shake {
-  animation: shake 0.6s ease-in-out;
-  transform-origin: top center;
-}
-
-/* Glassmorphism & Enterprise SaaS Card Utilities */
-.glass-card {
-  background: rgba(8, 26, 23, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: none;
-}
-
-[data-theme="light"] .glass-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: none;
-}
-
-.glass-card-hover {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-card-hover:hover {
-  border-color: var(--border-hover);
-  box-shadow: 0 12px 30px -8px rgba(16, 185, 129, 0.12);
-  transform: translateY(-2px);
-}
-
-/* Skeleton Loading Shimmer Effect */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.03) 25%,
-    rgba(255, 255, 255, 0.09) 50%,
-    rgba(255, 255, 255, 0.03) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s infinite linear;
-}
-
-[data-theme="light"] .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0.04) 25%,
-    rgba(0, 0, 0, 0.08) 50%,
-    rgba(0, 0, 0, 0.04) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s infinite linear;
-}

@@ -4,48 +4,47 @@ import { CheckCircle2, Clock, Activity, Shield, Globe, Lock, Cpu, Check } from "
 
 export default function ScanPipelineTimeline({ duration = 0, timestamp }) {
   const steps = [
-    { name: "DNS & Zone Resolution", duration: "120ms", status: "completed", icon: Globe },
-    { name: "TLS / SSL Cipher Handshake", duration: "240ms", status: "completed", icon: Lock },
-    { name: "HTTP Header Policy Matrix", duration: "180ms", status: "completed", icon: Shield },
-    { name: "Port & Exposure Mapping", duration: "310ms", status: "completed", icon: Cpu },
-    { name: "OWASP & Policy Synthesis", duration: "110ms", status: "completed", icon: Activity },
+    { name: "DNS & Zone Resolution", duration: "120ms", icon: Globe },
+    { name: "TLS / SSL Handshake", duration: "240ms", icon: Lock },
+    { name: "HTTP Header Matrix", duration: "180ms", icon: Shield },
+    { name: "Port & Asset Mapping", duration: "310ms", icon: Cpu },
+    { name: "OWASP Policy Synthesis", duration: "110ms", icon: Activity },
   ];
 
   const totalTimeStr = duration > 0 ? `${(duration / 1000).toFixed(2)}s` : "0.96s";
 
   return (
-    <div className="glass-card rounded-2xl p-5">
-      {/* Timeline Header */}
-      <div className="flex items-center justify-between pb-3.5 mb-4">
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-accent animate-pulse" />
-          <h3 className="font-bold text-xs text-text uppercase tracking-wider">
+    <div className="glass-card p-4 space-y-3 font-sans">
+      {/* Header Bar */}
+      <div className="flex flex-row items-center justify-between pb-2.5 border-b border-border">
+        <div className="inline-flex flex-row items-center gap-2">
+          <Activity className="w-4 h-4 text-accent shrink-0" />
+          <h3 className="font-bold text-xs text-text uppercase tracking-wider whitespace-nowrap">
             Scan Execution Pipeline
           </h3>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11px] text-text-dim">
-          <Clock className="w-3.5 h-3.5 text-accent" />
+        <div className="inline-flex flex-row items-center gap-1.5 font-mono text-xs text-text-dim shrink-0 whitespace-nowrap">
+          <Clock className="w-3.5 h-3.5 text-accent shrink-0" />
           <span>Total Latency: <strong className="text-text">{totalTimeStr}</strong></span>
         </div>
       </div>
 
-      {/* Execution Stepper */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+      {/* Stepper Grid - 1 Row horizontal flex icons + text */}
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 font-mono">
         {steps.map((step, idx) => {
           const Icon = step.icon;
           return (
-            <div key={idx} className="relative flex flex-col items-start p-3 bg-surface/50 rounded-xl transition-all duration-200">
-              <div className="flex items-center justify-between w-full mb-2">
-                <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
-                  <Icon className="w-3.5 h-3.5" />
+            <div key={idx} className="p-2.5 bg-panel/60 border border-border rounded flex flex-row items-center justify-between gap-2 min-w-0">
+              <div className="inline-flex flex-row items-center gap-2 min-w-0 flex-1">
+                <div className="w-6 h-6 rounded bg-surface border border-border flex flex-row items-center justify-center text-accent shrink-0">
+                  <Icon className="w-3 h-3 shrink-0" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-success bg-success/10 px-1.5 py-0.5 rounded">
-                  <Check className="w-2.5 h-2.5" />
-                  {step.duration}
-                </span>
+                <span className="text-[11px] font-sans font-semibold text-text leading-tight truncate whitespace-nowrap">{step.name}</span>
               </div>
-              <span className="text-[11px] font-bold text-text leading-tight">{step.name}</span>
-              <span className="text-[9px] font-mono text-text-muted mt-1 uppercase">Stage {idx + 1} Passed</span>
+              <span className="inline-flex flex-row items-center gap-0.5 text-[10px] text-success font-bold shrink-0 whitespace-nowrap">
+                <Check className="w-3 h-3 shrink-0" />
+                <span>{step.duration}</span>
+              </span>
             </div>
           );
         })}
