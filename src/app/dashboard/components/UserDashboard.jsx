@@ -23,11 +23,13 @@ import {
   ExternalLink,
   Globe,
   ShieldAlert,
-  Info
+  Info,
+  Activity
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import UserActivityLogs from "@/components/activity/UserActivityLogs";
 import { useToast } from "@/components/common/Toast";
 import {
   ResponsiveContainer,
@@ -60,6 +62,7 @@ export default function UserDashboard({
   const toast = useToast();
   const [mounted, setMounted] = useState(false);
   const [selectedScanIds, setSelectedScanIds] = useState([]);
+  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "my-activity"
   
   // Verification states
   const [newDomain, setNewDomain] = useState("");
@@ -301,9 +304,40 @@ export default function UserDashboard({
         </div>
       </div>
 
-      {/* Advanced Quick Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-white/[0.04] bg-surface/50">
+      {/* Tab Navigation */}
+      <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "overview"
+              ? "bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 shadow-lg shadow-indigo-500/10"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          <span>Dashboard Overview</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("my-activity")}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "my-activity"
+              ? "bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 shadow-lg shadow-indigo-500/10"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+          }`}
+        >
+          <Activity className="w-4 h-4 text-emerald-400" />
+          <span>My Activity History</span>
+        </button>
+      </div>
+
+      {activeTab === "my-activity" ? (
+        <UserActivityLogs />
+      ) : (
+        <>
+          {/* Advanced Quick Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border border-white/[0.04] bg-surface/50">
           <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Total Active Monitors</p>
           <p className="text-2xl font-bold font-mono text-accent mt-1.5">{totalScans}</p>
           <p className="text-[8px] text-text-muted mt-1 uppercase">Cumulative scans resolved</p>
@@ -778,6 +812,8 @@ export default function UserDashboard({
           </div>
         </Card>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 /**
  * GET /api/scan/:id
@@ -129,6 +130,16 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ success: false, error: "Scan not found." }, { status: 404 });
     }
 
+    await logActivity({
+      req: request,
+      user,
+      eventType: "SCAN_DELETED",
+      description: `Scan for domain ${deletedScan.domain} (ID: ${id}) deleted by admin`,
+      status: "warning",
+      resourceType: "scan",
+      resourceId: id,
+    });
+
     return NextResponse.json({ success: true, message: "Scan deleted successfully." });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -170,6 +181,17 @@ export async function PATCH(request, { params }) {
     }
 
     await scan.save();
+
+    await logActivity({
+      req: request,
+      user,
+      eventType: "SCAN_SHARING_TOGGLED",
+      description: `Scan for domain ${scan.domain} public sharing set to ${scan.isPublic ? "Public" : "Private"}`,
+      status: "info",
+      resourceType: "scan",
+      resourceId: id,
+      isPublic: scan.isPublic,
+    });
 
     return NextResponse.json({
       success: true,

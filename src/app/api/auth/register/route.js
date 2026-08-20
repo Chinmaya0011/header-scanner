@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/lib/models/User";
 import { sendOtpEmail } from "@/lib/emailSender";
+import { logActivity } from "@/lib/server/activityLogger";
 
 export async function POST(request) {
   try {
@@ -63,7 +64,7 @@ export async function POST(request) {
     }
 
     // Create pending user account
-    await User.create({
+    const newUser = await User.create({
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       role,
@@ -71,6 +72,16 @@ export async function POST(request) {
       isVerified: false,
       otp,
       otpExpires,
+    });
+
+    await logActivity({
+      req: request,
+      user: newUser,
+      eventType: "USER_REGISTER_INITIATED",
+      description: `New account registration initiated for ${newUser.email} (OTP code sent)`,
+      status: "info",
+      resourceType: "auth",
+      resourceId: newUser._id.toString(),
     });
 
     return NextResponse.json({

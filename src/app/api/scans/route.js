@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 const VALID_SORT_FIELDS = ["createdAt", "score", "grade", "domain", "scanDuration"];
 const VALID_GRADES = ["A+", "A", "B", "C", "D", "F"];
@@ -436,6 +437,15 @@ export async function DELETE(request) {
     
     // Clear all scans
     await Scan.deleteMany({});
+
+    await logActivity({
+      req: request,
+      user,
+      eventType: "HISTORY_CLEARED",
+      description: `All platform scan history logs cleared by admin`,
+      status: "warning",
+      resourceType: "scan",
+    });
 
     return NextResponse.json({
       success: true,

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/lib/models/User";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 export async function POST(request) {
   try {
@@ -44,6 +45,14 @@ export async function POST(request) {
     // Verify current password matches
     const isMatch = await bcrypt.compare(currentPassword, dbUser.password);
     if (!isMatch) {
+      await logActivity({
+        req: request,
+        user,
+        eventType: "PASSWORD_CHANGE_FAILED",
+        description: `Failed password change attempt for ${user.email} (incorrect current password)`,
+        status: "failed",
+        resourceType: "auth",
+      });
       return NextResponse.json(
         { error: "Incorrect current password." },
         { status: 400 }
@@ -54,6 +63,15 @@ export async function POST(request) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     dbUser.password = hashedPassword;
     await dbUser.save();
+
+    await logActivity({
+      req: request,
+      user,
+      eventType: "PASSWORD_CHANGED",
+      description: `Password changed successfully for ${user.email}`,
+      status: "success",
+      resourceType: "auth",
+    });
 
     return NextResponse.json({
       success: true,
@@ -67,3 +85,4 @@ export async function POST(request) {
     );
   }
 }
+
