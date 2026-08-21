@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
-  Shield, 
+  Shield,
+  ShieldCheck,
   LogOut, 
   Menu, 
   X, 
@@ -115,6 +116,7 @@ export default function Navbar() {
   const navLinks = user
     ? [
         { href: "/scanner", label: "Scanner", icon: Shield },
+        { href: "/api-security", label: "API Security", icon: ShieldCheck },
         { href: "/history", label: "History", icon: History },
         { href: "/dashboard", label: "Console", icon: LayoutDashboard },
         { href: "/monitors", label: "Monitors", icon: Activity, isLive: true },
@@ -123,6 +125,7 @@ export default function Navbar() {
     : [
         { href: "/home", label: "Home", icon: Home },
         { href: "/scanner", label: "Scanner", icon: Shield },
+        { href: "/api-security", label: "API Security", icon: ShieldCheck },
         { href: "/docs", label: "Docs", icon: BookOpen },
       ];
 
