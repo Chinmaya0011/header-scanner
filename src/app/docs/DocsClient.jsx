@@ -29,7 +29,8 @@ import {
   Search,
   ChevronRight,
   ArrowUp,
-  ExternalLink
+  ExternalLink,
+  Code
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -66,8 +67,9 @@ const docCategories = [
     name: "Developer API Integration",
     sections: [
       { id: "api-documentation", title: "API Reference", icon: FileCode, desc: "Securely query domain security postures using HTTP endpoints." },
-      { id: "full-redoc", title: "Full Redoc Specs", icon: ExternalLink, desc: "Interactive API Documentation", href: "/redoc", external: true },
-      { id: "auth-authorization", title: "API Authentication", icon: Lock, desc: "Pass token credentials via X-API-Key request headers." },
+      { id: "full-swagger", title: "Swagger UI Explorer", icon: Code, desc: "Interactive Swagger API Explorer & Testing", href: "/swagger", external: true },
+      { id: "full-redoc", title: "Full Redoc Specs", icon: ExternalLink, desc: "Clean OpenAPI Redoc Specs Reader", href: "/redoc", external: true },
+      { id: "auth-authorization", title: "API Authentication", icon: Lock, desc: "Pass token credentials via X-API-Key or Bearer Authorization headers." },
       { id: "roles-permissions", title: "Roles & Permissions", icon: UserCheck, desc: "How permissions divide standard Developer accounts and Administrators." },
       { id: "developer-api-keys", title: "Keys Whitelisting & Locks", icon: Key, desc: "Issue developer credentials, restrict domains, and toggle webhook URLs." }
     ]
@@ -423,6 +425,35 @@ export default function DocumentationPage() {
                 <h2 className="text-xl font-bold uppercase text-text">API Reference</h2>
               </div>
               <div className="space-y-3.5 text-xs text-text-dim leading-relaxed font-sans">
+                <p>
+                  Explore and test endpoints interactively using our API documentation tools:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-1">
+                  <Link
+                    href="/swagger"
+                    className="p-3 bg-surface border border-accent/30 hover:border-accent rounded-xl flex items-center justify-between group transition-all"
+                  >
+                    <div>
+                      <span className="font-bold text-text group-hover:text-accent flex items-center gap-2">
+                        Swagger UI Explorer
+                      </span>
+                      <p className="text-[11px] text-text-dim mt-0.5">Interactive request testing & schema inspector</p>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-accent" />
+                  </Link>
+                  <Link
+                    href="/redoc"
+                    className="p-3 bg-surface border border-border hover:border-text-dim rounded-xl flex items-center justify-between group transition-all"
+                  >
+                    <div>
+                      <span className="font-bold text-text group-hover:text-white flex items-center gap-2">
+                        Redoc Specification
+                      </span>
+                      <p className="text-[11px] text-text-dim mt-0.5">Clean, structured OpenAPI 3.1 reference</p>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-text-dim" />
+                  </Link>
+                </div>
                 <p>
                   Developer keys permit remote trigger scans via standard POST endpoints:
                 </p>
