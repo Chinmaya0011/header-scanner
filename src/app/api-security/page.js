@@ -18,7 +18,8 @@ import {
   Radio,
   Video,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -159,7 +160,17 @@ export default function ApiSecurityConfigPage() {
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
                   <Video className="h-4 w-4" /> Feature Demonstration Video
                 </div>
-                <Badge variant="accent" className="text-[9px]">LIVE PREVIEW</Badge>
+                <div className="flex items-center gap-3">
+                  <a
+                    href="https://youtu.be/Qv8q53SzG8c"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-accent hover:underline font-medium"
+                  >
+                    Watch on YouTube <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <Badge variant="accent" className="text-[9px]">LIVE PREVIEW</Badge>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -168,16 +179,14 @@ export default function ApiSecurityConfigPage() {
                 </p>
               </div>
 
-              {/* Embedded Video Element */}
-              <div className="relative rounded-2xl overflow-hidden border border-border shadow-2xl bg-black">
-                <video
-                  src="/media/api-scan.mp4"
-                  controls
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="w-full h-auto max-h-[480px] rounded-2xl object-cover"
+              {/* Embedded YouTube Video */}
+              <div className="relative rounded-2xl overflow-hidden border border-border shadow-2xl bg-black aspect-video">
+                <iframe
+                  src="https://www.youtube.com/embed/Qv8q53SzG8c"
+                  title="API Security Scanner Demonstration Video"
+                  className="w-full h-full min-h-[360px] sm:min-h-[420px] border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
                 />
               </div>
             </Card>
