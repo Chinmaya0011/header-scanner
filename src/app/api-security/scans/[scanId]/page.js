@@ -23,7 +23,9 @@ import {
   ArrowLeft,
   PieChart as PieIcon,
   BarChart2,
-  Activity
+  Activity,
+  Terminal,
+  Code
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -61,6 +63,97 @@ export default function ApiScanResultsPage({ params }) {
   // Finding detail drawer state
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [copiedEvidence, setCopiedEvidence] = useState(false);
+  const [evidenceTab, setEvidenceTab] = useState("curl_bash");
+
+  const copyToClipboard = (text) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedEvidence(true);
+    toast.success("Copied to clipboard!");
+    setTimeout(() => setCopiedEvidence(false), 2000);
+  };
+
+  const getFullUrl = (finding) => {
+    if (!finding) return "";
+    const rawUrl = finding.evidence?.request?.url || finding.endpoint || "";
+    if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+      return rawUrl;
+    }
+    const base = scan?.targetUrl ? scan.targetUrl.replace(/\/$/, "") : "";
+    const path = rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`;
+    return `${base}${path}`;
+  };
+
+  const getMethod = (finding) => {
+    return (finding?.evidence?.request?.method || finding?.method || "GET").toUpperCase();
+  };
+
+  const getAuthHeaderStr = () => {
+    if (!scan) return "";
+    if (scan.authType === "apikey") {
+      const keyHeader = scan.apiKeyHeader || "X-API-Key";
+      return `-H "${keyHeader}: YOUR_API_KEY"`;
+    }
+    if (scan.authType === "bearer") {
+      return `-H "Authorization: Bearer YOUR_BEARER_TOKEN"`;
+    }
+    return "";
+  };
+
+  const generateCurlBash = (finding) => {
+    const method = getMethod(finding);
+    const fullUrl = getFullUrl(finding);
+    const authHeader = getAuthHeaderStr();
+    const hasBody = finding?.evidence?.request?.body;
+
+    let cmd = `curl -i -X ${method} "${fullUrl}"`;
+    if (authHeader) cmd += ` \\\n  ${authHeader}`;
+    cmd += ` \\\n  -H "Accept: application/json"`;
+
+    if (hasBody) {
+      const bodyStr = typeof hasBody === "string" ? hasBody : JSON.stringify(hasBody);
+      cmd += ` \\\n  -H "Content-Type: application/json" \\\n  --data '${bodyStr}'`;
+    }
+
+    return cmd;
+  };
+
+  const generateCurlCmd = (finding) => {
+    const method = getMethod(finding);
+    const fullUrl = getFullUrl(finding);
+    const authHeader = getAuthHeaderStr();
+    const hasBody = finding?.evidence?.request?.body;
+
+    let cmd = `curl -i -X ${method} "${fullUrl}"`;
+    if (authHeader) cmd += ` ^\n  ${authHeader}`;
+    cmd += ` ^\n  -H "Accept: application/json"`;
+
+    if (hasBody) {
+      const bodyStr = (typeof hasBody === "string" ? hasBody : JSON.stringify(hasBody)).replace(/"/g, '""');
+      cmd += ` ^\n  -H "Content-Type: application/json" ^\n  --data "${bodyStr}"`;
+    }
+
+    return cmd;
+  };
+
+  const generatePostmanDetails = (finding) => {
+    const method = getMethod(finding);
+    const fullUrl = getFullUrl(finding);
+    const authHeaderName = scan?.authType === "apikey" ? (scan.apiKeyHeader || "X-API-Key") : "Authorization";
+    const authHeaderVal = scan?.authType === "apikey" ? "YOUR_API_KEY" : "Bearer YOUR_BEARER_TOKEN";
+    const hasBody = finding?.evidence?.request?.body;
+
+    return {
+      method,
+      url: fullUrl,
+      headers: [
+        { key: authHeaderName, value: authHeaderVal },
+        { key: "Content-Type", value: "application/json" },
+        { key: "Accept", value: "application/json" }
+      ],
+      body: hasBody ? (typeof hasBody === "string" ? hasBody : JSON.stringify(hasBody, null, 2)) : null
+    };
+  };
 
   const fetchScanDetails = async () => {
     try {
@@ -109,6 +202,129 @@ export default function ApiScanResultsPage({ params }) {
       </div>
     );
   }
+
+  // Active Scan Progress & Skeleton Loading Page
+  if (scan.status === "queued" || scan.status === "discovering" || scan.status === "testing") {
+    return (
+      <div className="min-h-screen bg-bg text-text font-sans pb-16">
+        {/* Header Bar */}
+        <div className="bg-surface/50 border-b border-border py-6 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <Link href="/api-security" className="text-text-dim hover:text-text">
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+                <h1 className="text-lg font-bold text-text uppercase tracking-wide">
+                  API Security Scan In Progress
+                </h1>
+                <Badge variant="warning" className="animate-pulse">
+                  {scan.status.toUpperCase()}
+                </Badge>
+              </div>
+              <p className="text-xs font-mono text-text-dim">
+                Target: <span className="text-accent font-semibold">{scan.targetUrl}</span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button onClick={fetchScanDetails} variant="outline" size="sm" icon={RefreshCw}>
+                Syncing...
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Progress Bar Section */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <Card className="p-6 border border-border space-y-4 bg-surface/40">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
+                <Activity className="h-4 w-4 animate-spin text-accent" /> Scan Execution Pipeline
+              </div>
+              <span className="text-sm font-mono font-bold text-accent">{scan.progress || 0}%</span>
+            </div>
+
+            <div className="w-full bg-black/60 rounded-full h-3 overflow-hidden border border-border">
+              <div
+                className="bg-accent h-full transition-all duration-500 rounded-full bg-gradient-to-r from-accent/60 via-accent to-accent/90"
+                style={{ width: `${Math.max(5, scan.progress || 0)}%` }}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-mono text-text-dim">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" />
+              <span>{scan.statusMessage || "Executing security probes..."}</span>
+            </div>
+          </Card>
+        </div>
+
+        {/* Skeleton KPI Cards Grid */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Card key={i} className="p-4 border border-border space-y-3 animate-pulse">
+                <div className="h-2.5 w-20 bg-white/10 rounded" />
+                <div className="h-7 w-14 bg-white/15 rounded" />
+                <div className="h-2 w-24 bg-white/5 rounded" />
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Skeleton Charts Section */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8">
+              <Card className="p-6 border border-border space-y-4 h-[360px] animate-pulse flex flex-col justify-between">
+                <div className="h-4 w-48 bg-white/10 rounded" />
+                <div className="h-52 w-full bg-white/5 rounded-xl" />
+              </Card>
+            </div>
+            <div className="lg:col-span-4">
+              <Card className="p-6 border border-border space-y-4 h-[360px] animate-pulse flex flex-col justify-between">
+                <div className="h-4 w-32 bg-white/10 rounded" />
+                <div className="h-44 w-44 rounded-full bg-white/5 mx-auto" />
+              </Card>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Failed Scan Error Page
+  if (scan.status === "failed") {
+    return (
+      <div className="min-h-screen bg-bg text-text font-sans pb-16">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 space-y-6">
+          <Card className="p-8 border border-danger/40 bg-danger/5 space-y-6 text-center">
+            <div className="h-14 w-14 rounded-full bg-danger/20 border border-danger/40 flex items-center justify-center mx-auto text-danger">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-text uppercase tracking-wide">
+                API Scan Terminated with Error
+              </h2>
+              <p className="text-sm text-text-dim font-mono max-w-xl mx-auto leading-relaxed bg-black/40 p-4 rounded-xl border border-border">
+                {scan.statusMessage || "Scan failed due to connection error or invalid credentials."}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-4 pt-2">
+              <Link href="/api-security">
+                <Button variant="primary" size="md" icon={ArrowLeft} className="bg-accent text-bg font-bold">
+                  Re-configure Credentials & Retry
+                </Button>
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
 
   // Compute Dynamic Chart Data from Live Scan Response (NO HARDCODED DATA)
   const severityChartData = [
@@ -214,28 +430,35 @@ export default function ApiScanResultsPage({ params }) {
 
       {/* Primary KPI Metrics Summary Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card className="p-4 border border-border">
-            <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Security Score</p>
-            <p className={`text-3xl font-extrabold font-mono mt-1 ${
-              scan.score >= 80 ? "text-success" : scan.score >= 50 ? "text-warning" : "text-danger"
-            }`}>
-              {scan.score} / 100
-            </p>
-            <p className="text-[9px] text-text-muted mt-0.5 uppercase">OWASP API Compliance</p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+          
+          {/* Security Grade */}
+          <Card className="p-4 border border-border flex flex-col justify-between">
+            <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Security Grade</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className={`text-3xl font-extrabold font-mono ${
+                scan.score >= 85 ? "text-success" : scan.score >= 60 ? "text-warning" : "text-danger"
+              }`}>
+                {scan.score >= 95 ? "A+" : scan.score >= 85 ? "A" : scan.score >= 75 ? "B" : scan.score >= 60 ? "C" : scan.score >= 45 ? "D" : "F"}
+              </span>
+              <span className="text-xs text-text-dim font-semibold">({scan.score}/100)</span>
+            </div>
+            <p className="text-[9px] text-text-muted mt-0.5 uppercase">OWASP Compliance Rating</p>
           </Card>
 
-          <Card className="p-4 border border-border">
-            <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Total Endpoints</p>
+          <Card className="p-4 border border-border flex flex-col justify-between">
+            <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Discovered Endpoints</p>
             <p className="text-3xl font-extrabold font-mono text-accent mt-1">
               {scan.totalEndpoints}
             </p>
-            <p className="text-[9px] text-text-muted mt-0.5">{scan.testedEndpoints} Tested Endpoints</p>
+            <p className="text-[9px] text-text-muted mt-0.5">{scan.testedEndpoints} Tested Routes</p>
           </Card>
 
-          <Card className="p-4 border border-border">
-            <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Total Findings</p>
-            <p className="text-3xl font-extrabold font-mono text-danger mt-1">
+          <Card className="p-4 border border-border flex flex-col justify-between">
+            <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Security Findings</p>
+            <p className={`text-3xl font-extrabold font-mono mt-1 ${
+              (scan.findings?.length || 0) === 0 ? "text-success" : "text-danger"
+            }`}>
               {scan.findings?.length || 0}
             </p>
             <p className="text-[9px] text-text-muted mt-0.5">
@@ -243,13 +466,24 @@ export default function ApiScanResultsPage({ params }) {
             </p>
           </Card>
 
-          <Card className="p-4 border border-border">
+          <Card className="p-4 border border-border flex flex-col justify-between">
+            <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Shadow APIs</p>
+            <p className={`text-3xl font-extrabold font-mono mt-1 ${
+              (scan.inventory?.undocumented || 0) > 0 ? "text-warning" : "text-success"
+            }`}>
+              {scan.inventory?.undocumented || 0}
+            </p>
+            <p className="text-[9px] text-text-muted mt-0.5 font-mono">Undocumented Routes</p>
+          </Card>
+
+          <Card className="p-4 border border-border flex flex-col justify-between">
             <p className="text-[10px] text-text-dim font-bold uppercase tracking-wider">Scan Duration</p>
             <p className="text-3xl font-extrabold font-mono text-text mt-1">
               {Math.round((scan.durationMs || 0) / 1000)}s
             </p>
             <p className="text-[9px] text-text-muted mt-0.5 uppercase">Execution Time</p>
           </Card>
+
         </div>
       </div>
 
@@ -623,23 +857,119 @@ export default function ApiScanResultsPage({ params }) {
                 <p className="text-text leading-relaxed bg-black/40 p-3 rounded-lg border border-border">{selectedFinding.remediation}</p>
               </div>
 
-              {selectedFinding.evidence && (
-                <div className="space-y-2 pt-2 border-t border-border font-mono">
-                  <div className="flex items-center justify-between">
-                    <p className="font-bold text-accent uppercase">Request / Response Evidence</p>
-                    <button
-                      onClick={() => copyEvidenceToClipboard(JSON.stringify(selectedFinding.evidence, null, 2))}
-                      className="text-[10px] text-accent hover:underline flex items-center gap-1 font-semibold"
-                    >
-                      {copiedEvidence ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedEvidence ? "Copied" : "Copy JSON"}</span>
-                    </button>
-                  </div>
-                  <pre className="p-3 bg-black/60 border border-border rounded-xl text-[10px] text-emerald-400 select-all overflow-x-auto leading-relaxed">
-                    {JSON.stringify(selectedFinding.evidence, null, 2)}
-                  </pre>
+              {/* Manual Reproduction & Evidence Section */}
+              <div className="space-y-3 pt-3 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-accent uppercase flex items-center gap-1.5 text-xs">
+                    <Terminal className="h-4 w-4 text-accent" /> Manual Reproduction & Verification Evidence
+                  </p>
+                  <button
+                    onClick={() => {
+                      let contentToCopy = "";
+                      if (evidenceTab === "curl_bash") contentToCopy = generateCurlBash(selectedFinding);
+                      else if (evidenceTab === "curl_cmd") contentToCopy = generateCurlCmd(selectedFinding);
+                      else if (evidenceTab === "postman") contentToCopy = JSON.stringify(generatePostmanDetails(selectedFinding), null, 2);
+                      else contentToCopy = JSON.stringify(selectedFinding.evidence || selectedFinding, null, 2);
+                      copyToClipboard(contentToCopy);
+                    }}
+                    className="text-[10px] text-accent hover:underline flex items-center gap-1 font-semibold px-2 py-1 bg-accent/10 border border-accent/30 rounded-lg transition-all"
+                  >
+                    {copiedEvidence ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span>{copiedEvidence ? "Copied!" : "Copy Snippet"}</span>
+                  </button>
                 </div>
-              )}
+
+                {/* Format Selector Tabs */}
+                <div className="flex items-center gap-1.5 border-b border-border/60 pb-2 overflow-x-auto">
+                  {[
+                    { id: "curl_bash", label: "cURL (Linux/macOS)" },
+                    { id: "curl_cmd", label: "cURL (Windows CMD)" },
+                    { id: "postman", label: "Postman / REST" },
+                    { id: "raw_json", label: "Raw JSON Evidence" }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setEvidenceTab(tab.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${
+                        evidenceTab === tab.id
+                          ? "bg-accent/20 border-accent text-accent"
+                          : "bg-surface border-border text-text-dim hover:text-text"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab 1: cURL Bash */}
+                {evidenceTab === "curl_bash" && (
+                  <div className="space-y-1 font-mono">
+                    <p className="text-[10px] text-text-dim">Run in Linux / macOS terminal (Bash or zsh) to manually verify finding:</p>
+                    <pre className="p-3 bg-black/80 border border-border rounded-xl text-[10.5px] text-emerald-400 select-all overflow-x-auto leading-relaxed">
+                      {generateCurlBash(selectedFinding)}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Tab 2: cURL CMD */}
+                {evidenceTab === "curl_cmd" && (
+                  <div className="space-y-1 font-mono">
+                    <p className="text-[10px] text-text-dim">Run in Windows Command Prompt (cmd.exe) to manually verify finding:</p>
+                    <pre className="p-3 bg-black/80 border border-border rounded-xl text-[10.5px] text-emerald-400 select-all overflow-x-auto leading-relaxed">
+                      {generateCurlCmd(selectedFinding)}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Tab 3: Postman / Request Details */}
+                {evidenceTab === "postman" && (
+                  <div className="space-y-2 font-mono text-[11px] bg-black/60 border border-border p-3.5 rounded-xl">
+                    <div className="flex items-center gap-2 border-b border-border/40 pb-2">
+                      <span className="font-bold text-accent uppercase text-[10px]">Method:</span>
+                      <span className="bg-accent/20 text-accent font-bold px-2 py-0.5 rounded text-[10px]">
+                        {getMethod(selectedFinding)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="font-bold text-text-dim uppercase text-[10px]">Target URL:</span>
+                      <p className="text-text break-all bg-bg p-2 rounded border border-border">{getFullUrl(selectedFinding)}</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="font-bold text-text-dim uppercase text-[10px]">Headers:</span>
+                      <div className="space-y-1 bg-bg p-2 rounded border border-border text-[10px]">
+                        {generatePostmanDetails(selectedFinding).headers.map((h, idx) => (
+                          <div key={idx} className="flex justify-between border-b border-white/[0.04] py-0.5 last:border-0">
+                            <span className="text-accent">{h.key}:</span>
+                            <span className="text-text-muted">{h.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {generatePostmanDetails(selectedFinding).body && (
+                      <div className="space-y-1">
+                        <span className="font-bold text-text-dim uppercase text-[10px]">JSON Body:</span>
+                        <pre className="p-2 bg-bg border border-border rounded text-[10px] text-emerald-400 overflow-x-auto">
+                          {generatePostmanDetails(selectedFinding).body}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 4: Raw JSON */}
+                {evidenceTab === "raw_json" && (
+                  <div className="space-y-1 font-mono">
+                    <p className="text-[10px] text-text-dim">Raw scan probe evidence payload:</p>
+                    <pre className="p-3 bg-black/80 border border-border rounded-xl text-[10px] text-emerald-400 select-all overflow-x-auto leading-relaxed">
+                      {JSON.stringify(selectedFinding.evidence || selectedFinding, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

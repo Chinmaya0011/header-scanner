@@ -1,20 +1,22 @@
 /**
  * API3:2023 - Broken Object Property Level Authorization Checker
- * Analyzes API responses for excessive data exposure (password, secrets, internal notes, isAdmin, etc.)
+ * Analyzes API responses for excessive data exposure (password, secrets, internal notes, unmasked hashes)
  */
 
 const SENSITIVE_PROPERTY_PATTERNS = [
   { name: "password", regex: /"password"\s*:\s*"[^"]+"/i, severity: "critical" },
   { name: "passwordHash", regex: /"password_?hash"\s*:\s*"[^"]+"/i, severity: "critical" },
-  { name: "secret", regex: /"secret"\s*:\s*"[^"]+"/i, severity: "high" },
-  { name: "apiKey", regex: /"(api_?key|private_?key)"\s*:\s*"[^"]+"/i, severity: "high" },
-  { name: "token", regex: /"(access_?token|refresh_?token)"\s*:\s*"[^"]+"/i, severity: "high" },
-  { name: "internalNotes", regex: /"internal_?notes?"\s*:\s*"[^"]+"/i, severity: "medium" },
-  { name: "isAdmin", regex: /"(is_?admin|is_?superuser|role)"\s*:\s*(true|"admin")/i, severity: "medium" },
+  { name: "privateKey", regex: /"(private_?key|secret_?key)"\s*:\s*"[^"]+"/i, severity: "high" },
+  { name: "ssn", regex: /"(ssn|social_?security)"\s*:\s*"[^"]+"/i, severity: "high" },
 ];
 
 export async function checkPropertyAuthorization(endpoint, authHeaders = {}) {
   const findings = [];
+
+  // Skip auth/login endpoints where auth tokens are expected in response
+  if (/\/(auth|login|token|oauth)/i.test(endpoint.path)) {
+    return findings;
+  }
 
   try {
     const res = await fetch(endpoint.url.replace("{id}", "1"), {
@@ -38,7 +40,7 @@ export async function checkPropertyAuthorization(endpoint, authHeaders = {}) {
         findings.push({
           findingId: `PROP-EXPOSURE-${pattern.name}-${endpoint.path}`,
           category: "API3:2023 - Broken Object Property Level Authorization",
-          title: `Excessive Data Exposure: '${pattern.name}' Property Returned`,
+          title: `Excessive Data Exposure: Sensitive '${pattern.name}' Property Disclosed`,
           severity: pattern.severity,
           confidence: "high",
           endpoint: endpoint.path,
@@ -69,3 +71,4 @@ export async function checkPropertyAuthorization(endpoint, authHeaders = {}) {
 
   return findings;
 }
+

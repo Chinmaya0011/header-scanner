@@ -1,5 +1,5 @@
 /**
- * Route & Endpoint Parameter Normalizer
+ * Route & Endpoint Parameter Normalizer & Path Classifier
  */
 
 const ID_PATTERNS = [
@@ -9,6 +9,22 @@ const ID_PATTERNS = [
   { regex: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, replacement: "{id}" },
   // Mongo ObjectId: /items/507f1f77bcf86cd799439011 -> /items/{id}
   { regex: /^[0-9a-fA-F]{24}$/, replacement: "{id}" },
+];
+
+const KNOWN_PUBLIC_PATHS = [
+  /\/openapi\.json$/i,
+  /\/swagger/i,
+  /\/api-docs/i,
+  /\/health$/i,
+  /\/status$/i,
+  /\/ping$/i,
+  /\/robots\.txt$/i,
+  /\/sitemap\.xml$/i,
+  /\/favicon\.ico$/i,
+  /\/public\//i,
+  /\/auth\/login$/i,
+  /\/auth\/register$/i,
+  /\/auth\/forgot-password$/i,
 ];
 
 /**
@@ -44,17 +60,28 @@ export function normalizePath(path) {
 }
 
 /**
+ * Heuristic check if path is expected to be public
+ */
+export function isLikelyPublicPath(path) {
+  if (!path) return false;
+  return KNOWN_PUBLIC_PATHS.some((pattern) => pattern.test(path));
+}
+
+/**
  * Classify endpoint source & inventory status
  */
 export function classifyEndpoint(path, source = "web") {
   const isApi = /^\/(api|v\d+|graphql|rest|v1|v2|v3)\//i.test(path);
   const isLegacy = /\/(v1|v0|legacy|old)\//i.test(path);
   const isInternal = /\/(internal|admin|private|management|manage)\//i.test(path);
+  const isPublic = isLikelyPublicPath(path);
 
   return {
     isApi,
     isLegacy,
     isInternal,
+    isPublic,
     source,
   };
 }
+

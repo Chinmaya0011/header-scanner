@@ -1,4 +1,4 @@
-import { normalizePath } from "./normalizer.js";
+import { normalizePath, isLikelyPublicPath } from "./normalizer.js";
 
 const COMMON_OPENAPI_PATHS = [
   "/openapi.json",
@@ -40,6 +40,8 @@ export async function discoverOpenApi(targetUrl, headers = {}) {
       if (res.ok && res.headers.get("content-type")?.includes("json")) {
         const spec = await res.json();
         if (spec && spec.paths) {
+          const globalSecurity = spec.security || [];
+
           for (const [pathKey, methods] of Object.entries(spec.paths)) {
             for (const [method, details] of Object.entries(methods)) {
               if (["get", "post", "put", "patch", "delete", "head", "options"].includes(method.toLowerCase())) {
@@ -51,13 +53,25 @@ export async function discoverOpenApi(targetUrl, headers = {}) {
                   required: !!p.required
                 }));
 
+                // Determine authentication requirement from spec or path heuristics
+                let requiresAuth = false;
+                if (Array.isArray(details.security)) {
+                  requiresAuth = details.security.length > 0;
+                } else if (globalSecurity.length > 0) {
+                  requiresAuth = true;
+                }
+
+                if (isLikelyPublicPath(normPath)) {
+                  requiresAuth = false;
+                }
+
                 discovered.push({
                   method: method.toUpperCase(),
                   path: normPath,
                   url: `${baseUrl}${normPath}`,
                   source: "openapi",
                   parameters,
-                  authenticationRequired: details.security ? details.security.length > 0 : true,
+                  authenticationRequired: requiresAuth,
                   tags: details.tags || ["openapi-discovered"]
                 });
               }
@@ -73,3 +87,4 @@ export async function discoverOpenApi(targetUrl, headers = {}) {
 
   return discovered;
 }
+

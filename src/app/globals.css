@@ -5,34 +5,43 @@
 
 :root {
   /* Modern Technical Cybersecurity Dark Theme (Datadog / Snyk / Wiz / Linear Vibe) */
-  --bg: #090d16;
+  --bg: #111828;
   --surface: #0e1422;
   --panel: #131b2e;
   --border: #1e293d;
   --border-hover: #334155;
 
   /* Accent & Brand Colors */
-  --accent: #0ea5e9;         /* Sky / Cyan accent */
+  --accent: #0ea5e9;
+  /* Sky / Cyan accent */
   --accent-light: #38bdf8;
   --accent-dim: rgba(14, 165, 233, 0.15);
   --accent-glow: rgba(14, 165, 233, 0.25);
 
   /* Security Severity Signals */
-  --critical: #ef4444;       /* Critical Crimson */
+  --critical: #ef4444;
+  /* Critical Crimson */
   --critical-dim: rgba(239, 68, 68, 0.12);
-  --danger: #f97316;         /* High Orange */
+  --danger: #f97316;
+  /* High Orange */
   --danger-dim: rgba(249, 115, 22, 0.12);
-  --warning: #eab308;        /* Medium Yellow/Amber */
+  --warning: #eab308;
+  /* Medium Yellow/Amber */
   --warning-dim: rgba(234, 179, 8, 0.12);
-  --low: #38bdf8;            /* Low Cyan/Blue */
+  --low: #38bdf8;
+  /* Low Cyan/Blue */
   --low-dim: rgba(56, 189, 248, 0.12);
-  --success: #10b981;        /* Passed / Info Emerald */
+  --success: #10b981;
+  /* Passed / Info Emerald */
   --success-dim: rgba(16, 185, 129, 0.12);
 
   /* High Contrast Typography */
-  --text: #f8fafc;           /* Primary White Slate */
-  --text-dim: #94a3b8;       /* Secondary Muted Text */
-  --text-muted: #64748b;     /* Tertiary Dim Label */
+  --text: #f8fafc;
+  /* Primary White Slate */
+  --text-dim: #94a3b8;
+  /* Secondary Muted Text */
+  --text-muted: #64748b;
+  /* Tertiary Dim Label */
 }
 
 [data-theme="light"] {
@@ -126,6 +135,7 @@ body {
     opacity: 0;
     transform: translateY(4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -140,6 +150,7 @@ body {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }

@@ -16,11 +16,10 @@ export async function checkBola(endpoint, primaryHeaders = {}, secondaryHeaders 
     return findings;
   }
 
-  const objA_Url = endpoint.url.replace("{id}", "101");
   const objB_Url = endpoint.url.replace("{id}", "102");
 
   try {
-    // 1. Identity A requests Object B (Belonging to Identity B)
+    // Identity A requests Object B (Belonging exclusively to Identity B)
     const res = await fetch(objB_Url, {
       method: endpoint.method,
       headers: {
@@ -33,8 +32,10 @@ export async function checkBola(endpoint, primaryHeaders = {}, secondaryHeaders 
     const status = res.status;
     const bodyText = await res.text();
 
-    // Finding criteria: If status is 200 OK and response contains data, Identity A accessed Identity B's object
-    if (status === 200 && bodyText.length > 20) {
+    // Verify if response returns 200 OK AND contains private tenant/user fields
+    const containsPrivateTenantData = /"(owner_?id|user_?id|account_?id|email|balance|private|secret)"\s*:/i.test(bodyText);
+
+    if (status === 200 && containsPrivateTenantData) {
       // Mask headers for safe evidence display
       const safeReqHeaders = { ...primaryHeaders };
       if (safeReqHeaders.Authorization) safeReqHeaders.Authorization = "Bearer ********";
@@ -44,12 +45,12 @@ export async function checkBola(endpoint, primaryHeaders = {}, secondaryHeaders 
         findingId: `BOLA-${endpoint.method}-${endpoint.path}`,
         category: "API1:2023 - Broken Object Level Authorization",
         title: "Broken Object Level Authorization (BOLA) Discovered",
-        severity: "high",
+        severity: "critical",
         confidence: "high",
         endpoint: endpoint.path,
         method: endpoint.method,
         parameter: "id",
-        description: `Identity A was able to access object '${objB_Url}' belonging to Identity B without proper authorization enforcement.`,
+        description: `Identity A was able to access object '${objB_Url}' belonging exclusively to Identity B without proper authorization enforcement.`,
         impact: "Unauthorized users can read or modify data belonging to other accounts by manipulating object identifiers.",
         remediation: "Implement strict object-level authorization checks at the data layer for every request accessing user-owned resources.",
         evidence: {
@@ -72,9 +73,10 @@ export async function checkBola(endpoint, primaryHeaders = {}, secondaryHeaders 
         }
       });
     }
-  } catch (err) {
+  } catch {
     // Ignore connection timeouts
   }
 
   return findings;
 }
+
