@@ -1,13 +1,21 @@
 /**
  * API4:2023 - Unrestricted Resource Consumption Checker
- * Checks rate limiting signals, RateLimit headers, 429 status, pagination limits, and body size restrictions safely
+ * Checks rate limiting signals, RateLimit headers, 429 status, and safe burst response behaviors
  */
 
 export async function checkResourceConsumption(endpoint, authHeaders = {}) {
   const findings = [];
 
+  // Skip resource consumption check on static/public spec endpoints
+  if (endpoint.path.includes("openapi.json") || endpoint.path.includes("swagger")) {
+    return findings;
+  }
+
   try {
-    const res = await fetch(endpoint.url.replace("{id}", "1"), {
+    const targetUrl = endpoint.url.replace("{id}", "1");
+    
+    // Probe 1: Send request and inspect RateLimit response headers
+    const res = await fetch(targetUrl, {
       method: endpoint.method,
       headers: {
         "User-Agent": "HeaderGuard-ApiScanner/2.0",
@@ -23,20 +31,40 @@ export async function checkResourceConsumption(endpoint, authHeaders = {}) {
       headersObj["retry-after"]
     );
 
-    // If endpoint returns status 200 without rate limit headers, flag potential un-throttled consumption
-    if (res.status === 200 && !hasRateLimitHeader) {
+    // If rate limit headers are present, endpoint implements standard throttling
+    if (hasRateLimitHeader || res.status === 429) {
+      return findings;
+    }
+
+    // Probe 2: Safe mini-burst test (5 requests) to detect active throttling or 429 status
+    let rateLimitTriggered = false;
+    const burstPromises = Array.from({ length: 4 }).map(() =>
+      fetch(targetUrl, {
+        method: endpoint.method,
+        headers: { "User-Agent": "HeaderGuard-ApiScanner/2.0", ...authHeaders },
+        signal: AbortSignal.timeout(3000)
+      }).catch(() => null)
+    );
+
+    const burstResponses = await Promise.all(burstPromises);
+    if (burstResponses.some(r => r && (r.status === 429 || r.headers.get("retry-after")))) {
+      rateLimitTriggered = true;
+    }
+
+    // Only report low/info advisory if rate limiting headers and active throttling are completely absent on write/sensitive methods
+    if (!hasRateLimitHeader && !rateLimitTriggered && res.status === 200 && ["POST", "PUT", "DELETE"].includes(endpoint.method)) {
       findings.push({
         findingId: `RESOURCE-UNLIMITED-${endpoint.method}-${endpoint.path}`,
         category: "API4:2023 - Unrestricted Resource Consumption",
         title: "No Rate Limiting or Throttling Headers Detected",
-        severity: "medium",
+        severity: "low",
         confidence: "medium",
         endpoint: endpoint.path,
         method: endpoint.method,
         parameter: null,
-        description: `The API endpoint '${endpoint.path}' does not return standard RateLimit or Retry-After HTTP headers.`,
-        impact: "Vulnerability to Denial of Service (DoS), brute force, or uncontrolled resource consumption.",
-        remediation: "Implement request throttling, rate limiting, and standard RateLimit headers (RFC 6585/7231).",
+        description: `The API endpoint '${endpoint.path}' (${endpoint.method}) does not return standard RateLimit or Retry-After HTTP headers during burst probes.`,
+        impact: "Vulnerability to Denial of Service (DoS), brute force, or uncontrolled resource consumption under heavy traffic.",
+        remediation: "Implement request throttling, rate limiting middleware, and standard RateLimit headers (RFC 6585/7231).",
         evidence: {
           request: {
             method: endpoint.method,
@@ -47,7 +75,7 @@ export async function checkResourceConsumption(endpoint, authHeaders = {}) {
           response: {
             status: res.status,
             headers: headersObj,
-            body: "Response missing RateLimit headers.",
+            body: "RateLimit headers missing; burst probes completed without 429 status.",
           }
         }
       });
@@ -59,3 +87,4 @@ export async function checkResourceConsumption(endpoint, authHeaders = {}) {
 
   return findings;
 }
+

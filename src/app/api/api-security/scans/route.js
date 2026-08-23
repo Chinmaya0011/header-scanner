@@ -63,6 +63,15 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: "Unauthorized. Please log in." }, { status: 401 });
     }
 
+    // Only Admin accounts can initiate API security scans
+    if (user.role !== "admin") {
+      return NextResponse.json({
+        success: false,
+        error: "Permission denied. API Security scanning is restricted to administrator accounts only."
+      }, { status: 403 });
+    }
+
+
     const body = await request.json();
     const {
       targetUrl,

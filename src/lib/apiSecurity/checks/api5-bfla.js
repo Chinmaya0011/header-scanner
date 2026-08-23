@@ -8,9 +8,7 @@ const PRIVILEGED_PATH_PATTERNS = [
   /\/manage\//i,
   /\/delete\//i,
   /\/permissions\//i,
-  /\/settings\//i,
   /\/internal\//i,
-  /\/users\/[^\/]+\/role/i
 ];
 
 export async function checkBfla(endpoint, primaryHeaders = {}) {
@@ -24,27 +22,34 @@ export async function checkBfla(endpoint, primaryHeaders = {}) {
       method: endpoint.method,
       headers: {
         "User-Agent": "HeaderGuard-ApiScanner/2.0",
-        ...primaryHeaders, // Low-privilege token
+        ...primaryHeaders, // Low-privilege identity
       },
       signal: AbortSignal.timeout(4000)
     });
 
-    // Expected: 403 Forbidden or 401 Unauthorized. If 200 OK, BFLA is present!
-    if (res.status === 200) {
-      const bodyText = await res.text();
+    const status = res.status;
+    const bodyText = await res.text();
+
+    // Expected rejection: 403 Forbidden, 401 Unauthorized, 404 Not Found, 405 Method Not Allowed
+    const isRejected = status === 401 || status === 403 || status === 404 || status === 405;
+
+    // Confirm that 200 OK response actually contains administrative or sensitive internal capabilities
+    const containsAdminData = /"(admin|manage|settings|users|roles|permissions|system)"\s*:/i.test(bodyText) || bodyText.length > 50;
+
+    if (status === 200 && !isRejected && containsAdminData) {
       const safeReqHeaders = { ...primaryHeaders };
       if (safeReqHeaders.Authorization) safeReqHeaders.Authorization = "Bearer ********";
 
       findings.push({
         findingId: `BFLA-ACCESS-${endpoint.method}-${endpoint.path}`,
         category: "API5:2023 - Broken Function Level Authorization",
-        title: "Privileged Administrative Endpoint Accessible to Low-Privilege User",
+        title: "Privileged Administrative Endpoint Accessible to Standard Identity",
         severity: "high",
         confidence: "high",
         endpoint: endpoint.path,
         method: endpoint.method,
         parameter: null,
-        description: `The privileged administrative endpoint '${endpoint.path}' responded with 200 OK when requested by a standard low-privilege identity.`,
+        description: `The privileged administrative endpoint '${endpoint.path}' responded with 200 OK when requested by a standard identity.`,
         impact: "Standard users can access administrative controls, delete resources, or escalate privileges.",
         remediation: "Enforce strict role-based access control (RBAC) and function-level permission checks at the controller/route level.",
         evidence: {
@@ -69,3 +74,4 @@ export async function checkBfla(endpoint, primaryHeaders = {}) {
 
   return findings;
 }
+

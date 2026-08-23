@@ -1,4 +1,4 @@
-import { normalizePath } from "./normalizer.js";
+import { normalizePath, isLikelyPublicPath } from "./normalizer.js";
 
 /**
  * Safely analyzes JS scripts on the target site for API references without executing arbitrary code
@@ -56,7 +56,7 @@ export async function discoverFromJsBundles(targetUrl, htmlContent = "", headers
           url: `${baseUrl}${normPath}`,
           source: "javascript",
           parameters: [],
-          authenticationRequired: true,
+          authenticationRequired: !isLikelyPublicPath(normPath),
           tags: ["js-extracted"]
         });
       }
@@ -71,7 +71,7 @@ export async function discoverFromJsBundles(targetUrl, htmlContent = "", headers
           url: `${baseUrl}${normPath}`,
           source: "javascript",
           parameters: [],
-          authenticationRequired: true,
+          authenticationRequired: !isLikelyPublicPath(normPath),
           tags: ["js-literal"]
         });
       }
@@ -83,3 +83,4 @@ export async function discoverFromJsBundles(targetUrl, htmlContent = "", headers
 
   return discovered;
 }
+

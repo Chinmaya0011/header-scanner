@@ -1,6 +1,5 @@
 import connectDB from "@/lib/mongodb";
 import ApiScan from "@/lib/models/ApiScan";
-import { maskDomain } from "@/lib/analyzer";
 import { sendScanStatusToUser } from "@/server/socketServer";
 
 import { discoverOpenApi } from "./discovery/openapi";
@@ -44,14 +43,64 @@ export async function runApiScanJob(scanId, authTokens = {}) {
       primaryHeaders[headerKey] = apiKeyValue;
     }
 
-    // Phase 1: Update Status - Discovering
+    // Phase 0: Validate provided authentication credentials against target server
+    if (Object.keys(primaryHeaders).length > 0) {
+      scan.status = "discovering";
+      scan.progress = 5;
+      scan.statusMessage = "Verifying authentication credentials with target API server...";
+      await scan.save();
+      sendScanStatusToUser(userIdStr, { status: "progress", scanId, progress: 5, message: scan.statusMessage });
+
+
+      try {
+        const probeRes = await fetch(scan.targetUrl, {
+          method: "GET",
+          headers: { "User-Agent": "HeaderGuard-ApiScanner/2.0", ...primaryHeaders },
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (probeRes.status === 401 || probeRes.status === 403) {
+          scan.status = "failed";
+          scan.progress = 0;
+          scan.statusMessage = `Authentication Error (${probeRes.status}): The provided ${scan.authType === "bearer" ? "Bearer Token" : "API Key"} was rejected by the target API server. Please check your credentials and try again.`;
+          await scan.save();
+          sendScanStatusToUser(userIdStr, { status: "failed", scanId, progress: 0, message: scan.statusMessage });
+          return; // Abort scan on invalid credentials
+        }
+      } catch (probeErr) {
+        // Continue if connection timeout, but log
+      }
+    }
+
+    if (Object.keys(secondaryHeaders).length > 0) {
+      try {
+        const secondaryProbeRes = await fetch(scan.targetUrl, {
+          method: "GET",
+          headers: { "User-Agent": "HeaderGuard-ApiScanner/2.0", ...secondaryHeaders },
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (secondaryProbeRes.status === 401 || secondaryProbeRes.status === 403) {
+          scan.status = "failed";
+          scan.progress = 0;
+          scan.statusMessage = `Secondary Credential Error (${secondaryProbeRes.status}): Provided Secondary Token (Identity B) was rejected by the target API server.`;
+          await scan.save();
+          sendScanStatusToUser(userIdStr, { status: "failed", scanId, progress: 0, message: scan.statusMessage });
+          return;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    // Phase 1: Discovery Status Update
     scan.status = "discovering";
     scan.progress = 15;
-    scan.statusMessage = "Discovering API endpoints (OpenAPI, JS bundles, Web crawler)...";
+    scan.statusMessage = "Discovering API endpoints (OpenAPI, JS static bundles, Web routes)...";
     await scan.save();
     sendScanStatusToUser(userIdStr, { status: "progress", scanId, progress: 15, message: scan.statusMessage });
 
-    // Fetch HTML for JS bundle extraction
+    // Fetch target HTML for script bundle analysis
     let htmlText = "";
     try {
       const htmlRes = await fetch(scan.targetUrl, {
@@ -60,10 +109,11 @@ export async function runApiScanJob(scanId, authTokens = {}) {
       });
       if (htmlRes.ok) htmlText = await htmlRes.text();
     } catch {
-      // Ignore
+      // Ignore html fetch error
     }
 
-    // Run Endpoint Discovery Concurrent Tasks
+
+    // Run Endpoint Discovery concurrently
     const [openApiEndpoints, jsEndpoints, webEndpoints] = await Promise.all([
       discoverOpenApi(scan.targetUrl, primaryHeaders),
       discoverFromJsBundles(scan.targetUrl, htmlText, primaryHeaders),
@@ -81,7 +131,7 @@ export async function runApiScanJob(scanId, authTokens = {}) {
       }
     }
 
-    // If no endpoints discovered, add base target URL as fallback endpoint
+    // Fallback target root endpoint if no endpoints discovered
     if (endpointMap.size === 0) {
       let normPath = "/";
       try { normPath = new URL(scan.targetUrl).pathname || "/"; } catch {}
@@ -91,7 +141,7 @@ export async function runApiScanJob(scanId, authTokens = {}) {
         url: scan.targetUrl,
         source: "web",
         parameters: [],
-        authenticationRequired: true,
+        authenticationRequired: false,
         tags: ["target-root"]
       });
     }
@@ -116,7 +166,7 @@ export async function runApiScanJob(scanId, authTokens = {}) {
 
       const epFindings = [];
 
-      // Execute Security Check Modules
+      // Execute OWASP Security Check Modules
       const bolaFindings = await checkBola(ep, primaryHeaders, secondaryHeaders);
       const authFindings = await checkAuthentication(ep, primaryHeaders);
       const propFindings = await checkPropertyAuthorization(ep, primaryHeaders);
@@ -135,7 +185,7 @@ export async function runApiScanJob(scanId, authTokens = {}) {
         ...flowFindings
       );
 
-      // Set endpoint test status
+      // Set endpoint test status and risk score
       if (epFindings.some(f => f.severity === "critical" || f.severity === "high")) {
         ep.testStatus = "FAIL";
         ep.riskScore = 80;
@@ -164,7 +214,7 @@ export async function runApiScanJob(scanId, authTokens = {}) {
     const inventoryFindings = await checkInventory(endpointsList);
     allFindings.push(...inventoryFindings);
 
-    // Phase 3: Aggregation, OWASP Distribution & Score Calculation
+    // Phase 3: Aggregation & OWASP Top 10 Distribution
     const severitySummary = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     const owaspDist = {
       api1_bola: 0, api2_auth: 0, api3_properties: 0, api4_resources: 0,
@@ -188,17 +238,17 @@ export async function runApiScanJob(scanId, authTokens = {}) {
       else if (f.category.includes("API10")) owaspDist.api10_consumption++;
     }
 
-    // Compute Security Score (100 base, deductions based on severity)
-    let scoreDeduction = (severitySummary.critical * 25) + (severitySummary.high * 15) + (severitySummary.medium * 8) + (severitySummary.low * 3);
+    // Compute Security Score (100 base, deductions for verified vulnerabilities)
+    const scoreDeduction = (severitySummary.critical * 30) + (severitySummary.high * 18) + (severitySummary.medium * 8) + (severitySummary.low * 3);
     const finalScore = Math.max(0, 100 - scoreDeduction);
 
-    // Compute inventory counts
+    // Compute inventory stats
     const documentedCount = endpointsList.filter(e => e.source === "openapi").length;
     const undocumentedCount = endpointsList.filter(e => e.source !== "openapi").length;
     const legacyCount = endpointsList.filter(e => /\/(v0|v1|legacy)\//i.test(e.path)).length;
     const internalCount = endpointsList.filter(e => /\/(internal|admin)\//i.test(e.path)).length;
 
-    // Save final scan state
+    // Save final completed scan state
     scan.status = "completed";
     scan.progress = 100;
     scan.statusMessage = "API Security Scan completed successfully.";
@@ -235,3 +285,4 @@ export async function runApiScanJob(scanId, authTokens = {}) {
     } catch {}
   }
 }
+

@@ -1,6 +1,6 @@
 /**
  * API8:2023 - Security Misconfiguration Checker
- * Checks CORS wildcard origins (*), missing security headers, and verbose stack traces
+ * Checks CORS wildcard origins (*), reflective credential theft, missing security headers, and verbose stack traces
  */
 
 export async function checkMisconfiguration(endpoint, authHeaders = {}) {
@@ -21,20 +21,23 @@ export async function checkMisconfiguration(endpoint, authHeaders = {}) {
     const acao = headersObj["access-control-allow-origin"];
     const acac = headersObj["access-control-allow-credentials"];
 
-    // 1. Overly permissive CORS check
-    if (acao === "*" || (acao === "https://evil-attacker-example.com" && acac === "true")) {
+    // 1. Overly permissive CORS check: Reflective origin with credentials or wildcard origin on private endpoints
+    const isReflectiveCreds = acao === "https://evil-attacker-example.com" && acac === "true";
+    const isWildcardAuth = acao === "*" && endpoint.authenticationRequired;
+
+    if (isReflectiveCreds || isWildcardAuth) {
       findings.push({
         findingId: `MISCONFIG-CORS-${endpoint.path}`,
         category: "API8:2023 - Security Misconfiguration",
-        title: "Overly Permissive CORS Policy Detected",
-        severity: "high",
+        title: isReflectiveCreds ? "Reflective CORS Origin with Credentials Allowed" : "Wildcard CORS Policy on Protected Route",
+        severity: isReflectiveCreds ? "high" : "medium",
         confidence: "high",
         endpoint: endpoint.path,
         method: endpoint.method,
         parameter: "Origin",
-        description: `The API endpoint returns 'Access-Control-Allow-Origin: ${acao}' allowing arbitrary origins to read API responses.`,
-        impact: "Cross-origin attackers can steal API tokens or read private API data via victim browsers.",
-        remediation: "Restrict Access-Control-Allow-Origin to specific trusted domains and avoid combining wildcard origin with credentials.",
+        description: `The API endpoint returns 'Access-Control-Allow-Origin: ${acao}' allowing untrusted origins to read authenticated API responses.`,
+        impact: "Cross-origin attackers can steal API tokens or read private user data via victim browsers.",
+        remediation: "Restrict Access-Control-Allow-Origin to specific trusted domains and avoid combining reflective origins with credentials.",
         evidence: {
           request: {
             method: endpoint.method,
@@ -45,7 +48,7 @@ export async function checkMisconfiguration(endpoint, authHeaders = {}) {
           response: {
             status: res.status,
             headers: headersObj,
-            body: "Wildcard / reflective CORS detected.",
+            body: "Reflective CORS origin or wildcard header detected.",
           }
         }
       });
@@ -77,7 +80,7 @@ export async function checkMisconfiguration(endpoint, authHeaders = {}) {
               endpoint: endpoint.path,
               method: endpoint.method,
               parameter: null,
-              description: `Sending a malformed request to '${endpoint.path}' caused an unhandled 500 Server Error that returned raw stack traces or internal filenames.`,
+              description: `Sending a malformed request to '${endpoint.path}' caused an unhandled 500 Server Error that returned raw stack traces or internal code filenames.`,
               impact: "Footprinting application stack, framework versions, and file structure for exploit targeting.",
               remediation: "Implement generic global exception handlers and disable detailed error stack traces in production.",
               evidence: {
@@ -107,3 +110,4 @@ export async function checkMisconfiguration(endpoint, authHeaders = {}) {
 
   return findings;
 }
+

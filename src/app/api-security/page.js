@@ -15,16 +15,22 @@ import {
   Play,
   FileCode,
   Globe,
-  Radio
+  Radio,
+  Video,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import Loading from "@/components/common/Loading";
 import { useToast } from "@/components/common/Toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ApiSecurityConfigPage() {
   const router = useRouter();
   const toast = useToast();
+  const { user, loading: authLoading } = useAuth();
 
   const [targetUrl, setTargetUrl] = useState("");
   const [authType, setAuthType] = useState("bearer"); // "bearer" | "apikey" | "none"
@@ -45,8 +51,15 @@ export default function ApiSecurityConfigPage() {
 
   const [loading, setLoading] = useState(false);
 
+  const isAdmin = user && user.role === "admin";
+
   const handleStartScan = async (e) => {
     e.preventDefault();
+    if (!isAdmin) {
+      toast.error("Permission denied. API Security scanning is restricted to admin accounts.");
+      return;
+    }
+
     if (!targetUrl.trim()) {
       toast.error("Please enter a target URL.");
       return;
@@ -88,6 +101,14 @@ export default function ApiSecurityConfigPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <Loading message="Loading Security Permissions..." />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-bg text-text font-sans pb-16">
       {/* Top Banner Header */}
@@ -99,8 +120,8 @@ export default function ApiSecurityConfigPage() {
               <h1 className="text-xl font-bold text-text uppercase tracking-wide">
                 API Security Scanner
               </h1>
-              <Badge variant="accent" className="text-[10px]">
-                OWASP API TOP 10
+              <Badge variant={isAdmin ? "accent" : "warning"} className="text-[10px]">
+                {isAdmin ? "OWASP API TOP 10" : "ADMINISTRATOR FEATURE"}
               </Badge>
             </div>
             <p className="text-xs text-text-dim mt-1">
@@ -111,224 +132,308 @@ export default function ApiSecurityConfigPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-6">
-        <form onSubmit={handleStartScan} className="space-y-6">
-          
-          {/* Target URL Card */}
-          <Card className="p-6 space-y-4 border border-border">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
-              <Globe className="h-4 w-4" /> Target Specification
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-text-dim">
-                Target Website / Base API URL
-              </label>
-              <input
-                type="text"
-                value={targetUrl}
-                onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder="https://example.com/api"
-                required
-                className="w-full px-4 py-2.5 bg-bg border border-border focus:border-accent rounded-xl text-sm font-mono text-text outline-none transition-all"
-              />
-            </div>
-          </Card>
 
-          {/* Authentication & Authorization Card */}
-          <Card className="p-6 space-y-5 border border-border">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
-                <Key className="h-4 w-4" /> Authentication Configuration
-              </div>
-              <Badge variant="secondary" className="text-[9px]">CREDENTIAL MASKING ENABLED</Badge>
-            </div>
-
-            {/* Auth Type Selector */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-text-dim">
-                Authentication Scheme
-              </label>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { id: "bearer", label: "Bearer Token" },
-                  { id: "apikey", label: "API Key Header" },
-                  { id: "none", label: "None / Public" },
-                ].map((type) => (
-                  <button
-                    key={type.id}
-                    type="button"
-                    onClick={() => setAuthType(type.id)}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                      authType === type.id
-                        ? "bg-accent/15 border-accent text-accent"
-                        : "bg-surface border-border text-text-dim hover:text-text"
-                    }`}
-                  >
-                    {type.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Auth Inputs */}
-            {authType === "bearer" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-text-dim">
-                    Primary Identity Token (Identity A)
-                  </label>
-                  <input
-                    type="password"
-                    value={primaryToken}
-                    onChange={(e) => setPrimaryToken(e.target.value)}
-                    placeholder="••••••••••••••••••••••••"
-                    className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
-                  />
+        {/* NON-ADMIN USER VIEW: RESTRICTED NOTICE & DEMO VIDEO */}
+        {!isAdmin ? (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Restricted Banner Notice */}
+            <Card className="p-6 border border-warning/30 bg-warning/5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-warning/20 rounded-xl text-warning shrink-0 mt-0.5">
+                  <Lock className="h-5 w-5" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-text-dim">
-                    Secondary Identity Token (Identity B - Optional for BOLA/BFLA)
-                  </label>
-                  <input
-                    type="password"
-                    value={secondaryToken}
-                    onChange={(e) => setSecondaryToken(e.target.value)}
-                    placeholder="••••••••••••••••••••••••"
-                    className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
-                  />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-text uppercase tracking-wide flex items-center gap-2">
+                    Administrator Restricted Feature
+                  </h3>
+                  <p className="text-xs text-text-dim leading-relaxed">
+                    API Security Scanning requires administrative privileges to perform active endpoint discovery, OWASP security checks, and identity authorization probes. Regular user accounts do not have permission to launch security scans.
+                  </p>
                 </div>
-              </div>
-            )}
-
-            {authType === "apikey" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-text-dim">
-                    Header Name
-                  </label>
-                  <input
-                    type="text"
-                    value={apiKeyHeader}
-                    onChange={(e) => setApiKeyHeader(e.target.value)}
-                    placeholder="X-API-Key"
-                    className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-text-dim">
-                    API Key Value
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKeyValue}
-                    onChange={(e) => setApiKeyValue(e.target.value)}
-                    placeholder="••••••••••••••••"
-                    className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
-                  />
-                </div>
-              </div>
-            )}
-          </Card>
-
-          {/* Discovery Sources & Scan Mode */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="p-5 space-y-3.5 border border-border">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
-                <Layers className="h-4 w-4" /> Discovery Sources
-              </div>
-              <div className="space-y-2 text-xs font-medium text-text-dim">
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={discoverySources.openapi}
-                    onChange={(e) => setDiscoverySources(prev => ({ ...prev, openapi: e.target.checked }))}
-                    className="rounded border-border text-accent focus:ring-accent"
-                  />
-                  <span>OpenAPI / Swagger Specs (/openapi.json)</span>
-                </label>
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={discoverySources.jsBundles}
-                    onChange={(e) => setDiscoverySources(prev => ({ ...prev, jsBundles: e.target.checked }))}
-                    className="rounded border-border text-accent focus:ring-accent"
-                  />
-                  <span>JavaScript Static Bundles Analysis</span>
-                </label>
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={discoverySources.crawler}
-                    onChange={(e) => setDiscoverySources(prev => ({ ...prev, crawler: e.target.checked }))}
-                    className="rounded border-border text-accent focus:ring-accent"
-                  />
-                  <span>Passive Website Sitemap & Robots.txt</span>
-                </label>
               </div>
             </Card>
 
-            <Card className="p-5 space-y-3.5 border border-border">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
-                <Radio className="h-4 w-4" /> Scan Execution Mode
+            {/* Video Demonstration Player Card */}
+            <Card className="p-6 border border-border space-y-4">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
+                  <Video className="h-4 w-4" /> Feature Demonstration Video
+                </div>
+                <Badge variant="accent" className="text-[9px]">LIVE PREVIEW</Badge>
               </div>
-              <div className="space-y-2 text-xs">
-                {[
-                  { id: "passive", title: "Passive Discovery", desc: "Extract routes and analyze headers without payload testing." },
-                  { id: "safe_active", title: "Safe Active (Recommended)", desc: "Perform controlled BOLA, Auth, Property, and Misconfig tests." },
-                  { id: "advanced_active", title: "Advanced Active", desc: "Includes deep rate limit & business flow probes." },
-                ].map((mode) => (
-                  <label key={mode.id} className="flex items-start gap-2.5 cursor-pointer p-1.5 rounded hover:bg-white/5">
+
+              <div className="space-y-2">
+                <p className="text-xs text-text-dim">
+                  Watch how the API Security Scanner inspects target specifications, tests authorization boundaries, and generates OWASP API Top 10 compliance reports:
+                </p>
+              </div>
+
+              {/* Embedded Video Element */}
+              <div className="relative rounded-2xl overflow-hidden border border-border shadow-2xl bg-black">
+                <video
+                  src="/media/api-scan.mp4"
+                  controls
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-auto max-h-[480px] rounded-2xl object-cover"
+                />
+              </div>
+            </Card>
+
+            {/* Feature Capabilities Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card className="p-4 border border-border space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-accent">
+                  <Layers className="h-4 w-4" /> Endpoint Discovery
+                </div>
+                <p className="text-[11px] text-text-dim leading-relaxed">
+                  Extracts API routes from OpenAPI / Swagger specs, JavaScript bundles, sitemaps, and web crawlers.
+                </p>
+              </Card>
+
+              <Card className="p-4 border border-border space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-danger">
+                  <ShieldAlert className="h-4 w-4" /> OWASP Top 10 Probes
+                </div>
+                <p className="text-[11px] text-text-dim leading-relaxed">
+                  Evaluates BOLA, Broken Authentication, CORS credential theft, stack traces, and un-throttled consumption.
+                </p>
+              </Card>
+
+              <Card className="p-4 border border-border space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-success">
+                  <FileCode className="h-4 w-4" /> cURL & Postman Evidence
+                </div>
+                <p className="text-[11px] text-text-dim leading-relaxed">
+                  Generates ready-to-run cURL commands and Postman request details for manual vulnerability verification.
+                </p>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          /* ADMIN SCANNER CONFIGURATION FORM */
+          <form onSubmit={handleStartScan} className="space-y-6 animate-fadeIn">
+            
+            {/* Target URL Card */}
+            <Card className="p-6 space-y-4 border border-border">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
+                <Globe className="h-4 w-4" /> Target Specification
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-text-dim">
+                  Target Website / Base API URL
+                </label>
+                <input
+                  type="text"
+                  value={targetUrl}
+                  onChange={(e) => setTargetUrl(e.target.value)}
+                  placeholder="https://example.com/api"
+                  required
+                  className="w-full px-4 py-2.5 bg-bg border border-border focus:border-accent rounded-xl text-sm font-mono text-text outline-none transition-all"
+                />
+              </div>
+            </Card>
+
+            {/* Authentication & Authorization Card */}
+            <Card className="p-6 space-y-5 border border-border">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
+                  <Key className="h-4 w-4" /> Authentication Configuration
+                </div>
+                <Badge variant="secondary" className="text-[9px]">CREDENTIAL MASKING ENABLED</Badge>
+              </div>
+
+              {/* Auth Type Selector */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-text-dim">
+                  Authentication Scheme
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: "bearer", label: "Bearer Token" },
+                    { id: "apikey", label: "API Key Header" },
+                    { id: "none", label: "None / Public" },
+                  ].map((type) => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => setAuthType(type.id)}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                        authType === type.id
+                          ? "bg-accent/15 border-accent text-accent"
+                          : "bg-surface border-border text-text-dim hover:text-text"
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Auth Inputs */}
+              {authType === "bearer" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-text-dim">
+                      Primary Identity Token (Identity A)
+                    </label>
                     <input
-                      type="radio"
-                      name="scanMode"
-                      checked={scanMode === mode.id}
-                      onChange={() => setScanMode(mode.id)}
-                      className="mt-0.5 text-accent focus:ring-accent"
+                      type="password"
+                      value={primaryToken}
+                      onChange={(e) => setPrimaryToken(e.target.value)}
+                      placeholder="••••••••••••••••••••••••"
+                      className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
                     />
-                    <div>
-                      <p className="font-bold text-text">{mode.title}</p>
-                      <p className="text-[10px] text-text-dim">{mode.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-text-dim">
+                      Secondary Identity Token (Identity B - Optional for BOLA/BFLA)
+                    </label>
+                    <input
+                      type="password"
+                      value={secondaryToken}
+                      onChange={(e) => setSecondaryToken(e.target.value)}
+                      placeholder="••••••••••••••••••••••••"
+                      className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {authType === "apikey" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-text-dim">
+                      Header Name
+                    </label>
+                    <input
+                      type="text"
+                      value={apiKeyHeader}
+                      onChange={(e) => setApiKeyHeader(e.target.value)}
+                      placeholder="X-API-Key"
+                      className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-text-dim">
+                      API Key Value
+                    </label>
+                    <input
+                      type="password"
+                      value={apiKeyValue}
+                      onChange={(e) => setApiKeyValue(e.target.value)}
+                      placeholder="••••••••••••••••"
+                      className="w-full px-3.5 py-2 bg-bg border border-border focus:border-accent rounded-xl text-xs font-mono text-text outline-none"
+                    />
+                  </div>
+                </div>
+              )}
             </Card>
-          </div>
 
-          {/* Authorization Requirement Warning Banner */}
-          <div className="bg-warning/10 border border-warning/30 p-4 rounded-xl space-y-3">
-            <div className="flex items-center gap-2 text-warning font-bold text-xs uppercase tracking-wide">
-              <AlertTriangle className="h-4 w-4" /> Authorization Notice
+            {/* Discovery Sources & Scan Mode */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="p-5 space-y-3.5 border border-border">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
+                  <Layers className="h-4 w-4" /> Discovery Sources
+                </div>
+                <div className="space-y-2 text-xs font-medium text-text-dim">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={discoverySources.openapi}
+                      onChange={(e) => setDiscoverySources(prev => ({ ...prev, openapi: e.target.checked }))}
+                      className="rounded border-border text-accent focus:ring-accent"
+                    />
+                    <span>OpenAPI / Swagger Specs (/openapi.json)</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={discoverySources.jsBundles}
+                      onChange={(e) => setDiscoverySources(prev => ({ ...prev, jsBundles: e.target.checked }))}
+                      className="rounded border-border text-accent focus:ring-accent"
+                    />
+                    <span>JavaScript Static Bundles Analysis</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={discoverySources.crawler}
+                      onChange={(e) => setDiscoverySources(prev => ({ ...prev, crawler: e.target.checked }))}
+                      className="rounded border-border text-accent focus:ring-accent"
+                    />
+                    <span>Passive Website Sitemap & Robots.txt</span>
+                  </label>
+                </div>
+              </Card>
+
+              <Card className="p-5 space-y-3.5 border border-border">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
+                  <Radio className="h-4 w-4" /> Scan Execution Mode
+                </div>
+                <div className="space-y-2 text-xs">
+                  {[
+                    { id: "passive", title: "Passive Discovery", desc: "Extract routes and analyze headers without payload testing." },
+                    { id: "safe_active", title: "Safe Active (Recommended)", desc: "Perform controlled BOLA, Auth, Property, and Misconfig tests." },
+                    { id: "advanced_active", title: "Advanced Active", desc: "Includes deep rate limit & business flow probes." },
+                  ].map((mode) => (
+                    <label key={mode.id} className="flex items-start gap-2.5 cursor-pointer p-1.5 rounded hover:bg-white/5">
+                      <input
+                        type="radio"
+                        name="scanMode"
+                        checked={scanMode === mode.id}
+                        onChange={() => setScanMode(mode.id)}
+                        className="mt-0.5 text-accent focus:ring-accent"
+                      />
+                      <div>
+                        <p className="font-bold text-text">{mode.title}</p>
+                        <p className="text-[10px] text-text-dim">{mode.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </Card>
             </div>
-            <p className="text-xs text-text-dim leading-relaxed">
-              Only scan APIs that you own or have explicit authorization to test. Unauthorized security testing may violate applicable cyber laws.
-            </p>
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-text">
-              <input
-                type="checkbox"
-                checked={isConfirmed}
-                onChange={(e) => setIsConfirmed(e.target.checked)}
-                className="rounded border-warning text-accent focus:ring-accent h-4 w-4"
-              />
-              <span>I confirm that I am authorized to test this target URL.</span>
-            </label>
-          </div>
 
-          {/* Start Button */}
-          <div className="flex items-center justify-end">
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              disabled={!isConfirmed || loading}
-              loading={loading}
-              icon={Play}
-              className="bg-accent hover:bg-accent/90 text-bg font-bold tracking-wide uppercase px-8"
-            >
-              Start API Scan
-            </Button>
-          </div>
-        </form>
+            {/* Authorization Requirement Warning Banner */}
+            <div className="bg-warning/10 border border-warning/30 p-4 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-warning font-bold text-xs uppercase tracking-wide">
+                <AlertTriangle className="h-4 w-4" /> Authorization Notice
+              </div>
+              <p className="text-xs text-text-dim leading-relaxed">
+                Only scan APIs that you own or have explicit authorization to test. Unauthorized security testing may violate applicable cyber laws.
+              </p>
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-text">
+                <input
+                  type="checkbox"
+                  checked={isConfirmed}
+                  onChange={(e) => setIsConfirmed(e.target.checked)}
+                  className="rounded border-warning text-accent focus:ring-accent h-4 w-4"
+                />
+                <span>I confirm that I am authorized to test this target URL.</span>
+              </label>
+            </div>
+
+            {/* Start Button */}
+            <div className="flex items-center justify-end">
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                disabled={!isConfirmed || loading}
+                loading={loading}
+                icon={Play}
+                className="bg-accent hover:bg-accent/90 text-bg font-bold tracking-wide uppercase px-8"
+              >
+                Start API Scan
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
 }
+

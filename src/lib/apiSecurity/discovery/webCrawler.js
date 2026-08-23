@@ -1,4 +1,4 @@
-import { normalizePath, classifyEndpoint } from "./normalizer.js";
+import { normalizePath, classifyEndpoint, isLikelyPublicPath } from "./normalizer.js";
 
 /**
  * Passive Website Discovery from sitemap.xml, robots.txt, and HTML links/forms
@@ -34,7 +34,7 @@ export async function discoverFromWeb(targetUrl, headers = {}) {
               url: `${baseUrl}${normPath}`,
               source: "web",
               parameters: [],
-              authenticationRequired: true,
+              authenticationRequired: !isLikelyPublicPath(normPath),
               tags: ["robots-txt"]
             });
           }
@@ -65,7 +65,7 @@ export async function discoverFromWeb(targetUrl, headers = {}) {
             url: `${baseUrl}${normPath}`,
             source: "web",
             parameters: [],
-            authenticationRequired: true,
+            authenticationRequired: !isLikelyPublicPath(normPath),
             tags: ["sitemap-xml"]
           });
         }
@@ -77,3 +77,4 @@ export async function discoverFromWeb(targetUrl, headers = {}) {
 
   return discovered;
 }
+
