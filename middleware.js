@@ -14,6 +14,7 @@ export function middleware(request) {
     "connect-src 'self' https: ws: wss:",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
