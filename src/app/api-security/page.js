@@ -134,7 +134,44 @@ export default function ApiSecurityConfigPage() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-6">
 
-        {/* NON-ADMIN USER VIEW: RESTRICTED NOTICE & DEMO VIDEO */}
+        {/* Video Demonstration Player Card (Visible to All Users) */}
+        <Card className="p-6 border border-border space-y-4">
+          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
+              <Video className="h-4 w-4" /> Feature Demonstration Video
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href="https://youtu.be/Qv8q53SzG8c"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-accent hover:underline font-medium"
+              >
+                Watch on YouTube <ExternalLink className="h-3 w-3" />
+              </a>
+              <Badge variant="accent" className="text-[9px]">LIVE PREVIEW</Badge>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs text-text-dim">
+              Watch how the API Security Scanner inspects target specifications, tests authorization boundaries, and generates OWASP API Top 10 compliance reports:
+            </p>
+          </div>
+
+          {/* Embedded YouTube Video */}
+          <div className="relative rounded-2xl overflow-hidden border border-border shadow-2xl bg-black aspect-video">
+            <iframe
+              src="https://www.youtube.com/embed/Qv8q53SzG8c"
+              title="API Security Scanner Demonstration Video"
+              className="w-full h-full min-h-[360px] sm:min-h-[420px] border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        </Card>
+
+        {/* NON-ADMIN USER VIEW vs ADMIN FORM */}
         {!isAdmin ? (
           <div className="space-y-6 animate-fadeIn">
             {/* Restricted Banner Notice */}
@@ -151,43 +188,6 @@ export default function ApiSecurityConfigPage() {
                     API Security Scanning requires administrative privileges to perform active endpoint discovery, OWASP security checks, and identity authorization probes. Regular user accounts do not have permission to launch security scans.
                   </p>
                 </div>
-              </div>
-            </Card>
-
-            {/* Video Demonstration Player Card */}
-            <Card className="p-6 border border-border space-y-4">
-              <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-accent">
-                  <Video className="h-4 w-4" /> Feature Demonstration Video
-                </div>
-                <div className="flex items-center gap-3">
-                  <a
-                    href="https://youtu.be/Qv8q53SzG8c"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-accent hover:underline font-medium"
-                  >
-                    Watch on YouTube <ExternalLink className="h-3 w-3" />
-                  </a>
-                  <Badge variant="accent" className="text-[9px]">LIVE PREVIEW</Badge>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs text-text-dim">
-                  Watch how the API Security Scanner inspects target specifications, tests authorization boundaries, and generates OWASP API Top 10 compliance reports:
-                </p>
-              </div>
-
-              {/* Embedded YouTube Video */}
-              <div className="relative rounded-2xl overflow-hidden border border-border shadow-2xl bg-black aspect-video">
-                <iframe
-                  src="https://www.youtube.com/embed/Qv8q53SzG8c"
-                  title="API Security Scanner Demonstration Video"
-                  className="w-full h-full min-h-[360px] sm:min-h-[420px] border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
               </div>
             </Card>
 
