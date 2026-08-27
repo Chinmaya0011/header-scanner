@@ -9,9 +9,10 @@ export function middleware(request) {
 
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}' https://fpjscdn.net https://*.fpjs.io 'unsafe-eval' 'unsafe-inline'`,
+    "worker-src 'self' blob: https://fpjscdn.net https://*.fpjs.io",
     "style-src 'self' 'unsafe-inline'",
-    "connect-src 'self' https: ws: wss:",
+    "connect-src 'self' https: ws: wss: https://*.fpjs.io https://fpjscdn.net https://fptls.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
     "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",

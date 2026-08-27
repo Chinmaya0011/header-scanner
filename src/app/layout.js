@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
 import { ToastProvider } from "@/components/common/Toast";
 import VisitTracker from "@/components/common/VisitTracker";
+import FingerprintTracker from "@/components/common/FingerprintTracker";
+import FingerprintProviderWrapper from "@/components/providers/FingerprintProviderWrapper";
 import ActivityTimeoutListener from "@/components/common/ActivityTimeoutListener";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Navbar from "@/components/layout/Navbar";
@@ -194,17 +196,20 @@ export default async function RootLayout({ children }) {
         className="min-h-screen bg-bg antialiased flex flex-col"
         suppressHydrationWarning
       >
-        <ToastProvider>
-          <AuthProvider>
-            <VisitTracker />
-            <ActivityTimeoutListener />
-            <Navbar />
-            <div className="flex-1 flex flex-col">
-              {children}
-            </div>
-            <Footer />
-          </AuthProvider>
-        </ToastProvider>
+        <FingerprintProviderWrapper>
+          <ToastProvider>
+            <AuthProvider>
+              <VisitTracker />
+              <FingerprintTracker />
+              <ActivityTimeoutListener />
+              <Navbar />
+              <div className="flex-1 flex flex-col">
+                {children}
+              </div>
+              <Footer />
+            </AuthProvider>
+          </ToastProvider>
+        </FingerprintProviderWrapper>
       </body>
     </html>
   );
