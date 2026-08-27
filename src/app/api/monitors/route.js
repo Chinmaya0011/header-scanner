@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import Monitor from "@/lib/models/Monitor";
 import { getUserFromRequest } from "@/lib/auth";
 import { normalizeUrl, extractDomain } from "@/lib/analyzer";
+import { logActivity } from "@/lib/server/activityLogger";
 
 /**
  * GET /api/monitors
@@ -69,6 +70,23 @@ export async function POST(request) {
       user: user._id,
     });
 
+    // Record activity log
+    await logActivity({
+      req: request,
+      user,
+      eventType: "MONITOR_CREATED",
+      description: `Configured ${monitor.frequency} monitor schedule for '${domain}' with alert dispatches to ${monitor.alertEmail}.`,
+      status: "success",
+      resourceId: monitor._id.toString(),
+      resourceType: "monitor",
+      metadata: {
+        url: monitor.url,
+        domain: monitor.domain,
+        frequency: monitor.frequency,
+        alertEmail: monitor.alertEmail
+      }
+    });
+
     return NextResponse.json({ success: true, monitor });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -97,6 +115,21 @@ export async function DELETE(request) {
     if (!monitor) {
       return NextResponse.json({ success: false, error: "Monitor not found or unauthorized." }, { status: 404 });
     }
+
+    // Record activity log
+    await logActivity({
+      req: request,
+      user,
+      eventType: "MONITOR_DELETED",
+      description: `Removed monitor schedule for target domain '${monitor.domain}'.`,
+      status: "warning",
+      resourceId: monitorId,
+      resourceType: "monitor",
+      metadata: {
+        domain: monitor.domain,
+        url: monitor.url
+      }
+    });
 
     return NextResponse.json({ success: true, message: "Monitor successfully deleted." });
   } catch (error) {

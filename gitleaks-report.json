@@ -1,0 +1,70 @@
+[
+  {
+    "RuleID": "generic-api-key",
+    "Description": "Generic API Key Assignment",
+    "File": "demo.secret",
+    "StartLine": 1,
+    "EndLine": 1,
+    "StartColumn": 1,
+    "EndColumn": 30,
+    "Match": "[REDACTED_SECRET]",
+    "Secret": "API_****cdef",
+    "Entropy": 3.8,
+    "Tags": [
+      "api-key",
+      "credentials"
+    ],
+    "isMock": true
+  },
+  {
+    "RuleID": "generic-secret-key",
+    "Description": "Generic Secret Key Assignment",
+    "File": "demo.secret",
+    "StartLine": 2,
+    "EndLine": 2,
+    "StartColumn": 1,
+    "EndColumn": 42,
+    "Match": "[REDACTED_SECRET]",
+    "Secret": "SECR****tion",
+    "Entropy": 3.8,
+    "Tags": [
+      "secret",
+      "credentials"
+    ],
+    "isMock": true
+  },
+  {
+    "RuleID": "generic-secret-assignment",
+    "Description": "Generic Secret / Password Assignment",
+    "File": "demo.secret",
+    "StartLine": 3,
+    "EndLine": 3,
+    "StartColumn": 1,
+    "EndColumn": 36,
+    "Match": "[REDACTED_SECRET]",
+    "Secret": "DATA****_123",
+    "Entropy": 3.8,
+    "Tags": [
+      "secret",
+      "credentials"
+    ],
+    "isMock": true
+  },
+  {
+    "RuleID": "generic-secret-key",
+    "Description": "Generic Secret Key Assignment",
+    "File": "demo.secret",
+    "StartLine": 4,
+    "EndLine": 4,
+    "StartColumn": 1,
+    "EndColumn": 51,
+    "Match": "[REDACTED_SECRET]",
+    "Secret": "ENCR****ng!!",
+    "Entropy": 3.8,
+    "Tags": [
+      "secret",
+      "credentials"
+    ],
+    "isMock": true
+  }
+]

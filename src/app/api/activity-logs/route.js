@@ -170,6 +170,17 @@ export async function DELETE(request) {
         return NextResponse.json({ success: false, error: "Activity log record not found." }, { status: 404 });
       }
 
+      await logActivity({
+        req: request,
+        user,
+        eventType: "ACTIVITY_LOG_RECORD_DELETED",
+        description: `Admin deleted activity log record ID '${logId}'.`,
+        status: "warning",
+        resourceId: logId,
+        resourceType: "activity_logs",
+        metadata: { deletedEventType: deleted.eventType, targetUserEmail: deleted.userEmail }
+      });
+
       return NextResponse.json({
         success: true,
         message: "Activity log record deleted successfully.",

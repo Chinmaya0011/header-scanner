@@ -24,7 +24,8 @@ import {
   AlertCircle,
   CheckSquare,
   Sun,
-  Moon
+  Moon,
+  Fingerprint
 } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useAuth } from "@/contexts/AuthContext";
@@ -384,17 +385,41 @@ export default function Navbar() {
                           </Link>
 
                           {user.role === "admin" && (
-                            <Link
-                              href="/dashboard"
-                              onClick={() => setProfileDropdownOpen(false)}
-                            className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-warning hover:bg-warning/5 rounded-lg transition-all border-t border-border pt-2 text-left"
-                            >
-                              <LayoutDashboard className="h-4 w-4 text-warning" />
-                              <div className="flex flex-col">
-                                <span>System Console</span>
-                                <span className="text-[9px] text-warning/70">Admin configuration control</span>
-                              </div>
-                            </Link>
+                            <>
+                              <Link
+                                href="/dashboard"
+                                onClick={() => setProfileDropdownOpen(false)}
+                                className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-warning hover:bg-warning/5 rounded-lg transition-all border-t border-border pt-2 text-left"
+                              >
+                                <LayoutDashboard className="h-4 w-4 text-warning" />
+                                <div className="flex flex-col">
+                                  <span>System Console</span>
+                                  <span className="text-[9px] text-warning/70">Admin configuration control</span>
+                                </div>
+                              </Link>
+                              <Link
+                                href="/admin/gitleaks"
+                                onClick={() => setProfileDropdownOpen(false)}
+                                className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-accent hover:bg-accent/5 rounded-lg transition-all text-left"
+                              >
+                                <ShieldCheck className="h-4 w-4 text-accent" />
+                                <div className="flex flex-col">
+                                  <span>Gitleaks Secret Scan</span>
+                                  <span className="text-[9px] text-accent/70">Hardcoded secret telemetry</span>
+                                </div>
+                              </Link>
+                              <Link
+                                href="/admin/fingerprint"
+                                onClick={() => setProfileDropdownOpen(false)}
+                                className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-text-dim hover:text-emerald-400 hover:bg-emerald-500/5 rounded-lg transition-all text-left"
+                              >
+                                <Fingerprint className="h-4 w-4 text-emerald-400" />
+                                <div className="flex flex-col">
+                                  <span>Fingerprint Intelligence</span>
+                                  <span className="text-[9px] text-emerald-400/70">Device & visitor telemetry</span>
+                                </div>
+                              </Link>
+                            </>
                           )}
 
                           <button

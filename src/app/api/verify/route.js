@@ -3,6 +3,7 @@ import connectDB from "@/lib/mongodb";
 import AssetVerification from "@/lib/models/AssetVerification";
 import User from "@/lib/models/User";
 import { getUserFromRequest } from "@/lib/auth";
+import { logActivity } from "@/lib/server/activityLogger";
 
 export async function POST(request) {
   const user = await getUserFromRequest(request);
@@ -36,6 +37,18 @@ export async function POST(request) {
           verified: false
         });
       }
+
+      // Log activity
+      await logActivity({
+        req: request,
+        user,
+        eventType: "DOMAIN_VERIFICATION_TOKEN_INITIATED",
+        description: `Initiated domain ownership verification token for target domain '${cleanDomain}'.`,
+        status: "info",
+        resourceId: verification._id.toString(),
+        resourceType: "asset_verification",
+        metadata: { domain: cleanDomain }
+      });
 
       return NextResponse.json({
         success: true,
@@ -106,6 +119,18 @@ export async function POST(request) {
         verification.verificationMethod = "file";
         await verification.save();
 
+        // Log successful verification activity
+        await logActivity({
+          req: request,
+          user,
+          eventType: "DOMAIN_VERIFICATION_CONFIRMED",
+          description: `Successfully confirmed domain ownership verification for '${cleanDomain}' via file challenge.`,
+          status: "success",
+          resourceId: verification._id.toString(),
+          resourceType: "asset_verification",
+          metadata: { domain: cleanDomain, method: "file" }
+        });
+
         // Trigger notifications for user and admins
         try {
           const { createNotification } = await import("@/lib/notificationService");
@@ -136,6 +161,18 @@ export async function POST(request) {
           message: `Domain ${cleanDomain} successfully verified via FILE verification.`
         });
       } else {
+        // Log failed verification attempt activity
+        await logActivity({
+          req: request,
+          user,
+          eventType: "DOMAIN_VERIFICATION_FAILED",
+          description: `Domain ownership verification attempt failed for '${cleanDomain}'. Verification file token not found.`,
+          status: "warning",
+          resourceId: verification._id.toString(),
+          resourceType: "asset_verification",
+          metadata: { domain: cleanDomain }
+        });
+
         return NextResponse.json({
           success: false,
           verified: false,
@@ -220,6 +257,18 @@ export async function DELETE(request) {
     if (!deleted) {
       return NextResponse.json({ error: "Verification record not found or unauthorized." }, { status: 404 });
     }
+
+    // Log deletion activity
+    await logActivity({
+      req: request,
+      user,
+      eventType: "DOMAIN_VERIFICATION_DELETED",
+      description: `Removed domain verification record for domain '${deleted.domain}'.`,
+      status: "warning",
+      resourceId: id,
+      resourceType: "asset_verification",
+      metadata: { domain: deleted.domain }
+    });
 
     return NextResponse.json({ success: true, message: "Verification record deleted successfully." });
   } catch (err) {

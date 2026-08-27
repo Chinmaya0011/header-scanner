@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -155,7 +155,7 @@ export default function ApiScanResultsPage({ params }) {
     };
   };
 
-  const fetchScanDetails = async () => {
+  const fetchScanDetails = useCallback(async () => {
     try {
       const res = await fetch(`/api/api-security/scans/${scanId}`);
       const data = await res.json();
@@ -169,7 +169,7 @@ export default function ApiScanResultsPage({ params }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [scanId, toast]);
 
   useEffect(() => {
     fetchScanDetails();
@@ -182,7 +182,7 @@ export default function ApiScanResultsPage({ params }) {
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [scanId, scan?.status]);
+  }, [fetchScanDetails, scan]);
 
   if (loading) {
     return (

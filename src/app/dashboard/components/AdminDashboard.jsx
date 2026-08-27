@@ -317,6 +317,20 @@ export default function AdminDashboard({
           </p>
         </div>
         <div className="flex gap-2.5 flex-wrap">
+          <Link
+            href="/admin/gitleaks"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-purple-600/20 transition-colors"
+          >
+            <Key size={14} />
+            Gitleaks Secret Scan
+          </Link>
+          <Link
+            href="/admin/security-scan"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-indigo-600/20 transition-colors"
+          >
+            <ShieldAlert size={14} />
+            SAST Security Scan
+          </Link>
           <Button
             onClick={triggerPurgeHistory}
             variant="danger"

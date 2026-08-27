@@ -13,6 +13,7 @@ export function useNotifications(user) {
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
+  const attemptReconnectRef = useRef(null);
 
   // 1. Fetch Notification History
   const fetchNotifications = useCallback(async () => {
@@ -197,7 +198,7 @@ export function useNotifications(user) {
       console.log(`[WebSocket] Connection closed (Code: ${event.code}).`);
       // Standard client logout (1000/1001) does not reconnect
       if (event.code !== 1000 && event.code !== 1001 && user) {
-        attemptReconnect();
+        attemptReconnectRef.current?.();
       }
     };
 
@@ -220,6 +221,10 @@ export function useNotifications(user) {
       connectWebSocket();
     }, delay);
   }, [user, connectWebSocket]);
+
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnect;
+  }, [attemptReconnect]);
 
   // Initialize lifecycle
   useEffect(() => {

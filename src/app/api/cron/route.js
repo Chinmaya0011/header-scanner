@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import connectDB from "@/lib/mongodb";
 import Monitor from "@/lib/models/Monitor";
 import Scan from "@/lib/models/Scan";
+import { logActivity } from "@/lib/server/activityLogger";
 import {
   analyzeHeaders,
   maskDomain,
@@ -189,7 +190,7 @@ export async function GET(request) {
           headers: analysis.headers,
           vulnerabilities: securityAudit.vulnerabilities,
           statusCode: fetchResult.statusCode,
-          scanDuration: 100, // mock duration
+          scanDuration: 100,
           summary: analysis.summary,
           owner: monitor.user,
           recommendations: recommendations.map(rec => ({
@@ -257,6 +258,25 @@ export async function GET(request) {
           grade: analysis.grade,
           alertTriggered
         });
+
+        // Log individual monitor execution to Activity Logs
+        await logActivity({
+          req: request,
+          userId: monitor.user ? monitor.user.toString() : null,
+          eventType: "MONITOR_CHECK_RUN",
+          description: `Automated monitor check executed for '${monitor.domain}'. Score: ${analysis.score} (${analysis.grade}).${alertTriggered ? " [ALERT SENT]" : ""}`,
+          status: alertTriggered ? "warning" : "success",
+          resourceId: monitor._id.toString(),
+          resourceType: "monitor",
+          metadata: {
+            url: monitor.url,
+            domain: monitor.domain,
+            score: analysis.score,
+            grade: analysis.grade,
+            alertTriggered,
+            scanId: scan._id.toString()
+          }
+        });
       } catch (scanErr) {
         console.error(`[Cron Monitor] Failed to run check for URL ${monitor.url}:`, scanErr);
         results.failures++;
@@ -265,8 +285,34 @@ export async function GET(request) {
           status: "FAILED",
           error: scanErr.message
         });
+
+        // Log failed monitor check to Activity Logs
+        await logActivity({
+          req: request,
+          userId: monitor.user ? monitor.user.toString() : null,
+          eventType: "MONITOR_CHECK_FAILED",
+          description: `Automated monitor check failed for '${monitor.domain}': ${scanErr.message}`,
+          status: "danger",
+          resourceId: monitor._id.toString(),
+          resourceType: "monitor",
+          metadata: {
+            url: monitor.url,
+            domain: monitor.domain,
+            error: scanErr.message
+          }
+        });
       }
     }
+
+    // Log overall cron cycle execution
+    await logActivity({
+      req: request,
+      eventType: "MONITOR_CRON_CYCLE",
+      description: `Executed monitor cron cycle: ${results.scanned} scanned, ${results.alertsSent} alerts sent, ${results.failures} failures out of ${results.totalDue} due monitors.`,
+      status: results.failures > 0 ? "warning" : "info",
+      resourceType: "monitor_cron",
+      metadata: results
+    });
 
     return NextResponse.json({ success: true, results });
   } catch (error) {
