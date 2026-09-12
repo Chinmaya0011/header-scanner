@@ -4,25 +4,21 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/common/Toast";
-import { Shield, Mail, Lock, AlertCircle, Info } from "lucide-react";
+import { Shield, Mail, Lock } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { useAuth } from "@/contexts/AuthContext";
 
 export default function RegisterForm() {
   const router = useRouter();
   const toast = useToast();
-  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [step, setStep] = useState("register"); // "register" or "verify_otp"
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const cleanEmail = email.trim();
+    const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !password || !confirmPassword) {
       toast.error("Please fill out all credentials.");
       return;
@@ -57,49 +53,8 @@ export default function RegisterForm() {
         throw new Error(data.error || `Registration failed (HTTP ${res.status})`);
       }
 
-      setStep("verify_otp");
       toast.success("Verification code sent to your email. Check your inbox.");
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    const cleanOtp = otp.trim();
-    if (!cleanOtp) {
-      toast.error("Verification code is required.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/auth/register/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), otp: cleanOtp }),
-      });
-
-      let data = {};
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || `Verification failed (HTTP ${res.status})`);
-      }
-
-      toast.success("Account verified successfully! Welcome to HeaderGuard.");
-      
-      if (data.user) {
-        login({ ...data.user, token: data.token });
-      }
-      router.push("/dashboard");
-      router.refresh();
+      router.push(`/verify-otp?email=${encodeURIComponent(cleanEmail)}`);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -119,135 +74,83 @@ export default function RegisterForm() {
           <Shield className="h-6 w-6" />
         </div>
         <h1 className="text-xl font-bold tracking-widest uppercase">
-          {step === "register" ? (
-            <>Create <span className="text-accent font-extrabold">Account</span></>
-          ) : (
-            <>Verify <span className="text-accent font-extrabold">Identity</span></>
-          )}
+          Create <span className="text-accent font-extrabold">Account</span>
         </h1>
         <p className="text-text-dim text-[10px] uppercase tracking-wider mt-1.5 font-semibold">
-          {step === "register"
-            ? "Register console credentials to audit target systems"
-            : "Enter OTP verification code sent to your email address"}
+          Register console credentials to audit target systems
         </p>
       </div>
 
-      {step === "register" ? (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
-              Console Email
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-text-dim">
-                <Mail className="h-4 w-4 text-accent/70" />
-              </span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
-                placeholder="e.g. mail@example.com"
-                disabled={loading}
-              />
-            </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
+            Console Email
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-text-dim">
+              <Mail className="h-4 w-4 text-accent/70" />
+            </span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
+              placeholder="e.g. mail@example.com"
+              disabled={loading}
+            />
           </div>
+        </div>
 
-          <div>
-            <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
-              Secret Password
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-text-dim">
-                <Lock className="h-4 w-4 text-accent/70" />
-              </span>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
-                placeholder="Minimum 6 characters"
-                disabled={loading}
-              />
-            </div>
+        <div>
+          <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
+            Secret Password
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-text-dim">
+              <Lock className="h-4 w-4 text-accent/70" />
+            </span>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
+              placeholder="Minimum 6 characters"
+              disabled={loading}
+            />
           </div>
+        </div>
 
-          <div>
-            <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
-              Confirm Password
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-text-dim">
-                <Lock className="h-4 w-4 text-accent/70" />
-              </span>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
-                placeholder="Confirm your password"
-                disabled={loading}
-              />
-            </div>
+        <div>
+          <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
+            Confirm Password
+          </label>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-text-dim">
+              <Lock className="h-4 w-4 text-accent/70" />
+            </span>
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
+              placeholder="Confirm your password"
+              disabled={loading}
+            />
           </div>
+        </div>
 
-          <Button
-            type="submit"
-            loading={loading}
-            disabled={loading || !email.trim() || !password || !confirmPassword}
-            className="w-full mt-6"
-          >
-            Register Console Account
-          </Button>
-        </form>
-      ) : (
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div>
-            <label className="block text-[10px] font-bold text-text-dim uppercase tracking-wider mb-2">
-              Verification Code (OTP)
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-text-dim">
-                <Shield className="h-4 w-4 text-accent/70" />
-              </span>
-              <input
-                type="text"
-                required
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                className="w-full pl-11 pr-4 py-2.5 bg-panel border border-border focus:border-accent rounded-lg text-xs text-text font-mono transition-all scan-input"
-                placeholder="Enter 6-digit verification code"
-                maxLength={6}
-                autoComplete="off"
-                disabled={loading}
-              />
-            </div>
-            <p className="text-[10px] text-text-dim uppercase mt-3 leading-relaxed font-semibold">
-              We've dispatched a 6-digit security code to <strong className="text-accent">{email}</strong>.
-            </p>
-          </div>
-
-          <Button
-            type="submit"
-            loading={loading}
-            disabled={loading || !otp.trim()}
-            className="w-full mt-6"
-          >
-            Verify & Activate Session
-          </Button>
-
-          <button
-            type="button"
-            onClick={() => setStep("register")}
-            className="w-full py-2 bg-transparent text-text-dim hover:text-text text-[10px] font-bold uppercase tracking-wider transition-colors mt-2"
-          >
-            Back to Credentials
-          </button>
-        </form>
-      )}
+        <Button
+          type="submit"
+          loading={loading}
+          disabled={loading || !email.trim() || !password || !confirmPassword}
+          className="w-full mt-6"
+        >
+          Register Console Account
+        </Button>
+      </form>
 
       <div className="mt-6 text-center text-xs text-text-dim border-t border-border/40 pt-4 font-sans font-semibold">
         Already registered?{" "}

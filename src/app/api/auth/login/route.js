@@ -53,18 +53,40 @@ export async function POST(request) {
       );
     }
 
-    // Block unverified users from logging in
+    // Block unverified users from logging in, dispatch fresh OTP if needed, and prompt verification redirect
     if (user.isVerified === false) {
+      // Check if existing OTP is expired or missing
+      const isOtpExpired = !user.otp || !user.otpExpires || new Date(user.otpExpires) < new Date();
+      if (isOtpExpired) {
+        try {
+          const { sendOtpEmail } = await import("@/lib/emailSender");
+          const freshOtp = Math.floor(100000 + Math.random() * 900000).toString();
+          const freshExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+          
+          await sendOtpEmail(user.email, freshOtp);
+          user.otp = freshOtp;
+          user.otpExpires = freshExpires;
+          await user.save();
+        } catch (mailErr) {
+          console.error("Failed to auto-resend OTP during unverified login:", mailErr);
+        }
+      }
+
       await logActivity({
         req: request,
         user,
         eventType: "USER_LOGIN_FAILED",
-        description: `Login blocked for unverified user account (${user.email})`,
+        description: `Login blocked for unverified user account (${user.email}) - redirected to OTP verification`,
         status: "warning",
         resourceType: "auth",
       });
+
       return NextResponse.json(
-        { error: "Account verification required. Please complete OTP verification." },
+        {
+          error: "Account verification pending. Please complete OTP verification.",
+          requiresVerification: true,
+          email: user.email,
+        },
         { status: 403 }
       );
     }
