@@ -5,7 +5,7 @@ import Loading from "@/components/common/Loading";
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "Security Grade & Score Explanations | HeaderGuard",
+  title: "Security Grade & Score Guide",
   description:
     "Learn how we calculate website threat profile indices. Outlines weighting matrices for HTTP response headers, certificate compliance, and DNS zones.",
   url: "/score-explanation",

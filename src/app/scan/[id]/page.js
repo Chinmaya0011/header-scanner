@@ -97,7 +97,7 @@ export async function generateMetadata({ params }) {
   const ogImageUrl = `${BASE_URL}/api/og/scan/${scan._id}`;
 
   return constructMetadata({
-    title: `Security Header Audit for ${siteDomain} | Grade ${scan.grade}`,
+    title: `Audit ${siteDomain} (Grade ${scan.grade})`,
     description: `HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View missing security headers and fixes.`,
     url: `/scan/${canonicalSlug}`,
     image: ogImageUrl,

@@ -1,7 +1,7 @@
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "OWASP API Security Scanner | HeaderGuard",
+  title: "API Security Scanner",
   description:
     "Discover API endpoints, inspect schemas, and evaluate API authorization boundaries against OWASP API Top 10 vulnerabilities.",
   url: "/api-security",

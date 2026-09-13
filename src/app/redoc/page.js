@@ -2,7 +2,7 @@ import RedocClient from "./RedocClient";
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "REST API Reference Documentation | HeaderGuard",
+  title: "REST API Reference",
   description:
     "Complete REST API Documentation for HeaderGuard powered by Redoc.",
   url: "/redoc",

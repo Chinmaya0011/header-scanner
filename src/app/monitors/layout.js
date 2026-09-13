@@ -1,7 +1,7 @@
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "Continuous Security Monitors | HeaderGuard",
+  title: "Security Monitors",
   description:
     "Automated periodic HTTP security header and certificate monitoring with instant alerts.",
   url: "/monitors",
