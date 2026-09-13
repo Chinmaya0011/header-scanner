@@ -21,6 +21,8 @@ async function getSharedScan(token) {
   }
 }
 
+import { constructMetadata } from "@/lib/seo";
+
 // SEO Dynamic Metadata Generation for public link
 export async function generateMetadata({ params }) {
   const resolvedParams = await params;
@@ -28,48 +30,29 @@ export async function generateMetadata({ params }) {
   const scan = await getSharedScan(token);
 
   if (!scan) {
-    return {
+    return constructMetadata({
       title: "Shared Report Not Found | HeaderGuard",
-    };
+      description: "The requested shared scan report could not be found or has expired.",
+      noIndex: true,
+    });
   }
 
   const siteDomain = scan.domain;
-  // Social crawlers require absolute URLs — relative paths are NOT resolved by crawlers
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online";
   const ogImageUrl = `${BASE_URL}/api/og/shared/${token}`;
-  return {
-    metadataBase: new URL(BASE_URL),
-    title: `Shared Security Audit: ${siteDomain} | Grade ${scan.grade} | HeaderGuard`,
-    description: `Public HTTP security header report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}.`,
-    alternates: {
-      canonical: `${BASE_URL}/shared/scan/${token}`,
-    },
-    openGraph: {
-      title: `Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
-      description: `Public HTTP security header report for ${siteDomain}. Score: ${scan.score}/100. Covers CSP, HSTS, X-Frame-Options, CORS, and more.`,
-      type: "website",
-      url: `${BASE_URL}/shared/scan/${token}`,
-      siteName: "HeaderGuard",
-      images: [
-        {
-          url: ogImageUrl,
-          secureUrl: ogImageUrl,
-          width: 1200,
-          height: 630,
-          alt: `HeaderGuard Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
-          type: "image/png",
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      site: "@headerguards",
-      creator: "@headerguards",
-      title: `Shared Security Audit: ${siteDomain} — Grade ${scan.grade}`,
-      description: `Public HTTP security report for ${siteDomain}. Score: ${scan.score}/100. View on HeaderGuard.`,
-      images: [ogImageUrl],
-    },
-  };
+
+  return constructMetadata({
+    title: `Shared Security Audit: ${siteDomain} | Grade ${scan.grade}`,
+    description: `Public HTTP security header report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. Covers CSP, HSTS, X-Frame-Options, CORS, and more.`,
+    url: `/shared/scan/${token}`,
+    image: ogImageUrl,
+    keywords: [
+      `shared scan ${siteDomain}`,
+      `grade ${scan.grade}`,
+      "http security headers",
+      "headerguard",
+    ],
+  });
 }
 
 export default async function SharedScanPage({ params }) {
