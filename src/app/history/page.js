@@ -4,6 +4,7 @@ import connectDB from "@/lib/mongodb";
 import Scan from "@/lib/models/Scan";
 import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
+import { constructMetadata } from "@/lib/seo";
 
 // Direct server-side DB query function
 async function getScansDirectly() {
@@ -42,8 +43,6 @@ async function getScansDirectly() {
     return [];
   }
 }
-
-import { constructMetadata } from "@/lib/seo";
 
 // SEO static metadata configuration
 export const metadata = constructMetadata({
