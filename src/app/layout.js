@@ -52,7 +52,7 @@ export const metadata = {
     siteName: "HeaderGuard",
     title: "HeaderGuard — HTTP Security Header Scanner",
     description:
-      "Scan any website's HTTP security headers in seconds. Risk scoring, letter grades, and actionable recommendations.",
+      "Instantly scan any website's HTTP security headers. Get a detailed security report with risk scoring, letter grades, and actionable fix recommendations — free and no signup required.",
     images: [
       {
         url: "https://www.headerguards.online/og-image.png",
@@ -70,7 +70,7 @@ export const metadata = {
     creator: "@headerguards",
     title: "HeaderGuard — HTTP Security Header Scanner",
     description:
-      "Scan any website's HTTP security headers in seconds. Risk scoring, letter grades, and fix recommendations.",
+      "Instantly scan any website's HTTP security headers. Get a detailed security report with risk scoring, letter grades, and actionable fix recommendations — free and no signup required.",
     images: ["https://www.headerguards.online/og-image.png"],
   },
   robots: {
