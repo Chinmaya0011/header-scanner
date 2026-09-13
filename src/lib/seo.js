@@ -17,7 +17,8 @@ const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.png`;
  */
 export function constructMetadata({
   title = "HeaderGuard — HTTP Security Header Scanner",
-  description = "Instantly scan any website's HTTP security headers. Get a detailed security report with risk scoring, letter grades, and actionable fix recommendations — free and no signup required.",
+  description = "Audit website HTTP security headers in seconds. Get instant security reports with risk scoring, letter grades, and actionable fix recommendations.",
+  ogDescription = "Audit website HTTP security headers in seconds. Get instant risk scores, grades, and actionable fix recommendations.",
   image = DEFAULT_OG_IMAGE,
   url = "/",
   type = "website",
@@ -32,6 +33,8 @@ export function constructMetadata({
     ? image
     : `${BASE_URL}${image.startsWith("/") ? image : `/${image}`}`;
 
+  const socialDescription = ogDescription || description;
+
   return {
     metadataBase: new URL(BASE_URL),
     title,
@@ -42,7 +45,7 @@ export function constructMetadata({
     },
     openGraph: {
       title,
-      description,
+      description: socialDescription,
       url: canonicalUrl,
       siteName: "HeaderGuard",
       type,
@@ -63,7 +66,7 @@ export function constructMetadata({
       site: "@headerguards",
       creator: "@headerguards",
       title,
-      description,
+      description: socialDescription,
       images: [absoluteImageUrl],
     },
     ...(noIndex
