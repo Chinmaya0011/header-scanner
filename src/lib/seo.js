@@ -1,6 +1,6 @@
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online";
-const DEFAULT_OG_IMAGE = `${BASE_URL}/og-image.png`;
+const DEFAULT_OG_IMAGE = "https://www.headerguards.online/og-image.png";
 
 /**
  * Helper to construct consistent Open Graph and Twitter metadata for Next.js App Router.
