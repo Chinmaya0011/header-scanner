@@ -72,6 +72,8 @@ async function getScanBySlug(slug) {
   }
 }
 
+import { constructMetadata } from "@/lib/seo";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SEO Dynamic Metadata Generation
 export async function generateMetadata({ params }) {
@@ -79,7 +81,11 @@ export async function generateMetadata({ params }) {
   const scan = await getScanBySlug(slug);
 
   if (!scan) {
-    return { title: "Report Not Found | HeaderGuard" };
+    return constructMetadata({
+      title: "Report Not Found | HeaderGuard",
+      description: "The requested security scan report could not be found or has expired.",
+      noIndex: true,
+    });
   }
 
   const siteDomain = scan.domain || scan.maskedDomain;
@@ -87,43 +93,22 @@ export async function generateMetadata({ params }) {
   const canonicalSlug = OBJECT_ID_REGEX.test(slug)
     ? slug
     : encodeURIComponent(siteDomain);
-  // Social crawlers require absolute URLs — relative paths are NOT resolved by crawlers
   const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online";
   const ogImageUrl = `${BASE_URL}/api/og/scan/${scan._id}`;
 
-  return {
-    metadataBase: new URL(BASE_URL),
+  return constructMetadata({
     title: `Security Header Audit for ${siteDomain} | Grade ${scan.grade}`,
     description: `HTTP Response Headers scan report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. View missing security headers and fixes.`,
-    alternates: {
-      canonical: `${BASE_URL}/scan/${canonicalSlug}`,
-    },
-    openGraph: {
-      title: `HTTP Security Audit: ${siteDomain} — Grade ${scan.grade}`,
-      description: `Security Score: ${scan.score}/100. Covers CSP, HSTS, X-Frame-Options, CORS, and more.`,
-      type: "website",
-      url: `${BASE_URL}/scan/${canonicalSlug}`,
-      siteName: "HeaderGuard",
-      images: [
-        {
-          url: ogImageUrl,
-          secureUrl: ogImageUrl,
-          width: 1200,
-          height: 630,
-          alt: `HeaderGuard Security Audit: ${siteDomain} — Grade ${scan.grade}`,
-          type: "image/png",
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      site: "@headerguards",
-      creator: "@headerguards",
-      title: `HTTP Security Audit: ${siteDomain} — Grade ${scan.grade}`,
-      description: `Security Score: ${scan.score}/100. View actionable recommendations on HeaderGuard.`,
-      images: [ogImageUrl],
-    },
-  };
+    url: `/scan/${canonicalSlug}`,
+    image: ogImageUrl,
+    keywords: [
+      `security audit ${siteDomain}`,
+      `headers grade ${scan.grade}`,
+      "csp audit",
+      "hsts validation",
+      "headerguard report",
+    ],
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

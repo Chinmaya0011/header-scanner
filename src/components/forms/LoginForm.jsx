@@ -40,6 +40,11 @@ export default function LoginForm() {
       }
 
       if (!res.ok) {
+        if (data.requiresVerification) {
+          toast.warning(data.error || "Account verification pending. Redirecting to verification code input...");
+          router.push(`/verify-otp?email=${encodeURIComponent(cleanEmail)}`);
+          return;
+        }
         throw new Error(data.error || `Login failed (HTTP ${res.status})`);
       }
 
