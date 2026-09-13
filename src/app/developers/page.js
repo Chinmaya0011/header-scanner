@@ -3,7 +3,7 @@ import DevelopersClient from "./DevelopersClient";
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "Developer REST API Hub & Credentials | HeaderGuard",
+  title: "Developer REST API Hub",
   description:
     "Configure developer API credentials, manage allowed scanning domains whitelists, adjust webhook alert settings, and view HTTP posture queries consumption statistics.",
   url: "/developers",

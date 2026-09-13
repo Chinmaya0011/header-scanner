@@ -46,7 +46,7 @@ async function getScansDirectly() {
 
 // SEO static metadata configuration
 export const metadata = constructMetadata({
-  title: "Public Audit History | HeaderGuard",
+  title: "Public Audit History",
   description:
     "View recent website security header scan audits. Privacy-masked history showing security scores and grades of evaluated sites.",
   url: "/history",

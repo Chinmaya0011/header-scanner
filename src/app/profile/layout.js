@@ -1,7 +1,7 @@
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "Account Settings & Profile | HeaderGuard",
+  title: "Account Settings",
   description:
     "Manage your HeaderGuard security preferences, authentication credentials, and user profile.",
   url: "/profile",

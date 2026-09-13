@@ -3,7 +3,7 @@ import HomeClient from "./HomeClient";
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "HTTP Security Header & EASM Scanner | HeaderGuard",
+  title: "HTTP Security Header Scanner",
   description:
     "Scan website HTTP security headers, SSL/TLS setups, and DNS anti-spoofing records to detect digital vulnerabilities.",
   url: "/home",

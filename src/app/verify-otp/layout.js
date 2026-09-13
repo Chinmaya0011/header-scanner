@@ -1,7 +1,7 @@
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "Verify Security OTP | HeaderGuard",
+  title: "Verify Security OTP",
   description:
     "Verify one-time security authentication code for your HeaderGuard account.",
   url: "/verify-otp",

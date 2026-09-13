@@ -2,7 +2,7 @@ import SwaggerClient from "./SwaggerClient";
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "Swagger API Explorer | HeaderGuard",
+  title: "Swagger API Explorer",
   description:
     "Interactive Swagger UI documentation and API testing interface for HeaderGuard HTTP Security Scanner.",
   url: "/swagger",

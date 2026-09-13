@@ -3,7 +3,7 @@ import DocsClient from "./DocsClient";
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "Documentation & Technical Reference Guides | HeaderGuard",
+  title: "Documentation & Technical Guides",
   description:
     "Comprehensive guides detailing HTTP response headers, SSL/TLS parameter checks, SPF/DMARC DNS spoofing records, port mappings, and API structures.",
   url: "/docs",

@@ -2,7 +2,7 @@ import ScannerForm from "@/components/forms/ScannerForm";
 import { constructMetadata } from "@/lib/seo";
 
 export const metadata = constructMetadata({
-  title: "EASM Website Security Posture Scanner | HeaderGuard",
+  title: "Website Security Posture Scanner",
   description:
     "Examine server headers, resolve SSL/TLS ciphers, query DNS security zones, and verify PCI/GDPR compliance in real-time.",
   url: "/scanner",

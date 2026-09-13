@@ -42,7 +42,7 @@ export async function generateMetadata({ params }) {
   const ogImageUrl = `${BASE_URL}/api/og/shared/${token}`;
 
   return constructMetadata({
-    title: `Shared Security Audit: ${siteDomain} | Grade ${scan.grade}`,
+    title: `Shared Audit: ${siteDomain} (Grade ${scan.grade})`,
     description: `Public HTTP security header report for ${siteDomain}. Security Score: ${scan.score}/100, Grade: ${scan.grade}. Covers CSP, HSTS, X-Frame-Options, CORS, and more.`,
     url: `/shared/scan/${token}`,
     image: ogImageUrl,
