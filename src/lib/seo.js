@@ -1,6 +1,6 @@
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL || "https://www.headerguards.online";
-const DEFAULT_OG_IMAGE = "https://www.headerguards.online/og-image.png";
+const DEFAULT_OG_IMAGE = "https://www.headerguards.online/og-image.jpg";
 
 /**
  * Helper to construct consistent Open Graph and Twitter metadata for Next.js App Router.
@@ -8,7 +8,7 @@ const DEFAULT_OG_IMAGE = "https://www.headerguards.online/og-image.png";
  * @param {Object} options
  * @param {string} [options.title] - Page title
  * @param {string} [options.description] - Page description
- * @param {string} [options.image] - Absolute or relative image URL (defaults to /og-image.png)
+ * @param {string} [options.image] - Absolute or relative image URL (defaults to /og-image.jpg)
  * @param {string} [options.url] - Canonical relative or absolute page path
  * @param {string} [options.type] - Open Graph type (e.g. 'website', 'article')
  * @param {boolean} [options.noIndex] - Whether to disallow indexing (e.g. private dashboard/auth)
@@ -57,7 +57,7 @@ export function constructMetadata({
           width: 1200,
           height: 630,
           alt: typeof title === "string" ? title : "HeaderGuard",
-          type: "image/png",
+          type: absoluteImageUrl.endsWith(".png") ? "image/png" : "image/jpeg",
         },
       ],
     },
